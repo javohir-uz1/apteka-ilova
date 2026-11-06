@@ -1,5 +1,6 @@
 // Telefon bilan inventarizatsiya (07.11; foydalanuvchi: "4. qo'shamiz"). Server: 20261107130000_inventar.sql.
-// Xodim (o'z filiali) yoki direktor: «Boshlash» → qutidagi shtrix-kodni kamera bilan o'qiydi (bitta dori topilsa — darhol +1 quti)
+// Xodim (o'z filiali) yoki direktor: «Boshlash» → qutidagi shtrix-kodni kamera bilan o'qiydi (dori aniqlanadi va xodim sonini
+// yozadi — 06.11 kech, foydalanuvchi: "shtrix kod orqali aniqlanib sonini yozishi kerak"; oldin darhol +1 quti edi)
 // yoki nomini yozib tanlaydi (quti va ochilgan qutidagi dona) → «Tugatish» → natija: kam, ortiq, sanalmagan, Oson'da yo'q.
 // Sanash paytida Oson'dagi soni ko'rsatilmaydi (ko'rgan sonni yozib qo'ymaslik uchun) — natijada. Oson'ga hech narsa yozilmaydi.
 // Skan/qo'shish — fonda (amalFon): kalit bilan (tarmoq xatosidan keyin qayta yuborilsa ikki marta qo'shilmaydi), ekran qotmaydi.
@@ -14,9 +15,13 @@ import { skanerTugma } from './shtrix-skan.mjs';
 const IB = () => ({ holat: null, holatXato: null, holatVaqt: 0, holatYuk: null, inv: null, invNom: '',
   royxat: null, royxatVaqt: 0, royxatXato: null, royxatYuk: null, hammasi: false,
   natija: null, natijaId: null, natijaXato: null, natijaYuk: null,
-  soz: '', top: null, topSoz: '', topYuk: null, taymer: 0, avlod: 0, kutilmoqda: 0, el: {} });
+  soz: '', top: null, topSoz: '', topYuk: null, taymer: 0, avlod: 0, kutilmoqda: 0, skanXabar: '',
+  fonda: new Map(),   // dori (p) → { n: ketayotgan so'rovlar, q: qo'shilayotgan quti } — «saqlanmoqda» va tuzatishni to'xtatish uchun
+  el: {} });
 const I = IB();
-export function inventarUnut() { clearTimeout(I.taymer); Object.assign(I, IB()); }
+export function inventarUnut() { clearTimeout(I.taymer); clearTimeout(I.el.yangilaT); Object.assign(I, IB()); }
+// Testlar uchun: kamera o'qigan shtrix-kodni berish (kamerasiz).
+export const inventarSkan = (kod) => { if (I.el.skan) I.el.skan(kod); };
 // «Orqaga» (Telegram tugmasi ham): sanash yoki natija sahifasidan — filiallar ro'yxatiga. true — shu yerda hal bo'ldi.
 export function inventarOrqaga() {
   if (!I.inv && !I.natijaId) return false;
@@ -48,6 +53,7 @@ function royxatYukla(ctx, chiz) {
       if (I.inv !== id) return;
       if (!j || !Array.isArray(j.qatorlar)) throw new Error('Server javobi tushunarsiz');
       if (j.yopildi) {
+        if (I.el.sonYop) I.el.sonYop();   // ochiq son oynasi — yopiladi (yopilgan inventarizatsiyaga yozib bo'lmaydi)
         ctx.toast('Inventarizatsiya yopilgan — natija');
         Object.assign(I, { inv: null, natijaId: id, natija: null, natijaXato: null, royxat: null });
         chiz();
@@ -119,51 +125,89 @@ function qismlarniChiz() {
 }
 
 // Bitta dori qo'shish (fonda). Natija — yangi jami (son) yoki null.
-function qosh(ctx, chiz, d, quti, dona, aniq) {
-  const id = I.inv;
+function qosh(ctx, chiz, d, quti, dona, aniq, id = I.inv) {
+  const qoshildi = quti + (dona && d.dona > 1 ? dona / d.dona : 0);
+  const f = I.fonda.get(d.p) || { n: 0, q: 0 };
+  f.n++; if (!aniq) f.q += qoshildi;
+  I.fonda.set(d.p, f);
   I.kutilmoqda++;
-  return ctx.amalFon('inventarSana', id, d.p, quti, dona, aniq).then((r) => {
+  return ctx.amalFon('inventarSana', id, d.p, quti, dona, aniq).finally(() => {
+    I.kutilmoqda--;
+    f.n--; if (!aniq) f.q -= qoshildi;
+    if (f.n <= 0 && I.fonda.get(d.p) === f) I.fonda.delete(d.p);
+  }).then((r) => {
     if (I.inv !== id) return null;
     if (r == null) {
-      // Saqlanmadi (yoki natijasi noma'lum, yoki boshqa xodim yopgan) — ro'yxat serverdan qayta olinadi.
-      ctx.toast(d.nom.slice(0, 40) + ' — saqlanmadi, ro\'yxat yangilanmoqda', 'xato');
+      // Saqlanmadi (sababi — xabarda) yoki natijasi noma'lum: ro'yxat serverdan qayta olinadi; yozilgan son yo'qolmasin —
+      // oyna o'sha son bilan qayta ochiladi (audit 06.11 kech). Qayta yuborilsa — o'sha kalit: server ikki marta qo'shmaydi.
+      // Inventarizatsiya yopilgan bo'lsa — ro'yxat buni aniqlaydi va oynani yopadi.
       I.royxatVaqt = 0; royxatYukla(ctx, chiz);
+      sonOyna(ctx, chiz, d, aniq, { quti, dona, xato: 'Saqlanmadi — internetni tekshirib, «' + (aniq ? 'Saqlash' : 'Qo\'shish') + '»ni qayta bosing (sonni o\'zgartirmasangiz, ikki marta qo\'shilmaydi).' });
       return null;
     }
     if (typeof r === 'object') { I.royxatVaqt = 0; royxatYukla(ctx, chiz); return null; }   // takror — ro'yxat qayta olinadi
     const jami = Number(r);
     const bor = (I.royxat || []).find((x) => x.p === d.p);
     if (bor) { bor.soni = jami; bor.vaqt = Date.now(); bor.kim = ctx.x && ctx.x.ism; I.royxat = [bor, ...I.royxat.filter((x) => x !== bor)]; }
-    else I.royxat = [{ p: d.p, nom: d.nom, soni: jami, dona: d.dona, vaqt: Date.now(), kim: ctx.x && ctx.x.ism }, ...(I.royxat || [])];
+    else I.royxat = [{ p: d.p, nom: d.nom, ishlab: d.ishlab, soni: jami, dona: d.dona, vaqt: Date.now(), kim: ctx.x && ctx.x.ism }, ...(I.royxat || [])];
     (I.top || []).forEach((x) => { if (x.p === d.p) x.sanaldi = jami; });
-    ctx.toast(d.nom.slice(0, 40) + ': ' + (aniq ? '' : '+' + son(quti + (dona && d.dona ? dona / d.dona : 0)) + ' · ') + 'jami ' + qoldiqMatn(jami, d.dona));
+    ctx.toast(d.nom.slice(0, 40) + ': ' + (aniq ? '' : farqMatn(qoshildi, d.dona) + ' · ') + 'jami ' + qoldiqMatn(jami, d.dona));
     qismlarniChiz();
     return jami;
-  }).finally(() => { I.kutilmoqda--; });
+  });
 }
 
-// Quti/dona oynasi: qo'shish yoki aniq son (tuzatish).
-function sonOyna(ctx, chiz, d, aniq) {
+// Quti/dona oynasi: qo'shish yoki aniq son (tuzatish). oldin — saqlanmagan son (qayta ochilganda: { quti, dona, xato }).
+// Audit 06.11 kech: dori allaqachon sanalgan bo'lsa — «faqat sanalmagan qutilarni yozing» (kim, qachon) va «aniq son» tugmasi
+// (ikki xodim bir javonni sanab, son ikki baravar bo'lib ketmasin); oyna ochilgan inventarizatsiyaga yoziladi (boshqasiga emas).
+function sonOyna(ctx, chiz, d, aniq, oldin = null) {
+  const inv = I.inv;
+  if (!inv) return;
+  if (I.el.sonYop) I.el.sonYop();
   sheet(d.nom, (box, close) => {
+    I.el.sonYop = close;
     const dn1 = d.dona > 1 ? d.dona : 0;
+    const r = (I.royxat || []).find((x) => x.p === d.p);   // ro'yxat — har qo'shilganda yangilanadi (qidiruv natijasidan yangiroq)
+    const sanaldi = Number(r ? r.soni : d.sanaldi) || 0;
+    const fon = I.fonda.get(d.p);
     // Tuzatish: hozirgi son quti va donaga ajratiladi (2,333 quti = 2 quti 1 dona) — o'zgartirmay saqlansa ham yo'qolmaydi.
     const jamiDona = dn1 ? Math.round(Number(d.soni || 0) * dn1) : 0;
-    const q = input('Quti soni', { inputmode: 'numeric', value: aniq ? String(dn1 ? Math.floor(jamiDona / dn1) : Math.round(Number(d.soni || 0))) : '1' });
-    const dn = dn1 ? input('Ochilgan qutidan dona soni (' + dn1 + ' tadan)', { inputmode: 'numeric', value: aniq && jamiDona % dn1 ? String(jamiDona % dn1) : '' }) : null;
-    box.append(h('div', { class: 'muted' }, aniq ? 'Shu doridan jami nechta bor — aniq sonni yozing (oldingisi o\'rniga). Boshqa xodim ham shu dorini sanayotgan bo\'lsa — «Qo\'shish» ishlating.'
-      : 'Topgan qutilaringizni qo\'shing (oldingi sanalganga qo\'shiladi).'),
+    // Qo'shishda son bo'sh — xodim o'zi yozadi (oldin «1» turardi: bosib yuborilsa adashib 1 quti yozilardi).
+    const sonMaydon = { inputmode: 'numeric', pattern: '[0-9]*', enterkeyhint: 'done' };
+    const q = input('Quti soni', { ...sonMaydon, placeholder: aniq ? null : 'Masalan: 3',
+      value: oldin ? String(oldin.quti || '') : aniq ? String(dn1 ? Math.floor(jamiDona / dn1) : Math.round(Number(d.soni || 0))) : '' });
+    const dn = dn1 ? input('Ochilgan qutidan dona soni (qutida ' + dn1 + ' ta)', { ...sonMaydon,
+      value: oldin ? String(oldin.dona || '') : aniq && jamiDona % dn1 ? String(jamiDona % dn1) : '' }) : null;
+    const izoh = aniq
+      ? 'Shu doridan jami nechta bor — aniq sonni yozing (oldingisi o\'rniga). Boshqa xodim ham shu dorini sanayotgan bo\'lsa — bu yerda emas: u qidiruvdan topib, o\'zi sanaganini qo\'shsin.'
+      : sanaldi > 0 ? null : 'Javonda shu doridan nechta quti borligini sanab yozing.';
+    const saqla = () => {
+      if (I.inv !== inv) { close(); ctx.toast('Inventarizatsiya yopilgan yoki almashgan — saqlanmadi', 'xato'); return; }
+      const qv = String(q.i.value).replace(/\s+/g, ''), dv = dn ? String(dn.i.value).replace(/\s+/g, '') : '';
+      if (/[.,]/.test(qv)) { q.xato(dn ? 'Butun quti sonini yozing — ochilgan qutidagi donalarni pastdagi maydonga' : 'Butun son yozing'); q.i.focus(); return; }
+      if (!/^\d{1,5}$/.test(qv || '0') || Number(qv || 0) > 10000) { q.xato('Butun son yozing (10000 gacha)'); q.i.focus(); return; }
+      if (dv && !/^\d{1,4}$/.test(dv)) { dn.xato('Faqat butun son'); dn.i.focus(); return; }
+      const quti = Number(qv || 0), dona = Number(dv || 0);
+      if (!aniq && quti + dona === 0) { q.xato('Sonni kiriting'); q.i.focus(); return; }
+      if (dn && dona >= dn1) { dn.xato('Dona ' + dn1 + ' tadan kam bo\'lsin (qutida ' + dn1 + ' ta)'); dn.i.focus(); return; }
+      // Tuzatish qo'shish hali saqlanayotganda — ikki yo'l (zaxira yo'l) orqali tartibi almashib ketmasin.
+      if (aniq && I.fonda.get(d.p)) { q.xato('Oldingi son hali saqlanmoqda — bir oz kutib, qayta bosing'); return; }
+      close();
+      qosh(ctx, chiz, d, quti, dona, aniq, inv);
+    };
+    [q.i, dn && dn.i].forEach((i) => i && i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saqla(); } }));
+    box.append(d.ishlab ? h('div', { class: 'muted', 'data-asl': '' }, d.ishlab) : null,
+      oldin && oldin.xato ? h('div', { class: 'msg xato', role: 'alert' }, oldin.xato) : null,
+      !aniq && sanaldi > 0 ? h('div', { class: 'msg info' },
+        h('div', {}, 'Allaqachon sanalgan: ', h('b', {}, qoldiqMatn(sanaldi, d.dona)), r && r.kim ? ' (' + r.kim + (r.vaqt ? ', ' + vaqt(r.vaqt) : '') + ')' : '', '.'),
+        h('div', {}, 'Faqat hali sanalmagan qutilarni yozing — shunga qo\'shiladi.'),
+        h('button', { type: 'button', class: 's', style: 'margin-top:8px', onclick: () => { close(); sonOyna(ctx, chiz, { ...d, soni: sanaldi }, true); } }, 'Hammasini qayta sanadim — aniq son')) : null,
+      fon && fon.q > 0 ? h('div', { class: 'muted', role: 'status' }, 'Saqlanmoqda: ' + farqMatn(fon.q, d.dona)) : null,
+      izoh ? h('div', { class: 'muted' }, izoh) : null,
       q.el, dn ? dn.el : null,
-      h('button', { class: 'p', onclick: () => {
-        const qv = String(q.i.value).trim(), dv = dn ? String(dn.i.value).trim() : '';
-        if (!/^\d{1,5}$/.test(qv || '0') || Number(qv || 0) > 10000) { q.xato('Butun son, 10 000 gacha'); return; }
-        if (dv && !/^\d{1,4}$/.test(dv)) { dn.xato('Faqat butun son'); return; }
-        const quti = Number(qv || 0), dona = Number(dv || 0);
-        if (!aniq && quti + dona === 0) { q.xato('Sonni kiriting'); return; }
-        if (dn && dona >= dn1) { dn.xato('Dona ' + dn1 + ' tadan kam bo\'lsin'); return; }
-        close();
-        qosh(ctx, chiz, d, quti, dona, aniq);
-      } }, aniq ? 'Saqlash' : 'Qo\'shish'));
+      h('button', { class: 'p', onclick: saqla }, aniq ? 'Saqlash' : 'Qo\'shish'));
     setTimeout(() => { try { q.i.focus(); q.i.select(); } catch (e) { /* bo'sh */ } }, 50);
+    return () => { if (I.el.sonYop === close) I.el.sonYop = null; };
   });
 }
 
@@ -174,10 +218,14 @@ function topIzla(ctx, chiz, soz, skan) {
   ctx.oqi('inventarTop', id, soz).then((r) => {
     if (avlod !== I.avlod || I.inv !== id) { if (I.topYuk === soz) I.topYuk = null; return; }
     I.top = Array.isArray(r) ? r : []; I.topSoz = soz; I.topYuk = null;
-    // Kamera: bitta dori topilsa — darhol +1 quti; bir nechta (bitta shtrix-kod ikki kartada) — ro'yxat, tanlanadi.
-    if (skan && I.top.length === 1) { const d = I.top[0]; I.soz = ''; I.top = null; if (I.el.input) I.el.input.value = ''; qismlarniChiz(); qosh(ctx, chiz, d, 1, 0, false); return; }
-    if (skan) { I.soz = soz; if (I.el.input) I.el.input.value = soz; }
-    if (skan && !I.top.length) ctx.toast('Bu shtrix-kod shu filial Oson qoldig\'ida yo\'q — dori nomini yozib qidiring', 'xato');
+    // Kamera: bitta dori topilsa — son oynasi (xodim sonini yozadi); bir nechta (bitta shtrix-kod ikki kartada) — ro'yxat, tanlanadi;
+    // topilmasa — maydon bo'sh qoladi (raqamni o'chirib yozish shart emas), tagida xabar. Xodim bu ekrandan ketgan bo'lsa — oyna ochilmaydi.
+    const ekranda = I.el.natijaEl && I.el.natijaEl.isConnected;
+    if (skan && I.top.length === 1) { const d = I.top[0]; I.soz = ''; I.top = null; if (I.el.input) I.el.input.value = ''; qismlarniChiz(); if (ekranda) sonOyna(ctx, chiz, d, false); return; }
+    if (skan && !I.top.length) {
+      I.soz = ''; I.top = null; if (I.el.input) I.el.input.value = '';
+      I.skanXabar = 'Shtrix-kod ' + soz + ' shu filial Oson qoldig\'ida topilmadi — dori nomini yozib qidiring.';
+    } else if (skan) { I.soz = soz; if (I.el.input) I.el.input.value = soz; }
     qismlarniChiz();
   }, (e) => { if (avlod === I.avlod) { I.topYuk = null; ctx.toast((e && e.message) || 'Qidirib bo\'lmadi', 'xato'); qismlarniChiz(); } else if (I.topYuk === soz) I.topYuk = null; });
 }
@@ -194,12 +242,12 @@ function sanashView(m, ctx, chiz) {
   }, 30000);
 
   m.append(h('div', { class: 'card' }, kartaSarlavha(['📋 ', asl(I.invNom), ' — sanash']),
-    h('div', { class: 'muted' }, 'Kamera: qutining shtrix-kodini ko\'rsating — topilsa +1 quti. Yoki nomini yozing va tanlang.')));
+    h('div', { class: 'muted' }, '«📷 Kamera bilan o\'qish» — qutidagi shtrix-kodni ko\'rsating: dori aniqlanadi, sonini yozasiz. Yoki dori nomini yozib tanlang.')));
   const f = input('Dori nomi yoki shtrix-kod', { inputmode: 'search', placeholder: 'Masalan: analgin', k: 'inv-qidir' });
   f.i.value = I.soz;
   I.el.input = f.i;
   f.i.addEventListener('input', () => {
-    I.soz = f.i.value; clearTimeout(I.taymer);
+    I.soz = f.i.value; clearTimeout(I.taymer); I.skanXabar = '';
     const s = I.soz.trim();
     if (s.length < 2) { I.top = null; I.topYuk = null; I.avlod++; I.el.chizTop(); return; }
     I.taymer = setTimeout(() => topIzla(ctx, chiz, s, false), 400);
@@ -215,9 +263,16 @@ function sanashView(m, ctx, chiz) {
         h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, d.nom), d.sanaldi != null ? h('b', {}, qoldiqMatn(d.sanaldi, d.dona)) : h('b', { class: 'muted' }, '+')),
         d.ishlab ? h('div', { class: 'muted', 'data-asl': '' }, d.ishlab) : null)));
     } else if (I.topYuk) natijaEl.append(h('div', { class: 'muted', role: 'status' }, 'Qidirilmoqda…'));
+    else if (I.skanXabar && !I.soz.trim()) natijaEl.append(h('div', { class: 'msg xato', role: 'status' }, I.skanXabar));
   };
   I.el.chizTop();
-  m.append(h('div', { class: 'card' }, h('div', { class: 'skan-maydon' }, f.el, skanerTugma((kod) => { I.soz = ''; f.i.value = ''; topIzla(ctx, chiz, kod, true); })), natijaEl));
+  // Kamera — asosiy yo'l (katta tugma, qidiruvdan tepada; 06.11 kech: iPhone'da tugma ko'rinmasdi). Maydon — I.el.input (ekran
+  // kamera ochiq turganda qayta chizilgan bo'lsa ham ko'rinib turgani tozalanadi).
+  I.el.skan = (kod) => {
+    I.soz = ''; I.skanXabar = ''; if (I.el.input) I.el.input.value = '';
+    topIzla(ctx, chiz, kod, true);
+  };
+  m.append(h('div', { class: 'card' }, h('div', { class: 'skan-maydon' }, skanerTugma((kod) => I.el.skan(kod), { katta: true }), f.el), natijaEl));
 
   const sarlavhaSoni = h('b', {});
   const royxatEl = h('div', {});
@@ -235,6 +290,7 @@ function sanashView(m, ctx, chiz) {
     const kor = I.hammasi ? r : r.slice(0, 100);
     kor.forEach((x) => royxatEl.append(h('button', { type: 'button', class: 'item inv-tanla', onclick: () => sonOyna(ctx, chiz, x, true) },
       h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, x.nom), h('b', {}, qoldiqMatn(x.soni, x.dona))),
+      x.ishlab ? h('div', { class: 'muted', 'data-asl': '' }, x.ishlab) : null,   // bir xil nomli, boshqa ishlab chiqaruvchi kartalar ajralsin
       h('div', { class: 'muted' }, (x.kim ? x.kim + ' · ' : '') + (x.vaqt ? vaqt(x.vaqt) : '') + ' · tuzatish uchun bosing'))));
     if (r.length > kor.length) royxatEl.append(h('button', { type: 'button', class: 'oq-yana', onclick: () => { I.hammasi = true; I.el.chizRoyxat(); } }, 'Yana ' + (r.length - kor.length) + ' ta ▾'));
   };

@@ -109,7 +109,7 @@ function orqagaYangila() {
   try {
     if (tg.BackButton) { if (oynalar.length || panelOrqaga) tg.BackButton.show(); else tg.BackButton.hide(); }
     // Yopishni so'rash — faqat yozish maydoni bor oyna ochiq bo'lsa (QR, kamera, «Shu dorimi?» kabi oynalarda so'ramaydi).
-    const yozish = oynalar.some((o) => o.box && o.box.querySelector('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea'));
+    const yozish = oynalar.some((o) => o.box && o.box.querySelector('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]), textarea'));
     if (tg.enableClosingConfirmation) { if (yozish) tg.enableClosingConfirmation(); else tg.disableClosingConfirmation(); }
   } catch (e) { /* eski Telegram */ }
 }
@@ -328,7 +328,7 @@ export function sheet(title, build, o2 = {}) {
   // Fon yoki Esc bilan yopishda (28.10 audit): oynada yozilgan qiymat bo'lsa — avval so'raladi (pul formasi tasodifan yo'qolmasin).
   // × tugmasi — ataylab yopish, so'ralmaydi.
   const yozilgan = () => [...box.querySelectorAll('input, textarea')].some((i) => i.type !== 'hidden' && i.type !== 'checkbox'
-    && i.type !== 'radio' && !i.readOnly && String(i.value || '') !== String(i.defaultValue || ''));
+    && i.type !== 'radio' && i.type !== 'file' && !i.readOnly && String(i.value || '') !== String(i.defaultValue || ''));
   o.sorabYop = async () => { if (yozilgan() && !(await tasdiqlash('Yozganlaringiz o\'chadi. Oyna yopilsinmi?'))) return; close(); };
   // Orqa fon faqat bosish shu fonning o'zida boshlanib, shu yerda tugasa yopadi: klaviatura yopilib oyna siljiganda
   // tugmaga qilingan bosish fonga tushib qolsa ham oyna yopilmaydi.

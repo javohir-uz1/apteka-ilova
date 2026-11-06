@@ -139,6 +139,9 @@ export const ISHLAR = {
   osonAnalog: [() => A.osonYoq(), (g) => ['oson_analog', [m(g)]]],
   analogBogla: [() => A.osonYoq(), (g1, g2) => ['analog_bogla', [m(g1), m(g2)]]],
   analogUzish: [() => A.osonYoq(), (g) => ['analog_uzish', [m(g)]]],
+  mnnRad: [() => A.osonYoq(), (g) => ['dori_mnn_rad', [m(g)]]],
+  mnnQaytar: [() => A.osonYoq(), (g) => ['dori_mnn_qaytar', [m(g)]]],   // audit 06.11 kech (20261107170000_analog_kalit)
+  analogEmas: [() => A.osonYoq(), (g1, g2) => ['analog_emas', [m(g1), m(g2)]]],   // 06.11 kech: direktor — «modda noto'g'ri» (20261107160000_dori_mnn)
   inventarHolat: [() => A.osonYoq(), () => ['inventar_holat', []]],
   inventarBoshla: [() => A.osonYoq(), (b) => ['inventar_boshla', [m(b)]]],
   inventarTop: [() => A.osonYoq(), (id, soz) => ['inventar_top', [id, m(soz)]]],
