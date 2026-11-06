@@ -16,7 +16,8 @@ import { davomatBugun, davomatView } from './davomat.mjs';
 import { defFirmaKarta, defNarxQator, firmaOchiq, firmaPrayslarView } from './firma.mjs';
 import { osonKarta } from './oson-qoldiq.mjs';
 import { mijozBelgi } from './mijoz.mjs';
-import { buyurtmaView, pulKirish, pulView } from './pul.mjs';
+import { buyurtmaView, ertalabKarta, kochirishView, pulKirish, pulView } from './pul.mjs';
+import { inventarOrqaga, inventarView } from './inventar.mjs';
 
 let tab = 'bosh';
 let sub = null;      // Bo'limlar ichidagi sahifa yoki ta'minotchi id
@@ -87,13 +88,13 @@ export function renderDirektor(root, ctx) {
 
   const TITLES = { bosh: 'Direktor paneli', daftar: 'Kunlik daftar', smena: 'Savdo', tamin: 'Ta\'minotchilar', more: 'Bo\'limlar',
     qarz: 'Mijozlar qarzi', oylik: 'Oyliklar', stat: 'Statistika', oqim: 'Kirim va chiqim', xulosa: 'Kechki xulosa', sozlama: 'Sozlamalar', xabar: 'Bot xabarlari',
-    uy: 'Uy puli', defektura: 'Defektura', prays: 'Prays-list', shtrix: 'Shtrix-kodlar', retsept: 'Retseptlar', punktlar: 'Punktlar', oyin: 'Bilimdon o\'yini', davomat: 'Davomat', firmalar: 'Firma prayslari', qoldiq: 'Oson qoldig\'i', pul: 'Pul nazorati', buyurtma: 'Aqlli buyurtma' };
+    uy: 'Uy puli', defektura: 'Defektura', prays: 'Prays-list', shtrix: 'Shtrix-kodlar', retsept: 'Retseptlar', punktlar: 'Punktlar', oyin: 'Bilimdon o\'yini', davomat: 'Davomat', firmalar: 'Firma prayslari', qoldiq: 'Oson qoldig\'i', pul: 'Pul nazorati', buyurtma: 'Aqlli buyurtma', kochirish: 'Ko\'chirish', inventar: 'Inventar' };
   const tObj = tab === 'tamin' && sub ? S.taminotchilar.find((t) => t.id === sub) : null;
   const title = tObj ? tObj.nom : TITLES[sub] || TITLES[tab];
 
   if (ctx.logout) root.append(h('div', { class: 'demo' }, 'Sinov rejimi · ', h('button', { class: 's', onclick: ctx.logout }, 'boshqa xodim')));
   // Orqaga: ichki sahifadan — o'z bo'limiga; Smenalar va Ta'minot (endi Bo'limlar ichida) — Bo'limlarga.
-  const orqaga = sub ? () => { const q = qaytish; if (tab === 'tamin' || !q) go(tab); else { tab = q; sub = null; qaytish = null; ctx.rerender(true); } }
+  const orqaga = sub ? () => { if (tab === 'qoldiq' && sub === 'inventar' && inventarOrqaga()) { ctx.rerender(true); return; } const q = qaytish; if (tab === 'tamin' || !q) go(tab); else { tab = q; sub = null; qaytish = null; ctx.rerender(true); } }
     : tab === 'smena' || tab === 'tamin' ? () => { const q = qaytish && qaytish !== tab ? qaytish : 'more'; qaytish = null; tab = q; sub = null; ctx.rerender(true); } : null;
   // Audit 06.11: Telegram «orqaga» (Android tugmasi) ham shu — ilova yopilmasin; asosiy bo'limlardan — Bosh'ga.
   orqagaQoy(orqaga || (tab === 'retsept' && retseptIchida() ? () => { retseptBosh(); ctx.rerender(true); }   // qayta audit: punkt ichidan — Retseptlar
@@ -507,7 +508,7 @@ export function renderDirektor(root, ctx) {
         q('shtrix', 'Shtrix-kodlar', (S.shtrixlar || []).length ? (S.shtrixlar || []).length + ' ta · shprits, sistema…' : 'Shprits, sistema — xodimlar skanerga tutadi')] },
       // Reimbursatsiya alohida guruh: punktlarni qo'shish/ulash va ular yuborgan retseptlar.
       { nom: 'Reimbursatsiya', qatorlar: [q('punktlar', 'Punktlar', 'Qo\'shish, botga ulash havolasi'), { l: 'Retseptlar', n: 'Punktlar yuborgan ro\'yxatlar, qadoqlash', onclick: () => { retseptBosh(); go('retsept'); } }] },
-      { nom: 'Hisobot', qatorlar: [q('oqim', 'Kirim va chiqim', 'Doira diagramma: savdo va chiqimlar'), q('stat', 'Statistika', 'Oyma-oy, filiallar'), q('xulosa', 'Kechki xulosa', S.sozlama.xulosaVaqti + ' da Telegram\'ga'),
+      { nom: 'Hisobot', qatorlar: [q('oqim', 'Kirim va chiqim', 'Doira diagramma: savdo va chiqimlar'), q('stat', 'Statistika', 'Oyma-oy, filiallar'), q('xulosa', 'Kechki xulosa va ertalabki hisobot', S.sozlama.xulosaVaqti + ' da Telegram\'ga' + (ctx.server ? ' · ertalab — kechagi savdo' : '')),
         q('xabar', 'Bot xabarlari', S.xabarlar.length + ' ta')] },
       // «Bilimdon» o'yini (29.10): direktor ochadi va kuzatadi, xodimlar o'z panelida javob beradi.
       { nom: 'O\'yin', qatorlar: [{ l: '🎮 Bilimdon', n: 'Jonli test o\'yini, reyting', onclick: () => go('more', 'oyin') }] },
@@ -595,6 +596,8 @@ export function renderDirektor(root, ctx) {
   if (sub === 'xulosa') {
     m.append(h('div', { class: 'muted' }, 'Har kuni ' + S.sozlama.xulosaVaqti + ' da (5 daqiqagacha kechikib) bot sizga shunday xabar yuboradi. Vaqtni Sozlamalarda o\'zgartirasiz.'));
     m.append(h('div', { class: 'card', style: 'white-space:pre-line;font-size:14px' }, H.kunXulosa(S, bugun)));
+    // 07.11: ertalabki hisobot (Oson bo'yicha kechagi savdo) — vaqti va hozirgi ko'rinishi.
+    if (ctx.server) m.append(ertalabKarta({ ...ctx.retseptCtx(), rerender: ctx.rerender }));
   }
 
   if (sub === 'xabar') {
@@ -620,6 +623,9 @@ export function renderDirektor(root, ctx) {
   }
   if (tab === 'qoldiq' && sub === 'pul') pulView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender }, fil);
   if (tab === 'qoldiq' && sub === 'buyurtma') buyurtmaView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender, firma: ctx.firma }, fil);
+  // 07.11: filiallar orasida ko'chirish va inventarizatsiya (faqat serverda).
+  if (tab === 'qoldiq' && sub === 'kochirish') kochirishView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender }, fil);
+  if (tab === 'qoldiq' && sub === 'inventar') inventarView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender }, fil);
   if (sub === 'punktlar') punktlarView(m, ctx.retseptCtx());
   if (sub === 'defektura') defekturaDirektor(m, ctx, fil, () => go('more', 'firmalar'));
   if (sub === 'firmalar') firmaPrayslarView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender, firma: ctx.firma });

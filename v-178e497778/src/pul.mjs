@@ -46,7 +46,10 @@ export function pulKirish(och) {
     h('span', { class: 'pul-kirish-b', 'aria-hidden': 'true' }, belgi), h('b', {}, nom), h('span', { class: 'muted' }, izoh));
   return h('div', { class: 'pul-kirish' },
     t('pul', '💰', 'Pul nazorati', 'Muddat, muzlagan pul, kam foyda'),
-    t('buyurtma', '🛒', 'Aqlli buyurtma', 'Nima va qancha olish kerak'));
+    t('buyurtma', '🛒', 'Aqlli buyurtma', 'Nima va qancha olish kerak'),
+    // 07.11: filiallar orasida ko'chirish tavsiyasi va telefon bilan inventarizatsiya.
+    t('kochirish', '🔁', 'Ko\'chirish', 'Filiallar orasida — muddat, ortiqcha'),
+    t('inventar', '📋', 'Inventarizatsiya', 'Telefon bilan sanash, Oson bilan solishtirish'));
 }
 
 // Audit 06.11: xatodan keyin ham 1 daqiqa kutiladi («Qayta urinish» — majbur); aks holda har chizishda yangi so'rov ketib,
@@ -235,4 +238,115 @@ function bQator(x, fil) {
     izohEl([asl(filNom(fil, x)), x.tugadi ? 'tugagan' : 'qoldiq ' + qoldiqMatn(x.qoldiq, x.dona), 'kuniga ' + kunlik + ' quti',
       x.yetadi != null ? String(x.yetadi).replace('.', ',') + ' kunga yetadi' : null, x.def ? 'defekturada bor' : null], kam || x.tugadi ? 'oson-otgan' : 'muted'),
     x.eng ? h('div', { class: 'firma-nomi', 'data-asl': '' }, x.eng.firma + ': ' + x.eng.nom + ' — ' + H.som(x.eng.yuz) + (x.eng.aniq ? '' : ' (taxminiy)')) : null);
+}
+
+// ---------- Filiallar orasida ko'chirish (07.11; foydalanuvchi: "2. Qo'shamiz") ----------
+// Server (oson_kochirish_hisob): sekin sotilayotgan yoki muddati yaqin dori — tez sotadigan filialga. Faqat tavsiya:
+// ko'chirishni Oson'da xodim qiladi; ko'chirilgach qoldiq o'zgaradi va taklif o'zi yo'qoladi.
+const KB = () => ({ j: null, vaqt: 0, yuklanmoqda: null, xato: null, ochiq: {} });
+const K = KB();
+export function kochirishUnut() { Object.assign(K, KB()); }
+function kYukla(ctx, chiz, majbur = false) {
+  if (K.yuklanmoqda) return;
+  if (!majbur && (K.j || K.xato) && Date.now() - K.vaqt < 60000) return;
+  K.yuklanmoqda = ctx.oqi('osonKochirish')
+    .then((j) => { if (!j || !Array.isArray(j.qatorlar)) throw new Error('Server javobi tushunarsiz'); K.j = j; K.xato = null; },
+      (e) => { K.xato = (e && e.message) || 'Ma\'lumot olinmadi'; })
+    .finally(() => { K.vaqt = Date.now(); K.yuklanmoqda = null; chiz(); });
+}
+const tomon = (fil, t) => (t.f ? fil(t.f) : t.fn || '');
+const kunlikMatn = (n) => String(n == null ? 0 : n).replace('.', ',');
+export function kochirishMatn(dan, ga, qatorlar) {
+  return dan + ' → ' + ga + ' — ko\'chirish\n' + qatorlar.map((x, i) => (i + 1) + '. ' + x.nom + ' — ' + x.soni + ' quti'
+    + (x.sabab === 'muddat' && x.muddat ? ' (muddati ' + kunMatn(x.muddat) + ')' : '')).join('\n');
+}
+export function kochirishView(m, ctx, fil) {
+  const chiz = () => ctx.rerender();
+  kYukla(ctx, chiz);
+  m.append(h('div', { class: 'muted' }, 'Oxirgi 30 kun sotuvi bo\'yicha: bir filialda sekin sotilayotgan yoki muddatigacha sotib ulgurilmaydigan dori — '
+    + 'uni tez sotadigan filialga. Bu faqat tavsiya: ko\'chirishni Oson\'da o\'zingiz qilasiz, keyin dori ro\'yxatdan o\'zi chiqadi.'));
+  if (!K.j) {
+    m.append(K.xato ? h('div', { class: 'card' }, h('div', { class: 'muted' }, K.xato), h('button', { class: 's', onclick: () => { K.xato = null; kYukla(ctx, chiz, true); chiz(); } }, 'Qayta urinish'))
+      : h('div', { class: 'card muted', role: 'status' }, 'Hisoblanmoqda…'));
+    return;
+  }
+  const j = K.j;
+  m.append(h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { class: 'muted' }, j.vaqt ? 'Oson · ' + sana(j.vaqt) + ' ' + vaqt(j.vaqt) : ''),
+    h('button', { class: 's', onclick: () => { kYukla(ctx, chiz, true); chiz(); } }, K.yuklanmoqda ? 'Yangilanmoqda…' : 'Yangilash')));
+  // Filiallar: sotuv tarixi necha kunlik, Oson'da sotuv ko'rinadimi (ko'rinmasa — u filial hisobga olinmaydi).
+  const fl = (j.filiallar || []).filter((f) => f.qator < 20 || f.kun < 7);
+  if (fl.length) {
+    m.append(h('div', { class: 'msg info' }, fl.map((f) => (f.f ? fil(f.f) : f.fn) + ': ' + (f.qator < 20
+      ? 'Oson\'da sotuv deyarli ko\'rinmaydi — bu filial hisobga olinmadi (sotuv Oson orqali o\'tyaptimi — tekshiring)'
+      : 'sotuv ' + String(f.kun).replace('.', ',') + ' kundan beri kuzatilmoqda (kamida 7 kun kerak)')).join('. ') + '.'));
+  }
+  if (!j.qatorlar.length) {
+    m.append(h('div', { class: 'card muted' }, '✓ Hozir ko\'chirish kerak emas. Muddat bo\'yicha taklif — sotuv 7 kun kuzatilgach, ortiqcha qoldiq bo\'yicha — 30 kundan keyin chiqadi.'));
+    return;
+  }
+  m.append(h('div', { class: 'card' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', {}, j.soni + ' ta taklif'), h('b', { class: 'pul-jami' }, '~' + H.som(j.jami))),
+    h('div', { class: 'muted' }, 'Pul — tannarxda' + (j.tannarxsiz ? ' (' + j.tannarxsiz + ' tasida kirim narxi yo\'q — sotuv narxida)' : '') + '. Ko\'chirilsa — muddati o\'tib yo\'qolmaydi va muzlab turmaydi.')));
+  // Yo'nalish bo'yicha guruh: «Osnovnoy → 2-filial».
+  const g = new Map();
+  for (const x of j.qatorlar) {
+    const k = (x.dan.f || x.dan.fn) + '→' + (x.ga.f || x.ga.fn);
+    if (!g.has(k)) g.set(k, { kalit: k, dan: tomon(fil, x.dan), ga: tomon(fil, x.ga), qatorlar: [], jami: 0 });
+    const o = g.get(k); o.qatorlar.push(x); o.jami += Number(x.summa) || 0;
+  }
+  for (const o of [...g.values()].sort((a, b) => b.jami - a.jami)) {
+    const kor = K.ochiq[o.kalit] ? o.qatorlar : o.qatorlar.slice(0, 15);
+    const k = h('div', { class: 'card list' }, h('div', { class: 'line', style: 'border:0;padding:0' },
+      h('b', {}, asl(o.dan), ' → ', asl(o.ga)), h('b', {}, o.qatorlar.length + ' xil · ' + qisqa(o.jami))));
+    kor.forEach((x) => k.append(h('div', { class: 'item' },
+      h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, x.nom), h('b', { class: 'pul-kerak' }, x.soni + ' quti')),
+      x.astatka ? h('div', { class: 'oson-otgan' }, 'Boshlang\'ich qoldiq (astatka) — ko\'chirishdan oldin sanab tekshiring') : null,
+      izohEl([x.sabab === 'muddat' ? 'muddati ' + kunMatn(x.muddat) + ' — bu yerda sotib ulgurilmaydi' : '90 kunlik sotuvdan ko\'p qoldiq',
+        'bu yerda kuniga ' + kunlikMatn(x.dan.kunlik) + ' quti, qoldiq ' + qoldiqMatn(x.dan.qoldiq, x.dona),
+        'u yerda kuniga ' + kunlikMatn(x.ga.kunlik) + ' quti, qoldiq ' + qoldiqMatn(x.ga.qoldiq, x.dona)], x.sabab === 'muddat' ? 'oson-otgan' : 'muted'))));
+    if (o.qatorlar.length > 15) {
+      k.append(h('button', { type: 'button', class: 'oq-yana', onclick: () => { K.ochiq[o.kalit] = !K.ochiq[o.kalit]; chiz(); } },
+        K.ochiq[o.kalit] ? 'Yig\'ish ▴' : 'Yana ' + (o.qatorlar.length - kor.length) + ' ta ▾'));
+    }
+    const matn = kochirishMatn(o.dan, o.ga, o.qatorlar);
+    k.append(h('div', { class: 'row' },
+      h('button', { class: 's', onclick: () => nusxaOl(matn, ctx.toast, 'Ro\'yxat nusxalandi — xodimga yuboring ✓') }, 'Nusxalash'),
+      ctx.tg && ctx.tg.openTelegramLink ? h('button', { class: 's', onclick: () => ctx.tg.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(matn.slice(0, 3500))) }, 'Telegram\'da yuborish') : null));
+    m.append(k);
+  }
+  m.append(h('div', { class: 'muted' }, 'Sotuv — Oson qoldig\'i kamaygani bo\'yicha (taxminiy). Ko\'chirishdan oldin javondagi muddatni tekshiring.'));
+}
+
+// ---------- Ertalabki hisobot (07.11; foydalanuvchi: "7 qo'shamiz") — «Kechki xulosa» sahifasida sozlama va ko'rinishi ----------
+const EB = () => ({ j: null, vaqt: 0, yuklanmoqda: null, xato: null });
+const E = EB();
+export function ertalabUnut() { Object.assign(E, EB()); }
+function eYukla(ctx, chiz, majbur = false) {
+  if (E.yuklanmoqda) return;
+  if (!majbur && (E.j || E.xato) && Date.now() - E.vaqt < 60000) return;
+  E.yuklanmoqda = ctx.oqi('ertalab')
+    .then((j) => { if (!j || typeof j !== 'object') throw new Error('Server javobi tushunarsiz'); E.j = j; E.xato = null; },
+      (e) => { E.xato = (e && e.message) || 'Ma\'lumot olinmadi'; })
+    .finally(() => { E.vaqt = Date.now(); E.yuklanmoqda = null; chiz(); });
+}
+export function ertalabKarta(ctx) {
+  const chiz = () => ctx.rerender();
+  eYukla(ctx, chiz);
+  const k = h('div', { class: 'card' }, kartaSarlavha('☀️ Ertalabki hisobot'));
+  if (!E.j) {
+    k.append(E.xato ? h('div', {}, h('div', { class: 'muted' }, E.xato), h('button', { class: 's', onclick: () => { E.xato = null; eYukla(ctx, chiz, true); chiz(); } }, 'Qayta urinish'))
+      : h('div', { class: 'muted', role: 'status' }, 'Yuklanmoqda…'));
+    return k;
+  }
+  k.append(h('div', { class: 'muted' }, 'Har kuni ertalab bot sizga kechagi savdo (Oson bo\'yicha), eng ko\'p sotilganlar, tugayotganlar, ko\'chirish takliflari va muddati yaqinlarni yuboradi.'));
+  const vaqtlar = [['', 'O\'chiq'], ['07:30', '07:30'], ['08:00', '08:00'], ['08:30', '08:30'], ['09:00', '09:00'], ['09:30', '09:30']];
+  if (E.j.vaqt && !vaqtlar.some(([v]) => v === E.j.vaqt)) vaqtlar.push([E.j.vaqt, E.j.vaqt]);
+  k.append(pills(vaqtlar, E.j.vaqt || '', (v) => ctx.amal('ertalabVaqti', v).then((r) => {
+    if (r == null) { chiz(); return; }   // saqlanmadi — tanlov oldingi holatiga
+    E.j = { ...E.j, vaqt: v || null };
+    ctx.toast(v ? 'Har kuni ' + v + ' da yuboriladi ✓' : 'Ertalabki hisobot o\'chirildi');
+    chiz();
+  }), 'Ertalabki hisobot vaqti'));
+  k.append(E.j.matn ? h('div', { style: 'white-space:pre-line;font-size:14px;margin-top:10px' }, E.j.matn)
+    : h('div', { class: 'muted', style: 'margin-top:10px' }, 'Oson ma\'lumoti hali kelmagan — aptekadagi kompyuterda kengaytma va Oson ochilgach hisobot chiqadi.'));
+  return k;
 }

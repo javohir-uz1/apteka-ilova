@@ -17,6 +17,7 @@ import { renderTaminotchi } from './taminotchi.mjs';
 import { defekturaXodim, kelganKarta, praysQidiruv } from './bolimlar.mjs';
 import { shtrixKarta } from './shtrix.mjs';
 import { muddatiOtganKarta, osonQidiruv } from './oson-qoldiq.mjs';
+import { inventarOrqaga, inventarView } from './inventar.mjs';
 import { oyinBanner, oyinBosh, oyinView } from './oyin.mjs';
 import { menDavomat } from './davomat.mjs';
 
@@ -188,7 +189,7 @@ function renderKirish() {
 // 05.11 (foydalanuvchi: "xodim panelini Click uslubiga o'zgartiramiz"; maket docs/maket/dada-xodim-variantlar.html, xodim A):
 // pastda 4 bo'lim — Bosh · Dori · Qarz · Men. Bosh: yashil karta (oy oxirida olasiz + davomat), belgilar to'ri (har belgi yozuvli),
 // «Bugun» — e'tibor kerak bo'lgan narsalar. Retsept va Bilimdon — to'rdan ochiladi (menyuda emas: 6 ta bo'lim 375 px'ga sig'masdi).
-const XTAB = { bosh: 'Bosh sahifa', qarz: 'Qarzlar', men: 'Men', dorilar: 'Dorilar', retsept: 'Retseptlar', oyin: 'Bilimdon' };
+const XTAB = { bosh: 'Bosh sahifa', qarz: 'Qarzlar', men: 'Men', dorilar: 'Dorilar', retsept: 'Retseptlar', oyin: 'Bilimdon', inventar: 'Inventar' };
 
 // 29.10 (foydalanuvchi: "smenani ochish-yopishni olib tashla, davomatni direktor qiladi"): xodim smena ochmaydi, yopmaydi,
 // kassadan xarajat yozmaydi — savdoni direktor kiritadi.
@@ -203,7 +204,7 @@ function renderXodim(x) {
   const m = h('main', {});
   // Retsept va Bilimdon menyuda yo'q — tepada qaytish (qayerdan kelgan bo'lsa — o'sha bo'limga). Retseptning ichki sahifasida
   // o'zining «‹ Retseptlar» tugmasi bor — ikkita qaytish chiqmasin (audit 05.11).
-  const ichki = tab === 'retsept' || tab === 'oyin';
+  const ichki = tab === 'retsept' || tab === 'oyin' || tab === 'inventar';
   if (ichki && !(tab === 'retsept' && retseptIchida())) {
     m.append(h('button', { type: 'button', class: 'link orqa-bosh', onclick: orqaga }, '‹ ' + XTAB[qaytishTab]));
   }
@@ -227,6 +228,8 @@ function renderXodim(x) {
   }
   if (tab === 'retsept') retseptView(m, retseptCtx(x));
   if (tab === 'oyin') oyinView(m, retseptCtx(x));
+  // 07.11: telefon bilan inventarizatsiya (o'z filiali; faqat serverda).
+  if (tab === 'inventar') inventarView(m, retseptCtx(x), (id) => filialOf(id).nom || id);
   // O'yin ochilgan bo'lsa (xodim hali kirmagan) — har bo'limning tepasida xabar (qaytish tugmasidan keyin).
   if (tab !== 'oyin') {
     const ob = oyinBanner(retseptCtx(x), () => { qaytishTab = ichki ? qaytishTab : tab; tab = 'oyin'; render(true); });
@@ -239,7 +242,11 @@ function renderXodim(x) {
   orqagaQoy(ichki ? orqaga : tab !== 'bosh' ? () => { tab = 'bosh'; render(true); } : null);   // asosiy bo'limlardan — Bosh'ga
 }
 let qaytishTab = 'bosh';   // Retsept/Bilimdon qaysi bo'limdan ochilgan
-function orqaga() { if (tab === 'retsept' && retseptIchida()) { retseptBosh(); render(true); return; } tab = qaytishTab; render(true); }
+function orqaga() {
+  if (tab === 'retsept' && retseptIchida()) { retseptBosh(); render(true); return; }
+  if (tab === 'inventar' && inventarOrqaga()) { render(true); return; }
+  tab = qaytishTab; render(true);
+}
 tgOrqagaUlash();   // audit 06.11: markaziy — oyna, direktor/oddiy ichki sahifa, xodim Retsept/Bilimdon (ui.mjs orqagaQoy)
 // Bosh sahifadagi oylik — bosilgandagina ko'rinadi (audit 05.11: kassa oldida mijoz yoki hamkasb ko'rib qolmasin).
 let oylikKorin = false;
@@ -277,7 +284,8 @@ function boshView(m, x) {
     retsept ? belgi('retsept', 'Retsept', 'kok', () => { retseptBosh(); qaytishTab = 'bosh'; tab = 'retsept'; render(true); }) : null,
     belgi('qarz', 'Qarzlarim', 'sariq', ochir('qarz')),
     belgi('oylik', 'Oyligim', 'yashil', ochir('men')),
-    belgi('oyin', 'Bilimdon', 'qizil', () => { oyinBosh(); qaytishTab = 'bosh'; tab = 'oyin'; render(true); })));
+    belgi('oyin', 'Bilimdon', 'qizil', () => { oyinBosh(); qaytishTab = 'bosh'; tab = 'oyin'; render(true); }),
+    SERVER ? belgi('quti', 'Inventar', 'kok', () => { qaytishTab = 'bosh'; tab = 'inventar'; render(true); }) : null));
   // Shtrix-kodlar — sotuvda doim kerak (28.10; 05.11 foydalanuvchi: "asosiy ekranga — uni doim ishlatadilar"): belgilar ostida.
   const sk = shtrixKarta(S);
   if (sk) { sk.id = 'shtrix-karta'; sk.tabIndex = -1; m.append(sk); }

@@ -430,7 +430,10 @@ export function osonQidiruv(ctx, fil, o = {}) {
         d.ishlab ? h('div', { class: 'muted', style: 'font-size:13px', 'data-asl': '' }, d.ishlab) : null,
         h('div', { class: 'oq-qf-royxat' }, ...fl.map((x) => h('div', { class: 'oq-qf' + (men && x.f === men ? ' men' : '') },
           h('span', { class: 'oq-fil ' + rang(x), 'data-asl': '' }, fNom(x)), men && x.f === men ? h('span', { class: 'muted' }, '(siz)') : null,
-          h('b', { class: x.soni > 0 ? 'bor' : 'yoq' }, x.soni > 0 ? qoldiqMatn(x.soni, x.dona) : 'yo\'q'))))));
+          h('b', { class: x.soni > 0 ? 'bor' : 'yoq' }, x.soni > 0 ? qoldiqMatn(x.soni, x.dona) : 'yo\'q')))),
+        // 07.11: analog — o'z filialida (direktorda — hech qayerda) yo'q bo'lsa ajralib turadi.
+        d.g ? h('button', { type: 'button', class: 's analog-t', onclick: () => analogOyna(ctx, fil, d) },
+          (men ? !fl.some((x) => x.f === men && x.soni > 0) : !fl.some((x) => x.soni > 0)) ? '🔄 Yo\'q — analogini ko\'rish' : '🔄 Analog') : null));
     });
   };
   const izla = () => {
@@ -471,3 +474,84 @@ function sozlaSheet(ctx, fil, chiz) {
 
 // Sinov uchun (tests): modul holatini tozalash.
 export function osonUnut() { Object.assign(O, BOSH()); }
+
+// ---------- Analog (07.11; foydalanuvchi: "3. qo'shamiz") — «Qaysi filialda bor?» natijasida «Analog» tugmasi ----------
+// Server (oson_analog): bog'langan analoglar (xodim/direktor bir marta bog'lagan) va nomi bir xil (boshqa ishlab chiqaruvchi yoki
+// doza). Bazada ta'sir etuvchi modda yo'q — farmatsevt tekshiradi. Bog'lash — «Qaysi filialda bor?» qidiruvi bilan dori tanlanadi.
+export function analogOyna(ctx, fil, d) {
+  sheet('Analoglar', (box) => {
+    const ichi = h('div', {});
+    let j = null, xato = null, bogla = false, soz = '', top = null, topSoz = '', avlod = 0, taymer = 0;
+    const fNom = (x) => (x.f ? fil(x.f) : x.n || x.b);
+    const yukla = () => {
+      j = null; xato = null; chiz();
+      ctx.oqi('osonAnalog', d.g).then((r) => { j = r; chiz(); }, (e) => { xato = (e && e.message) || 'Olinmadi'; chiz(); });
+    };
+    const qidir = (s) => {
+      const a = ++avlod;
+      ctx.oqi('osonQidir', s).then((r) => { if (a === avlod) { top = Array.isArray(r) ? r.filter((x) => x.g && x.g !== d.g) : []; topSoz = s; chizTop(); } },
+        (e) => { if (a === avlod) { ctx.toast((e && e.message) || 'Qidirib bo\'lmadi', 'xato'); } });
+    };
+    const chiz = () => {
+      ichi.textContent = '';
+      ichi.append(h('div', {}, h('b', { 'data-asl': '' }, d.nom), d.ishlab ? h('div', { class: 'muted', 'data-asl': '' }, d.ishlab) : null),
+        h('div', { class: 'msg info' }, 'Analogni farmatsevt tasdiqlaydi: ta\'sir etuvchi modda, doza va shaklini tekshiring.'));
+      if (xato) { ichi.append(h('div', { class: 'muted' }, xato), h('button', { class: 's', onclick: yukla }, 'Qayta urinish')); return; }
+      if (!j) { ichi.append(h('div', { class: 'muted', role: 'status' }, 'Yuklanmoqda…')); return; }
+      // Ta'sir etuvchi modda (06.11 kech, 20261107160000_dori_mnn): ilova aniqlagan; direktor noto'g'ri bo'lsa — chiqarib tashlaydi.
+      const direktor = ctx.x && ctx.x.rol === 'direktor';
+      const mnnRad = (g, nom) => h('button', { class: 'link', onclick: async () => {
+        if (!(await tasdiqlash('«' + nom + '» — modda noto\'g\'ri aniqlanganmi? Bu dori modda bo\'yicha analoglarda boshqa chiqmaydi.'))) return;
+        const r = await ctx.amalFon('mnnRad', g);
+        if (r != null) { ctx.toast('Olib tashlandi'); yukla(); }
+      } }, 'Modda noto\'g\'ri — chiqarmaslik');
+      if (j.mnn) {
+        ichi.append(h('div', { class: 'analog-mnn' }, h('span', { class: 'muted' }, 'Ta\'sir etuvchi modda: '), h('b', { 'data-asl': '' }, j.mnn.replace(' [пролонг]', ' (prolong.)')),
+          h('div', { class: 'muted', style: 'font-size:13px' }, 'Ilova aniqlagan — tarkibini qutidan tekshiring.'), direktor ? mnnRad(d.g, d.nom) : null));
+      }
+      const l = h('div', { class: 'list' });
+      if (!j.qatorlar.length) l.append(h('div', { class: 'muted' }, 'Analog topilmadi. Bilsangiz — pastda bog\'lab qo\'ying, keyingi safar o\'zi chiqadi.'));
+      j.qatorlar.forEach((x) => {
+        const bor = (x.filiallar || []).filter((f) => Number(f.soni) > 0);
+        l.append(h('div', { class: 'item' },
+          h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '' }, x.nom), x.narx ? h('b', { style: 'white-space:nowrap' }, H.som(x.narx)) : null),
+          x.ishlab ? h('div', { class: 'muted', style: 'font-size:13px', 'data-asl': '' }, x.ishlab) : null,
+          h('div', { class: x.tur === 'bog' || x.tur === 'mnn' ? 'muted' : 'oson-otgan' }, x.tur === 'bog' ? 'Bog\'langan analog' + (x.kim ? ' · ' + x.kim : '')
+            : x.tur === 'mnn' ? '✓ Bir xil modda, shakl va doza' : x.tur === 'mnn2' ? 'Shu modda — boshqa doza yoki shakl' : 'Nomi o\'xshash — tarkibini tekshiring'),
+          h('div', { class: 'oq-qf-royxat' }, ...(bor.length ? bor : (x.filiallar || []).slice(0, 1)).map((f) => h('div', { class: 'oq-qf' },
+            h('span', { class: 'oq-fil', 'data-asl': '' }, fNom(f)), h('b', { class: Number(f.soni) > 0 ? 'bor' : 'yoq' }, Number(f.soni) > 0 ? qoldiqMatn(f.soni, f.dona) : 'yo\'q')))),
+          x.tur === 'bog' && ctx.x && (ctx.x.rol === 'direktor' || x.kim === ctx.x.ism) ? h('button', { class: 'link', onclick: async () => {
+            if (!(await tasdiqlash('«' + x.nom + '» analoglar ro\'yxatidan olib tashlansinmi?'))) return;
+            const r = await ctx.amalFon('analogUzish', x.g);
+            if (r != null) { ctx.toast('Olib tashlandi'); yukla(); }
+          } }, 'Analog emas — olib tashlash') : null,
+          direktor && (x.tur === 'mnn' || x.tur === 'mnn2') ? mnnRad(x.g, x.nom) : null));
+      });
+      ichi.append(l);
+      if (!bogla) { ichi.append(h('button', { class: 's', onclick: () => { bogla = true; chiz(); setTimeout(() => { try { f.i.focus(); } catch (e) { /* bo'sh */ } }, 50); } }, '🔗 Analog bog\'lash')); return; }
+      ichi.append(f.el, topEl);
+      chizTop();
+    };
+    // Bog'lash qidiruvi: maydon bir marta yaratiladi, natija — alohida qism (yozib turganda maydon qayta yaratilmaydi).
+    const f = input('Analog dorini toping (Oson qoldig\'idan)', { inputmode: 'search', placeholder: 'Masalan: panadol' });
+    const topEl = h('div', {});
+    f.i.addEventListener('input', () => {
+      soz = f.i.value; clearTimeout(taymer);
+      if (soz.trim().length < 2) { top = null; avlod++; chizTop(); return; }
+      taymer = setTimeout(() => qidir(soz.trim()), 400);
+    });
+    const chizTop = () => {
+      topEl.textContent = '';
+      if (top && topSoz === soz.trim()) {
+        if (!top.length) topEl.append(h('div', { class: 'muted' }, 'Topilmadi'));
+        top.slice(0, 10).forEach((x) => topEl.append(h('button', { type: 'button', class: 'item inv-tanla', onclick: async () => {
+          if (!(await tasdiqlash('«' + d.nom + '» va «' + x.nom + '» — analog deb bog\'lansinmi?'))) return;
+          const r = await ctx.amalFon('analogBogla', d.g, x.g);
+          if (r != null) { ctx.toast('Bog\'landi ✓ — endi ikkalasida ham chiqadi'); bogla = false; soz = ''; f.i.value = ''; top = null; yukla(); }
+        } }, h('span', { 'data-asl': '' }, x.nom), x.ishlab ? h('span', { class: 'muted', 'data-asl': '' }, ' · ' + x.ishlab) : null)));
+      }
+    };
+    box.append(ichi);
+    yukla();
+  }, { fokus: false });
+}

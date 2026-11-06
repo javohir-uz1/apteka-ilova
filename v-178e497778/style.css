@@ -787,6 +787,7 @@ body.band .oyin-v { opacity: 1; }
 .oson-bolim { margin: 12px 0 0; font-size: 14px; font-weight: 700; text-transform: uppercase; color: var(--muted, #5b6b66); }
 .oson-boshqa { font-size: 14px; font-weight: 600; color: var(--info); background: var(--info-bg); border-radius: 10px; padding: 6px 10px; }
 .oson-otgan { font-size: 14px; font-weight: 600; color: var(--chiqim); }
+.analog-mnn { margin: 8px 0 4px; padding: 10px 12px; border-radius: var(--r-ctl); background: var(--soft); }
 .oson-filiallar { display: flex; flex-wrap: wrap; gap: 6px; }
 .oson-filiallar span { font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
 .oson-filiallar .bor { color: var(--kirim); background: var(--kirim-bg); }
@@ -878,8 +879,22 @@ button.s[aria-pressed="true"] { background: var(--accent); color: var(--on-accen
 /* 06.11: dori nomi qidiruvi — shtrix-kod tugmasi va taxminiy natija sarlavhasi. */
 .skan-maydon { display: flex; flex-direction: column; gap: 8px; }
 .skan-maydon .skan-tugma { align-self: flex-start; }
-.skan-video { width: 100%; max-height: 50vh; background: #000; border-radius: 12px; object-fit: cover; }
+.skan-maydon .skan-tugma.katta { align-self: stretch; min-height: 56px; font-size: 17px; }
+.skan-surat { position: relative; overflow: hidden; }
+.skan-fayl { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.skan-video { display: block; width: 100%; max-height: 50vh; background: #000; border-radius: 12px; object-fit: cover; }
+/* Ramka (06.11 kech): shu qism o'qiladi — xodim shtrix-kodni shunga to'g'rilaydi. */
+.skan-oyna { position: relative; overflow: hidden; border-radius: 12px; }
+.skan-ramka { position: absolute; left: 6%; right: 6%; top: 30%; bottom: 30%; border: 3px solid rgba(255, 255, 255, .92); border-radius: 10px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .28); pointer-events: none; }
+.skan-surat:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
 .taxminiy-sarlavha { font-size: 14px; }
 .shumi-t { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; height: auto; padding: 12px 14px; text-align: left; }
 .shumi-t .muted { font-size: 13px; }
 .mijoz-yubor { align-self: flex-start; }
+
+/* 07.11: inventarizatsiya va analog */
+.inv-jami { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.inv-jami > div { display: flex; flex-direction: column; padding: 10px; border-radius: 12px; background: var(--bg); }
+.inv-jami b { font-size: 22px; line-height: 1.2; }
+.inv-tanla { display: block; width: 100%; text-align: left; background: none; color: var(--ink); border: 0; border-bottom: 1px solid var(--sep); border-radius: 0; padding: 10px 0; min-height: 48px; }
+.analog-t { margin-top: 8px; }

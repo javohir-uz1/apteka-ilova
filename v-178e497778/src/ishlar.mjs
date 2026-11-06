@@ -132,6 +132,21 @@ export const ISHLAR = {
   // 06.11: Pul nazorati, Aqlli buyurtma (direktor), mijozga «dori keldi» havolasi — faqat serverda.
   osonPul: [() => A.osonYoq(), () => ['oson_pul', []]],
   osonBuyurtma: [() => A.osonYoq(), (z, y) => ['oson_buyurtma', [z, y]]],
+  // 07.11: ertalabki hisobot (direktor), filiallar orasida ko'chirish, analog, inventarizatsiya — faqat serverda.
+  ertalab: [() => A.osonYoq(), () => ['ertalab', []]],
+  ertalabVaqti: [() => A.osonYoq(), (v) => ['ertalab_vaqti', [v == null ? '' : String(v)]]],
+  osonKochirish: [() => A.osonYoq(), () => ['oson_kochirish', []]],
+  osonAnalog: [() => A.osonYoq(), (g) => ['oson_analog', [m(g)]]],
+  analogBogla: [() => A.osonYoq(), (g1, g2) => ['analog_bogla', [m(g1), m(g2)]]],
+  analogUzish: [() => A.osonYoq(), (g) => ['analog_uzish', [m(g)]]],
+  mnnRad: [() => A.osonYoq(), (g) => ['dori_mnn_rad', [m(g)]]],   // 06.11 kech: direktor — «modda noto'g'ri» (20261107160000_dori_mnn)
+  inventarHolat: [() => A.osonYoq(), () => ['inventar_holat', []]],
+  inventarBoshla: [() => A.osonYoq(), (b) => ['inventar_boshla', [m(b)]]],
+  inventarTop: [() => A.osonYoq(), (id, soz) => ['inventar_top', [id, m(soz)]]],
+  inventarSana: [() => A.osonYoq(), (id, pr, quti, dona, aniq) => ['inventar_sana', [id, m(pr), Math.trunc(Number(quti) || 0), Math.trunc(Number(dona) || 0), !!aniq]]],
+  inventarRoyxat: [() => A.osonYoq(), (id) => ['inventar_royxat', [id]]],
+  inventarYop: [() => A.osonYoq(), (id) => ['inventar_yop', [id]]],
+  inventarNatija: [() => A.osonYoq(), (id) => ['inventar_natija', [id]]],
   defekturaMijoz: [() => A.osonYoq(), (id) => ['defektura_mijoz', [id]]],
   defekturaMijozgaYubor: [() => A.osonYoq(), (id) => ['defektura_mijozga_yubor', [id]]],
   smenaDirektorYop: [(S, men, id) => A.smenaDirektorYop(S, men.id, id), (id) => ['smena_direktor_yop', [id]]],
