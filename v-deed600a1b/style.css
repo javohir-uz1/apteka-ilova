@@ -787,6 +787,7 @@ body.band .oyin-v { opacity: 1; }
 .oson-bolim { margin: 12px 0 0; font-size: 14px; font-weight: 700; text-transform: uppercase; color: var(--muted, #5b6b66); }
 .oson-boshqa { font-size: 14px; font-weight: 600; color: var(--info); background: var(--info-bg); border-radius: 10px; padding: 6px 10px; }
 .oson-otgan { font-size: 14px; font-weight: 600; color: var(--chiqim); }
+.analog-mnn { margin: 8px 0 4px; padding: 10px 12px; border-radius: var(--r-ctl); background: var(--soft); }
 .oson-filiallar { display: flex; flex-wrap: wrap; gap: 6px; }
 .oson-filiallar span { font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
 .oson-filiallar .bor { color: var(--kirim); background: var(--kirim-bg); }
@@ -846,7 +847,7 @@ button.s[aria-pressed="true"] { background: var(--accent); color: var(--on-accen
 .oq-bloklar .qizil b { color: var(--red); } .oq-bloklar .sariq b { color: var(--warn); } .oq-bloklar .yashil b { color: var(--kirim); }
 
 /* Filial rangi (02.11): holat ranglaridan farqli 5 rang, o'z fonida kontrast ≥ 4,5:1. */
-.oq-fil { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 800; line-height: 1.6; white-space: nowrap; vertical-align: 1px; }
+.oq-fil { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 13px; font-weight: 800; line-height: 1.6; white-space: nowrap; vertical-align: 1px; }
 .oq-fil.f0 { background: #DDEEE7; color: #0B5C53; } .oq-nuqta.f0 { background: #0B5C53; }
 .oq-fil.f1 { background: #ECE6F7; color: #553486; } .oq-nuqta.f1 { background: #553486; }
 .oq-fil.f2 { background: #E2ECF8; color: #1F4E8C; } .oq-nuqta.f2 { background: #1F4E8C; }
@@ -897,3 +898,19 @@ button.s[aria-pressed="true"] { background: var(--accent); color: var(--on-accen
 .inv-jami b { font-size: 22px; line-height: 1.2; }
 .inv-tanla { display: block; width: 100%; text-align: left; background: none; color: var(--ink); border: 0; border-bottom: 1px solid var(--sep); border-radius: 0; padding: 10px 0; min-height: 48px; }
 .analog-t { margin-top: 8px; }
+
+/* 07.11: Narx farqi, Kassa ↔ Oson, reimbursatsiya partiyalari (nazorat.mjs, retsept.mjs). */
+.nz-jami { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; padding: 6px 0; }
+.nz-jami > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nz-jami .muted { font-size: 13px; }
+.nz-jami b { font-size: 15px; white-space: nowrap; }
+.nz-kun { display: flex; flex-direction: column; gap: 2px; padding: 9px 0; border-top: 1px solid var(--sep); font-size: 15px; }
+.nz-kun-b, .nz-kun-s { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.nz-kun-s { color: var(--muted); font-size: 14px; } .nz-kun-s b { color: var(--ink); white-space: nowrap; }
+.nz-kun.nz-ogoh { background: var(--red-bg); border-radius: 10px; padding-left: 8px; padding-right: 8px; }
+.nz-holat { font-size: 14px; font-weight: 600; text-align: right; }
+.nz-holat.kop { color: var(--red); } .nz-holat.kir { color: var(--warn); } .nz-holat.tm { color: var(--muted); font-weight: 500; } .nz-holat.ok { color: var(--kirim); }
+.nz-qimmat { margin-top: 8px; padding: 10px 12px; border-radius: 14px; background: var(--kirim-bg); border: 1px solid var(--kirim-line); }
+.nz-qimmat > b { display: block; font-size: 14px; margin-bottom: 4px; }
+.nz-farq { display: flex; flex-direction: column; } .nz-farq.kop { color: var(--red); }
+.nz-foiz { font-size: 13px; font-weight: 600; }

@@ -139,11 +139,23 @@ export const ISHLAR = {
   osonAnalog: [() => A.osonYoq(), (g) => ['oson_analog', [m(g)]]],
   analogBogla: [() => A.osonYoq(), (g1, g2) => ['analog_bogla', [m(g1), m(g2)]]],
   analogUzish: [() => A.osonYoq(), (g) => ['analog_uzish', [m(g)]]],
+  mnnRad: [() => A.osonYoq(), (g) => ['dori_mnn_rad', [m(g)]]],
+  mnnQaytar: [() => A.osonYoq(), (g) => ['dori_mnn_qaytar', [m(g)]]],   // audit 06.11 kech (20261107170000_analog_kalit)
+  analogEmas: [() => A.osonYoq(), (g1, g2) => ['analog_emas', [m(g1), m(g2)]]],   // 06.11 kech: direktor — «modda noto'g'ri» (20261107160000_dori_mnn)
   inventarHolat: [() => A.osonYoq(), () => ['inventar_holat', []]],
   inventarBoshla: [() => A.osonYoq(), (b) => ['inventar_boshla', [m(b)]]],
   inventarTop: [() => A.osonYoq(), (id, soz) => ['inventar_top', [id, m(soz)]]],
   inventarSana: [() => A.osonYoq(), (id, pr, quti, dona, aniq) => ['inventar_sana', [id, m(pr), Math.trunc(Number(quti) || 0), Math.trunc(Number(dona) || 0), !!aniq]]],
   inventarRoyxat: [() => A.osonYoq(), (id) => ['inventar_royxat', [id]]],
+  // 07.11 (20261107180000_narx_kassa_partiya): narx farqi va yorliq, kassa ↔ Oson, reimbursatsiya partiyalari — faqat serverda.
+  narxFarq: [() => A.osonYoq(), () => ['narx_farq', []]],
+  narxBelgila: [() => A.osonYoq(), (g, narx) => ['narx_belgila', [m(g), p(narx)]]],
+  narxXodim: [() => A.osonYoq(), () => ['narx_xodim', []]],
+  narxYorliq: [() => A.osonYoq(), (b) => ['narx_yorliq', [m(b)]]],
+  kassaOson: [() => A.osonYoq(), (n) => ['kassa_oson', [Math.trunc(Number(n) || 7)]]],
+  partiyaNazorat: [() => A.osonYoq(), () => ['partiya_nazorat', []]],
+  partiyaNarx: [() => A.osonYoq(), (id, narx) => ['partiya_narx', [m(id), p(narx)]]],
+  partiyaNarxOson: [() => A.osonYoq(), () => ['partiya_narx_oson', []]],
   inventarYop: [() => A.osonYoq(), (id) => ['inventar_yop', [id]]],
   inventarNatija: [() => A.osonYoq(), (id) => ['inventar_natija', [id]]],
   defekturaMijoz: [() => A.osonYoq(), (id) => ['defektura_mijoz', [id]]],

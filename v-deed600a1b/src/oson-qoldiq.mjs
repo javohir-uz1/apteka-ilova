@@ -498,6 +498,24 @@ export function analogOyna(ctx, fil, d) {
         h('div', { class: 'msg info' }, 'Analogni farmatsevt tasdiqlaydi: ta\'sir etuvchi modda, doza va shaklini tekshiring.'));
       if (xato) { ichi.append(h('div', { class: 'muted' }, xato), h('button', { class: 's', onclick: yukla }, 'Qayta urinish')); return; }
       if (!j) { ichi.append(h('div', { class: 'muted', role: 'status' }, 'Yuklanmoqda…')); return; }
+      // Ta'sir etuvchi modda (06.11 kech, 20261107160000_dori_mnn): ilova aniqlagan. Audit (…170000_analog_kalit): direktor —
+      // dorining moddasi noto'g'ri bo'lsa «rad» (qaytarsa bo'ladi), bitta juft noto'g'ri bo'lsa — faqat shu juft «analog emas».
+      const direktor = ctx.x && ctx.x.rol === 'direktor';
+      const amalTugma = (matn, savol, amal, ...a) => h('button', { class: 'link', onclick: async () => {
+        if (savol && !(await tasdiqlash(savol))) return;
+        const r = await ctx.amalFon(amal, ...a);
+        if (r != null) { ctx.toast('Saqlandi'); yukla(); }
+      } }, matn);
+      const prolong = (m) => /\[пролонг\]/.test(m);
+      if (j.mnn) {
+        ichi.append(h('div', { class: 'analog-mnn' }, h('span', { class: 'muted' }, 'Ta\'sir etuvchi modda: '), h('b', { 'data-asl': '' }, j.mnn.replace(' [пролонг]', '')),
+          prolong(j.mnn) ? h('span', {}, ' (uzaytirilgan ta\'sirli)') : null,
+          h('div', { class: 'muted', style: 'font-size:13px' }, 'Ilova aniqlagan — tarkibini qutidan tekshiring.'),
+          direktor ? amalTugma('Bu dorining moddasi noto\'g\'ri', '«' + d.nom + '» — modda noto\'g\'ri aniqlanganmi? Bu dori modda bo\'yicha analoglarda chiqmaydi (keyin qaytarsa bo\'ladi).', 'mnnRad', d.g) : null));
+      } else if (direktor && j.mnn_rad) {
+        ichi.append(h('div', { class: 'analog-mnn' }, h('span', { class: 'muted' }, 'Modda rad etilgan: '), h('b', { 'data-asl': '' }, j.mnn_rad.replace(' [пролонг]', '')),
+          amalTugma('Qaytarish', null, 'mnnQaytar', d.g)));
+      }
       const l = h('div', { class: 'list' });
       if (!j.qatorlar.length) l.append(h('div', { class: 'muted' }, 'Analog topilmadi. Bilsangiz — pastda bog\'lab qo\'ying, keyingi safar o\'zi chiqadi.'));
       j.qatorlar.forEach((x) => {
@@ -505,15 +523,18 @@ export function analogOyna(ctx, fil, d) {
         l.append(h('div', { class: 'item' },
           h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '' }, x.nom), x.narx ? h('b', { style: 'white-space:nowrap' }, H.som(x.narx)) : null),
           x.ishlab ? h('div', { class: 'muted', style: 'font-size:13px', 'data-asl': '' }, x.ishlab) : null,
-          h('div', { class: x.tur === 'bog' ? 'muted' : 'oson-otgan' }, x.tur === 'bog' ? 'Bog\'langan analog' + (x.kim ? ' · ' + x.kim : '') : 'Nomi o\'xshash — tarkibini tekshiring'),
+          h('div', { class: x.tur === 'bog' || x.tur === 'mnn' ? 'muted' : 'oson-otgan' }, x.tur === 'bog' ? 'Bog\'langan analog' + (x.kim ? ' · ' + x.kim : '')
+            : x.tur === 'mnn' ? '✓ Modda, shakl va doza mos' : x.tur === 'mnn2' ? 'Shu modda — doza va shaklini tekshiring' : 'Nomi o\'xshash — tarkibini tekshiring'),
           h('div', { class: 'oq-qf-royxat' }, ...(bor.length ? bor : (x.filiallar || []).slice(0, 1)).map((f) => h('div', { class: 'oq-qf' },
             h('span', { class: 'oq-fil', 'data-asl': '' }, fNom(f)), h('b', { class: Number(f.soni) > 0 ? 'bor' : 'yoq' }, Number(f.soni) > 0 ? qoldiqMatn(f.soni, f.dona) : 'yo\'q')))),
           x.tur === 'bog' && ctx.x && (ctx.x.rol === 'direktor' || x.kim === ctx.x.ism) ? h('button', { class: 'link', onclick: async () => {
             if (!(await tasdiqlash('«' + x.nom + '» analoglar ro\'yxatidan olib tashlansinmi?'))) return;
             const r = await ctx.amalFon('analogUzish', x.g);
             if (r != null) { ctx.toast('Olib tashlandi'); yukla(); }
-          } }, 'Analog emas — olib tashlash') : null));
+          } }, 'Analog emas — olib tashlash') : null,
+          direktor && x.tur !== 'bog' ? amalTugma('Bu analog emas — olib tashlash', '«' + x.nom + '» — «' + d.nom + '» ning analogi emasmi? Bu juft boshqa chiqmaydi.', 'analogEmas', d.g, x.g) : null));
       });
+      if (j.koproq > 0) l.append(h('div', { class: 'muted', style: 'font-size:13px' }, 'Yana ' + j.koproq + ' ta dori ko\'rsatilmadi — o\'z filialingizda bori va qoldig\'i ko\'plari birinchi.'));
       ichi.append(l);
       if (!bogla) { ichi.append(h('button', { class: 's', onclick: () => { bogla = true; chiz(); setTimeout(() => { try { f.i.focus(); } catch (e) { /* bo'sh */ } }, 50); } }, '🔗 Analog bog\'lash')); return; }
       ichi.append(f.el, topEl);

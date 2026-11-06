@@ -49,7 +49,10 @@ export function pulKirish(och) {
     t('buyurtma', '🛒', 'Aqlli buyurtma', 'Nima va qancha olish kerak'),
     // 07.11: filiallar orasida ko'chirish tavsiyasi va telefon bilan inventarizatsiya.
     t('kochirish', '🔁', 'Ko\'chirish', 'Filiallar orasida — muddat, ortiqcha'),
-    t('inventar', '📋', 'Inventarizatsiya', 'Telefon bilan sanash, Oson bilan solishtirish'));
+    t('inventar', '📋', 'Inventarizatsiya', 'Telefon bilan sanash, Oson bilan solishtirish'),
+    // 07.11: filiallarda narx farqi va yorliqlar; kiritilgan savdo va Oson sotuvi.
+    t('narx', '🏷', 'Narx farqi', 'Filiallarda har xil narx, yorliqlar'),
+    t('kassa', '💵', 'Kassa ↔ Oson', 'Kiritilgan savdo va Oson sotuvi'));
 }
 
 // Audit 06.11: xatodan keyin ham 1 daqiqa kutiladi («Qayta urinish» — majbur); aks holda har chizishda yangi so'rov ketib,

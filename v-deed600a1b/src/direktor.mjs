@@ -18,6 +18,7 @@ import { osonKarta } from './oson-qoldiq.mjs';
 import { mijozBelgi } from './mijoz.mjs';
 import { buyurtmaView, ertalabKarta, kochirishView, pulKirish, pulView } from './pul.mjs';
 import { inventarOrqaga, inventarView } from './inventar.mjs';
+import { kassaView, narxView } from './nazorat.mjs';
 
 let tab = 'bosh';
 let sub = null;      // Bo'limlar ichidagi sahifa yoki ta'minotchi id
@@ -88,7 +89,7 @@ export function renderDirektor(root, ctx) {
 
   const TITLES = { bosh: 'Direktor paneli', daftar: 'Kunlik daftar', smena: 'Savdo', tamin: 'Ta\'minotchilar', more: 'Bo\'limlar',
     qarz: 'Mijozlar qarzi', oylik: 'Oyliklar', stat: 'Statistika', oqim: 'Kirim va chiqim', xulosa: 'Kechki xulosa', sozlama: 'Sozlamalar', xabar: 'Bot xabarlari',
-    uy: 'Uy puli', defektura: 'Defektura', prays: 'Prays-list', shtrix: 'Shtrix-kodlar', retsept: 'Retseptlar', punktlar: 'Punktlar', oyin: 'Bilimdon o\'yini', davomat: 'Davomat', firmalar: 'Firma prayslari', qoldiq: 'Oson qoldig\'i', pul: 'Pul nazorati', buyurtma: 'Aqlli buyurtma', kochirish: 'Ko\'chirish', inventar: 'Inventar' };
+    uy: 'Uy puli', defektura: 'Defektura', prays: 'Prays-list', shtrix: 'Shtrix-kodlar', retsept: 'Retseptlar', punktlar: 'Punktlar', oyin: 'Bilimdon o\'yini', davomat: 'Davomat', firmalar: 'Firma prayslari', qoldiq: 'Oson qoldig\'i', pul: 'Pul nazorati', buyurtma: 'Aqlli buyurtma', kochirish: 'Ko\'chirish', inventar: 'Inventar', narx: 'Narx farqi', kassa: 'Kassa ↔ Oson' };
   const tObj = tab === 'tamin' && sub ? S.taminotchilar.find((t) => t.id === sub) : null;
   const title = tObj ? tObj.nom : TITLES[sub] || TITLES[tab];
 
@@ -626,6 +627,8 @@ export function renderDirektor(root, ctx) {
   // 07.11: filiallar orasida ko'chirish va inventarizatsiya (faqat serverda).
   if (tab === 'qoldiq' && sub === 'kochirish') kochirishView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender }, fil);
   if (tab === 'qoldiq' && sub === 'inventar') inventarView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender }, fil);
+  if (tab === 'qoldiq' && sub === 'narx') narxView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender }, fil);
+  if (tab === 'qoldiq' && sub === 'kassa') kassaView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender });
   if (sub === 'punktlar') punktlarView(m, ctx.retseptCtx());
   if (sub === 'defektura') defekturaDirektor(m, ctx, fil, () => go('more', 'firmalar'));
   if (sub === 'firmalar') firmaPrayslarView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender, firma: ctx.firma });

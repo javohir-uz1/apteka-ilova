@@ -17,6 +17,7 @@ import { renderTaminotchi } from './taminotchi.mjs';
 import { defekturaXodim, kelganKarta, praysQidiruv } from './bolimlar.mjs';
 import { shtrixKarta } from './shtrix.mjs';
 import { muddatiOtganKarta, osonQidiruv } from './oson-qoldiq.mjs';
+import { narxXodimKarta } from './nazorat.mjs';
 import { inventarOrqaga, inventarView } from './inventar.mjs';
 import { oyinBanner, oyinBosh, oyinView } from './oyin.mjs';
 import { menDavomat } from './davomat.mjs';
@@ -306,6 +307,9 @@ function boshView(m, x) {
   // Muddati o'tgan dorilar — o'z filiali (vaqtincha biriktirilgan bo'lsa — o'sha filial; 03.11).
   const mo = muddatiOtganKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); });
   if (mo) m.append(mo);
+  // 07.11: direktor tanlagan narx — Oson'da tuzatish; narxi o'zgargan dorilarga yorliq (o'z filiali).
+  const nk = SERVER ? narxXodimKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); }) : null;
+  if (nk) m.append(nk);
   m.append(yordam('Smena ochish-yopish yo\'q: kunlik savdoni direktor kiritadi. Kassadan pul chiqsa (suv, paket…) — direktorga ayting. '
     + 'Kelganingizni direktor belgilaydi. Mijoz dori so\'rasa — «Dori qidirish»: narxi va qaysi filialda borligi.', 'Har kuni nima qilaman?'));
 }

@@ -43,7 +43,7 @@ const tanaOqi = async (fn) => { try { return await fn(); } catch (e) { if (e && 
 const sarlavha = (initData) => ({ 'content-type': 'application/json', 'x-telegram-init-data': initData });
 // Server kalitni (C1) e'tiborsiz qoldiradigan, lekin fayl yuboradigan yoki havola yaratadigan amallar (api.mjs OQISH/KALITSIZ):
 // zaxira yo'ldan qayta yuborilsa — direktorga ikkinchi fayl yoki «yangi bemor yo'q» xatosi (audit 06.11). Faqat bitta yo'l.
-export const BIR_YOL = new Set(['dorilar_excel', 'punkt_excel', 'punkt_royxat_excel', 'zaxira', 'bot_ulash', 'taklif_yarat',
+export const BIR_YOL = new Set(['narx_yorliq', 'dorilar_excel', 'punkt_excel', 'punkt_royxat_excel', 'zaxira', 'bot_ulash', 'taklif_yarat',
   'ta_taklif_yarat', 'punkt_taklif', 'prays_kalit_yarat', 'kengaytma_kalit_yarat']);
 // Retsept rasmi (Blob). Server Telegram'dan olib beradi; ruxsat — direktor va Osnovnoy xodimlari.
 export async function rasmOl(id, initData) {
