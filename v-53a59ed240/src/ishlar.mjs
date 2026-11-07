@@ -139,16 +139,38 @@ export const ISHLAR = {
   osonAnalog: [() => A.osonYoq(), (g) => ['oson_analog', [m(g)]]],
   analogBogla: [() => A.osonYoq(), (g1, g2) => ['analog_bogla', [m(g1), m(g2)]]],
   analogUzish: [() => A.osonYoq(), (g) => ['analog_uzish', [m(g)]]],
-  mnnRad: [() => A.osonYoq(), (g) => ['dori_mnn_rad', [m(g)]]],   // 06.11 kech: direktor — «modda noto'g'ri» (20261107160000_dori_mnn)
+  mnnRad: [() => A.osonYoq(), (g) => ['dori_mnn_rad', [m(g)]]],
+  mnnQaytar: [() => A.osonYoq(), (g) => ['dori_mnn_qaytar', [m(g)]]],   // audit 06.11 kech (20261107170000_analog_kalit)
+  analogEmas: [() => A.osonYoq(), (g1, g2) => ['analog_emas', [m(g1), m(g2)]]],   // 06.11 kech: direktor — «modda noto'g'ri» (20261107160000_dori_mnn)
   inventarHolat: [() => A.osonYoq(), () => ['inventar_holat', []]],
   inventarBoshla: [() => A.osonYoq(), (b) => ['inventar_boshla', [m(b)]]],
   inventarTop: [() => A.osonYoq(), (id, soz) => ['inventar_top', [id, m(soz)]]],
   inventarSana: [() => A.osonYoq(), (id, pr, quti, dona, aniq) => ['inventar_sana', [id, m(pr), Math.trunc(Number(quti) || 0), Math.trunc(Number(dona) || 0), !!aniq]]],
   inventarRoyxat: [() => A.osonYoq(), (id) => ['inventar_royxat', [id]]],
+  // 07.11 (20261107180000_narx_kassa_partiya): narx farqi va yorliq, kassa ↔ Oson, reimbursatsiya partiyalari — faqat serverda.
+  narxFarq: [() => A.osonYoq(), () => ['narx_farq', []]],
+  narxBelgila: [() => A.osonYoq(), (g, narx) => ['narx_belgila', [m(g), p(narx)]]],
+  narxXodim: [() => A.osonYoq(), () => ['narx_xodim', []]],
+  narxYorliq: [() => A.osonYoq(), (b) => ['narx_yorliq', [m(b)]]],
+  kassaOson: [() => A.osonYoq(), (n) => ['kassa_oson', [Math.trunc(Number(n) || 7)]]],
+  partiyaNazorat: [() => A.osonYoq(), () => ['partiya_nazorat', []]],
+  partiyaNarx: [() => A.osonYoq(), (id, narx) => ['partiya_narx', [m(id), p(narx)]]],
+  partiyaNarxOson: [() => A.osonYoq(), () => ['partiya_narx_oson', []]],
+  // 07.11 (20261107210000_dori_reyestr): davlat reyestri — narx chegarasi (direktor), qayta moslash, «moslik noto'g'ri».
+  narxChegara: [() => A.osonYoq(), () => ['narx_chegara', []]],
+  reyestrMosla: [() => A.osonYoq(), () => ['reyestr_mosla', []]],
+  reyestrRad: [() => A.osonYoq(), (g) => ['reyestr_rad', [m(g)]]],
   inventarYop: [() => A.osonYoq(), (id) => ['inventar_yop', [id]]],
   inventarNatija: [() => A.osonYoq(), (id) => ['inventar_natija', [id]]],
+  // 07.11 kech (20261107200000_ombor_aqlli): muddat siyosati (direktor), bugungi sanash (kunlik inventarizatsiya) — faqat serverda.
+  muddatSiyosat: [() => A.osonYoq(), (ogoh, javon) => ['muddat_siyosat', [Math.trunc(Number(ogoh) || 0), Math.trunc(Number(javon) || 0)]]],
+  kunlikSanash: [() => A.osonYoq(), (b) => ['kunlik_sanash', [m(b)]]],
+  kunlikSanashBoshla: [() => A.osonYoq(), (b) => ['kunlik_sanash_boshla', [m(b)]]],
   defekturaMijoz: [() => A.osonYoq(), (id) => ['defektura_mijoz', [id]]],
   defekturaMijozgaYubor: [() => A.osonYoq(), (id) => ['defektura_mijozga_yubor', [id]]],
+  // 07.11 kech (20261107220000_mijoz_boti): mijoz botda qilgan bronlar — faqat serverda (bron.mjs).
+  bronlar: [() => A.osonYoq(), () => ['bron_royxat', []]],
+  bronHolat: [() => A.osonYoq(), (id, holat) => ['bron_holat', [id, m(holat)]]],
   smenaDirektorYop: [(S, men, id) => A.smenaDirektorYop(S, men.id, id), (id) => ['smena_direktor_yop', [id]]],
   savdoYoq: [(S, men, f, kun, yoq) => A.savdoYoq(S, men.id, f, kun, yoq), (f, kun, yoq) => ['savdo_yoq_belgila', [m(f), m(kun), !!yoq]]],
   punktQosh: [(S, men, nom) => A.punktQosh(S, nom), (nom) => ['punkt_qosh', [m(nom)]]],
@@ -164,6 +186,14 @@ export const ISHLAR = {
   punktBemor: [(S, men, f) => A.punktBemor(S, men.id, f),
     (f) => ['punkt_bemor', [String(f.ism || '').trim(), H.raqamlar(f.jshshir), (f.kodlar || []).map(H.raqamlar).filter(Boolean).join(',')]]],
   aptekaNomla: [(S, men, nom) => A.aptekaNomla(S, nom), (nom) => ['apteka_nomla', [m(nom)]]],
+  // 07.11 (20261107230000_audit_jurnal): o'zgarishlar jurnali (jadval — bo'sh = hammasi, kun 1–180) va zaxira fayli kimga —
+  // faqat serverda. zaxiraMenga(true) — tungi zaxira har kuni jim shu direktorga (Sozlamalar → «Zaxira fayli menga kelsin»).
+  auditRoyxat: [() => { throw new Error('Jurnal faqat Telegram ilovasida (serverda) ishlaydi'); }, (jadval, kun) => ['audit_royxat', [m(jadval), Math.trunc(Number(kun) || 7)]]],
+  zaxiraHolat: [() => { throw new Error('Sinov rejimida zaxira yo\'q — Telegram ilovasida ishlaydi'); }, () => ['zaxira_holat', []]],
+  zaxiraMenga: [() => { throw new Error('Sinov rejimida zaxira yo\'q — Telegram ilovasida ishlaydi'); }, (yoq) => ['zaxira_menga', [!!yoq]]],
+  // 07.11: direktor — xodim va mijoz (bot) imkoniyatlarini yoqish/o'chirish (faqat serverda; sinov rejimida hammasi yoqiq).
+  funksiyalar: [() => { throw new Error('Faqat Telegram ilovasida (serverda) ishlaydi'); }, () => ['funksiyalar', []]],
+  funksiyaSaqla: [() => { throw new Error('Faqat Telegram ilovasida (serverda) ishlaydi'); }, (kalit, yoq) => ['funksiya_saqla', [m(kalit), !!yoq]]],
   taXarid: [(S, men, s, iz, rows) => A.taXarid(S, men.id, s, iz, rows), (s, iz, rows) => {
     const r = H.xaridQatorlar(rows);
     if (r.xato) throw new Error(r.xato);

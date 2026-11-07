@@ -7,12 +7,16 @@
 // Audit 07.11: qidiruv natijasi va sanalganlar ro'yxati butun ekranni qayta chizmaydi (yozib turganda klaviatura yopilmasin);
 // ro'yxat har 30 s yangilanadi (bir necha xodim birga sanaydi; boshqasi yopgan bo'lsa — natijaga o'tiladi); xatoda — to'xtovsiz
 // so'rov emas, «Qayta urinish»; «Tugatish» — saqlanayotgan sanoqlar tugagach.
+// 07.11 kech (20261107200000_ombor_aqlli): «🧮 Bugungi sanash» — har kuni 10–15 ta dori (Oson'da 0 lekin sotilgan, A toifa va
+// 30 kunda sanalmagan, hech sanalmagan qimmat dorilar): filial kartasida bitta tugma → oddiy inventarizatsiya shu ro'yxat bilan
+// (ro'yxat sanash ekranida — bosilsa son oynasi; «nol» — aniq son, 0 ham mumkin). «Aniqlik: N%» — yopilgan sanoqlarning necha
+// foizi Oson bilan aynan. Eski server javobi (maydonlarsiz) — avvalgidek.
 import * as H from './hisob.mjs';
-import { h, input, kartaSarlavha, nusxaOl, sana, sheet, tasdiqlash, vaqt } from './ui.mjs';
+import { h, input, kartaSarlavha, nusxaOl, ochiladi, sana, sheet, tasdiqlash, vaqt } from './ui.mjs';
 import { qoldiqMatn } from './oson-qoldiq.mjs';
 import { skanerTugma } from './shtrix-skan.mjs';
 
-const IB = () => ({ holat: null, holatXato: null, holatVaqt: 0, holatYuk: null, inv: null, invNom: '',
+const IB = () => ({ holat: null, holatXato: null, holatVaqt: 0, holatYuk: null, inv: null, invNom: '', kunlik: null,
   royxat: null, royxatVaqt: 0, royxatXato: null, royxatYuk: null, hammasi: false,
   natija: null, natijaId: null, natijaXato: null, natijaYuk: null,
   soz: '', top: null, topSoz: '', topYuk: null, taymer: 0, avlod: 0, kutilmoqda: 0, skanXabar: '',
@@ -25,9 +29,13 @@ export const inventarSkan = (kod) => { if (I.el.skan) I.el.skan(kod); };
 // «Orqaga» (Telegram tugmasi ham): sanash yoki natija sahifasidan — filiallar ro'yxatiga. true — shu yerda hal bo'ldi.
 export function inventarOrqaga() {
   if (!I.inv && !I.natijaId) return false;
-  Object.assign(I, { inv: null, natijaId: null, natija: null, natijaXato: null, royxat: null, royxatXato: null, holat: null, top: null, soz: '', hammasi: false });
+  Object.assign(I, { inv: null, natijaId: null, natija: null, natijaXato: null, royxat: null, royxatXato: null, holat: null, top: null, soz: '', hammasi: false, kunlik: null });
   return true;
 }
+// Bugungi sanash sabablari (server kunlik_sanash_hisob).
+const SABAB = { nol: 'Oson\'da 0 — tasdiqlang', abc: 'A toifa', qimmat: 'hech sanalmagan' };
+const SABAB_KOP = { nol: 'Oson\'da 0, lekin sotilgan', abc: 'A toifa, 30 kunda sanalmagan', qimmat: 'hech sanalmagan, qimmat' };
+const NOL_IZOH = 'Oson\'da bu dori 0 ko\'rinadi, lekin shu hafta sotilgan. Javonda bormi? Bor bo\'lsa — sonini yozing; yo\'q bo\'lsa — 0 qoldirib «Saqlash».';
 
 const asl = (t) => h('span', { 'data-asl': '' }, t);
 const son = (n) => String(Math.round(Number(n) * 1000) / 1000).replace('.', ',');
@@ -60,6 +68,7 @@ function royxatYukla(ctx, chiz) {
         return;
       }
       I.royxat = j.qatorlar; I.royxatXato = null;
+      I.kunlik = j.tur === 'kunlik' && Array.isArray(j.royxat) ? j.royxat : null;
       if (I.el.chizRoyxat && I.el.royxatEl && I.el.royxatEl.isConnected) I.el.chizRoyxat(); else chiz();
     })
     .catch((e) => { if (I.inv === id) { I.royxatXato = (e && e.message) || 'Ro\'yxat olinmadi'; chiz(); } })
@@ -97,13 +106,17 @@ export function inventarView(m, ctx, fil) {
   for (const f of I.holat.filiallar) {
     const nom = f.f ? fil(f.f) : f.n;
     const k = h('div', { class: 'card' }, kartaSarlavha(asl(nom)));
+    if (f.aniqlik && f.aniqlik.jami) k.append(aniqlikEl(f.aniqlik));
+    const kunlikBor = !!(f.kunlik && f.kunlik.holat === 'yangi' && f.kunlik.soni > 0 && !f.ochiq);
+    if (f.kunlik) k.append(kunlikEl(ctx, chiz, f, nom));
     if (f.ochiq) {
       k.append(h('div', { class: 'muted' }, 'Sanalmoqda: ' + f.ochiq.xil + ' xil, ' + son(f.ochiq.quti) + ' quti · boshladi ' + (f.ochiq.kim || '?') + ', '
         + sana(f.ochiq.boshlandi) + ' ' + vaqt(f.ochiq.boshlandi)),
         h('div', { class: 'row' }, h('button', { class: 'p', onclick: () => { Object.assign(I, { inv: f.ochiq.id, invNom: nom, royxat: null, royxatXato: null, soz: '', top: null, hammasi: false }); chiz(); } }, 'Davom ettirish'),
           direktor ? h('button', { class: 's', onclick: () => { Object.assign(I, { natijaId: f.ochiq.id, natija: null, natijaXato: null, invNom: nom }); chiz(); } }, 'Oraliq natija') : null));
     } else {
-      k.append(h('button', { class: 'p', onclick: () => ctx.amal('inventarBoshla', f.b).then((id) => {
+      // Bugungi sanash bor bo'lsa — u asosiy tugma, to'liq inventarizatsiya ikkinchi darajali.
+      k.append(h('button', { class: kunlikBor ? 's' : 'p', onclick: () => ctx.amal('inventarBoshla', f.b).then((id) => {
         if (!id || typeof id !== 'string') { if (id) holatYukla(ctx, chiz, true); return; }
         Object.assign(I, { inv: id, invNom: nom, royxat: null, royxatXato: null, soz: '', top: null, holat: null, hammasi: false });
         chiz();
@@ -116,6 +129,65 @@ export function inventarView(m, ctx, fil) {
     }
     m.append(k);
   }
+}
+
+// «Aniqlik: 94%» — so'nggi 90 kunda yopilgan inventarizatsiyalarda sanoqlarning necha foizi Oson bilan aynan teng.
+function aniqlikEl(a) {
+  return h('div', { class: 'inv-aniqlik' }, 'Aniqlik: ', h('b', {}, a.foiz + '%'),
+    ' · so\'nggi ' + (a.kun || 90) + ' kunda ' + a.jami + ' ta sanoqdan ' + a.aniq + ' tasi Oson bilan aynan');
+}
+
+// Filial kartasida «🧮 Bugungi sanash — N ta dori»: boshlash, sanalmoqda, tugadi (natija) yoki band (to'liq inventarizatsiya ochiq).
+function kunlikEl(ctx, chiz, f, nom) {
+  const kl = f.kunlik, box = h('div', { class: 'inv-kunlik' });
+  const royxat = Array.isArray(kl.royxat) ? kl.royxat : [];
+  if (kl.holat === 'tugadi') {
+    box.append(h('b', {}, '✓ Bugungi sanash tugadi — ' + (kl.sanaldi || 0) + '/' + kl.soni + ' ta dori sanaldi'),
+      h('button', { type: 'button', class: 'oq-yana', onclick: () => { Object.assign(I, { natijaId: kl.id, natija: null, natijaXato: null, invNom: nom }); chiz(); } }, 'Natija ▸'));
+    return box;
+  }
+  if (!kl.soni) { box.append(h('div', { class: 'muted' }, '✓ Bugun sanaladigan dori yo\'q')); return box; }
+  const sabab = Object.entries(kl.sabab || {}).filter(([, n]) => n > 0).map(([s, n]) => n + ' — ' + (SABAB_KOP[s] || s)).join(' · ');
+  box.append(h('b', {}, '🧮 Bugungi sanash — ' + kl.soni + ' ta dori'),
+    h('div', { class: 'muted' }, 'Har kuni oz-ozdan: Oson xatolari tez topiladi, katta inventarizatsiya kamroq kerak bo\'ladi.' + (sabab ? ' ' + sabab + '.' : '')));
+  if (kl.holat === 'ochiq') box.append(h('div', { class: 'muted' }, 'Sanalmoqda: ' + (kl.sanaldi || 0) + '/' + kl.soni + ' — «Davom ettirish»'));
+  else if (kl.holat === 'band') box.append(h('div', { class: 'muted' }, 'To\'liq inventarizatsiya ochiq — u tugagach bugungi sanash boshlanadi.'));
+  else {
+    box.append(h('button', { class: 'p', onclick: () => ctx.amal('kunlikSanashBoshla', f.b).then((id) => {
+      if (!id || typeof id !== 'string') { if (id) holatYukla(ctx, chiz, true); return; }
+      Object.assign(I, { inv: id, invNom: nom, royxat: null, royxatXato: null, soz: '', top: null, holat: null, hammasi: false, kunlik: royxat.length ? royxat : null });
+      chiz();
+    }) }, 'Bugungi sanashni boshlash'));
+  }
+  if (royxat.length) {
+    box.append(ochiladi('Qaysi dorilar?', royxat.map((x) => h('div', { class: 'line' }, h('span', { 'data-asl': '' }, x.nom),
+      h('span', { class: 'inv-sabab ' + (x.sabab || '') }, SABAB[x.sabab] || ''))), { k: 'inv-kunlik:' + f.b }));
+  }
+  return box;
+}
+
+// Sanash ekranida bugungi ro'yxat: har dori — sanalgan bo'lsa ✓ va son (tuzatish), bo'lmasa — son oynasi.
+function kunlikRoyxatChiz(ctx, chiz, el) {
+  el.textContent = '';
+  const r = I.kunlik;
+  if (!r || !r.length) { el.hidden = true; return; }
+  el.hidden = false;
+  const sanaldi = (p) => { const x = (I.royxat || []).find((z) => z.p === p); return x ? Number(x.soni) : null; };
+  const bitdi = r.filter((x) => sanaldi(x.p) != null).length;
+  el.append(kartaSarlavha('🧮 Bugungi ro\'yxat — ' + bitdi + '/' + r.length + ' sanaldi'),
+    h('div', { class: 'muted' }, bitdi === r.length ? '✓ Hammasi sanaldi — pastda «Tugatish»ni bosing.' : 'Har dorini bosing va javonda nechta borligini yozing.'));
+  r.forEach((x) => {
+    const s = sanaldi(x.p), d = { p: x.p, nom: x.nom, ishlab: x.ishlab, dona: x.dona, sanaldi: s };
+    el.append(h('button', { type: 'button', class: 'item inv-tanla', onclick: () => {
+      if (s != null) sonOyna(ctx, chiz, { ...d, soni: s }, true);
+      else if (x.sabab === 'nol') sonOyna(ctx, chiz, d, true, null, NOL_IZOH);
+      else sonOyna(ctx, chiz, d, false);
+    } },
+    h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, x.nom),
+      s != null ? h('b', { class: 'inv-tayyor' }, '✓ ' + qoldiqMatn(s, x.dona)) : h('b', { class: 'muted' }, 'sanash ›')),
+    h('div', { class: 'belgilar' }, h('span', { class: 'inv-sabab ' + (x.sabab || '') }, SABAB[x.sabab] || ''),
+      x.ishlab ? h('span', { class: 'muted', 'data-asl': '' }, x.ishlab) : null)));
+  });
 }
 
 // Ekranning shu qismlarini qayta chizish (butun ekranni emas): qidiruv natijasi va sanalganlar.
@@ -160,7 +232,8 @@ function qosh(ctx, chiz, d, quti, dona, aniq, id = I.inv) {
 // Quti/dona oynasi: qo'shish yoki aniq son (tuzatish). oldin — saqlanmagan son (qayta ochilganda: { quti, dona, xato }).
 // Audit 06.11 kech: dori allaqachon sanalgan bo'lsa — «faqat sanalmagan qutilarni yozing» (kim, qachon) va «aniq son» tugmasi
 // (ikki xodim bir javonni sanab, son ikki baravar bo'lib ketmasin); oyna ochilgan inventarizatsiyaga yoziladi (boshqasiga emas).
-function sonOyna(ctx, chiz, d, aniq, oldin = null) {
+// izohMatn — o'z izohi (07.11 kech: bugungi sanashdagi «nol» — Oson'da 0, javonda bormi?).
+function sonOyna(ctx, chiz, d, aniq, oldin = null, izohMatn = null) {
   const inv = I.inv;
   if (!inv) return;
   if (I.el.sonYop) I.el.sonYop();
@@ -178,9 +251,9 @@ function sonOyna(ctx, chiz, d, aniq, oldin = null) {
       value: oldin ? String(oldin.quti || '') : aniq ? String(dn1 ? Math.floor(jamiDona / dn1) : Math.round(Number(d.soni || 0))) : '' });
     const dn = dn1 ? input('Ochilgan qutidan dona soni (qutida ' + dn1 + ' ta)', { ...sonMaydon,
       value: oldin ? String(oldin.dona || '') : aniq && jamiDona % dn1 ? String(jamiDona % dn1) : '' }) : null;
-    const izoh = aniq
+    const izoh = izohMatn || (aniq
       ? 'Shu doridan jami nechta bor — aniq sonni yozing (oldingisi o\'rniga). Boshqa xodim ham shu dorini sanayotgan bo\'lsa — bu yerda emas: u qidiruvdan topib, o\'zi sanaganini qo\'shsin.'
-      : sanaldi > 0 ? null : 'Javonda shu doridan nechta quti borligini sanab yozing.';
+      : sanaldi > 0 ? null : 'Javonda shu doridan nechta quti borligini sanab yozing.');
     const saqla = () => {
       if (I.inv !== inv) { close(); ctx.toast('Inventarizatsiya yopilgan yoki almashgan — saqlanmadi', 'xato'); return; }
       const qv = String(q.i.value).replace(/\s+/g, ''), dv = dn ? String(dn.i.value).replace(/\s+/g, '') : '';
@@ -243,6 +316,11 @@ function sanashView(m, ctx, chiz) {
 
   m.append(h('div', { class: 'card' }, kartaSarlavha(['📋 ', asl(I.invNom), ' — sanash']),
     h('div', { class: 'muted' }, '«📷 Kamera bilan o\'qish» — qutidagi shtrix-kodni ko\'rsating: dori aniqlanadi, sonini yozasiz. Yoki dori nomini yozib tanlang.')));
+  // Bugungi sanash ro'yxati (kunlik inventarizatsiya) — sanalganlar ro'yxati bilan birga yangilanadi.
+  const kunlikEl2 = h('div', { class: 'card list inv-kunlik-r', hidden: true });
+  I.el.kunlikEl = kunlikEl2;
+  kunlikRoyxatChiz(ctx, chiz, kunlikEl2);
+  m.append(kunlikEl2);
   const f = input('Dori nomi yoki shtrix-kod', { inputmode: 'search', placeholder: 'Masalan: analgin', k: 'inv-qidir' });
   f.i.value = I.soz;
   I.el.input = f.i;
@@ -278,6 +356,7 @@ function sanashView(m, ctx, chiz) {
   const royxatEl = h('div', {});
   I.el.royxatEl = royxatEl;
   I.el.chizRoyxat = () => {
+    if (I.el.kunlikEl && I.el.kunlikEl.isConnected) kunlikRoyxatChiz(ctx, chiz, I.el.kunlikEl);
     royxatEl.textContent = '';
     const r = I.royxat;
     sarlavhaSoni.textContent = r ? r.filter((x) => Number(x.soni) > 0).length + ' xil' : '';
@@ -314,12 +393,13 @@ function sanashView(m, ctx, chiz) {
 export function natijaMatn(nom, n) {
   const qator = (x) => '• ' + x.nom + ': sanaldi ' + qoldiqMatn(x.sanaldi, x.dona) + ', Oson ' + qoldiqMatn(x.oson, x.dona) + ' (' + farqMatn(x.farq, x.dona) + ')';
   const pul = (s) => (s == null ? '' : ', ~' + H.som(Math.abs(Number(s))));
-  return ['Inventarizatsiya — ' + nom + (n.yopildi ? ' · ' + sana(n.yopildi) : ' (oraliq)'),
+  return [(n.tur === 'kunlik' ? 'Bugungi sanash — ' : 'Inventarizatsiya — ') + nom +(n.yopildi ? ' · ' + sana(n.yopildi) : ' (oraliq)'),
     'Sanaldi: ' + n.sanaldi + ' xil, to\'g\'ri: ' + n.teng,
     n.kam.length ? 'Kam (' + n.kam.length + pul(n.kam_summa) + '):\n' + n.kam.map(qator).join('\n') : 'Kam: yo\'q',
     n.ortiq.length ? 'Ortiq (' + n.ortiq.length + pul(n.ortiq_summa) + '):\n' + n.ortiq.map(qator).join('\n') : 'Ortiq: yo\'q',
     n.yoq.length ? 'Oson\'da yo\'q: ' + n.yoq.map((x) => x.nom).join(', ') : null,
-    'Sanalmagan (Oson\'da bor): ' + n.sanalmagan + ' xil'].filter(Boolean).join('\n');
+    n.tur === 'kunlik' && Array.isArray(n.royxat_sanalmagan) ? 'Bugungi ro\'yxatdan sanalmagan: ' + n.royxat_sanalmagan.length + ' ta'
+      : 'Sanalmagan (Oson\'da bor): ' + n.sanalmagan + ' xil'].filter(Boolean).join('\n');
 }
 
 function natijaView(m, ctx, chiz) {
@@ -360,7 +440,16 @@ function natijaView(m, ctx, chiz) {
     n.yoq.forEach((x) => k.append(h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, x.nom), h('b', {}, qoldiqMatn(x.sanaldi, x.dona))))));
     m.append(k);
   }
-  if (n.sanalmagan) {
+  // Bugungi sanash (07.11 kech): ro'yxatdan sanalmaganlar — nomi bilan (Oson soni ko'rsatilmaydi; ertaga yana chiqadi).
+  if (n.tur === 'kunlik' && Array.isArray(n.royxat_sanalmagan)) {
+    if (n.royxat_sanalmagan.length) {
+      const k = h('div', { class: 'card list' }, kartaSarlavha('Ro\'yxatdan sanalmagan — ' + n.royxat_sanalmagan.length + ' ta'),
+        h('div', { class: 'muted' }, 'Bugungi ro\'yxatda edi, lekin sanalmadi — keyingi kunlarda yana chiqadi.'));
+      n.royxat_sanalmagan.forEach((x) => k.append(h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' },
+        h('span', { 'data-asl': '' }, x.nom), h('span', { class: 'inv-sabab ' + (x.sabab || '') }, SABAB[x.sabab] || '')))));
+      m.append(k);
+    }
+  } else if (n.sanalmagan) {
     const k = h('div', { class: 'card list' }, kartaSarlavha('Sanalmagan — ' + n.sanalmagan + ' xil' + pul(n.sanalmagan_summa)),
       h('div', { class: 'muted' }, 'Oson\'da bor, lekin sanalmagan (qisman inventarizatsiya bo\'lsa — normal). ' + (n.sanalmagan_summa != null ? 'Eng qimmatlari:' : 'Bir qismi:')));
     n.sanalmagan_top.slice(0, 30).forEach((x) => k.append(h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' },

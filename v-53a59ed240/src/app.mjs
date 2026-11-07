@@ -8,7 +8,7 @@ import { yukla, saqla, tozala, serverga, rasmOl, faylOl, firmaPraysYukla } from 
 import { retseptBosh, retseptIchida, retseptRuxsat, retseptView } from './retsept.mjs';
 import { renderPunkt } from './punkt.mjs';
 import { serverSorovi, sinovdaBajar } from './ishlar.mjs';
-import { bandBolsaQayta, qoidaXatosi, sorovchi, urinishMatni } from './sorov.mjs';
+import { bandBolsaQayta, kutayotganKuzat, kutayotganMatn, kutayotganTashlangan, qoidaXatosi, sorovchi, urinishMatni } from './sorov.mjs';
 import { qarzXabari } from './xabar.mjs';
 import { guruhXato, h, holatniEsla, holatniTikla, input, ishQator, kartaSarlavha, kunNomi, mavzu, nav, ochiladi, oynalarYopilganda, oyKey, orqagaQoy, pills, sana, sheet, svg, tasdiqlash, tgOrqagaUlash, toast, unut, vaqt, xatoJoyla, yordam, yozuvTugma } from './ui.mjs';
 import { KIRILL, kirillDom, kirillKuzat, yozuvKirillmi } from './kirill.mjs';
@@ -17,9 +17,14 @@ import { renderTaminotchi } from './taminotchi.mjs';
 import { defekturaXodim, kelganKarta, praysQidiruv } from './bolimlar.mjs';
 import { shtrixKarta } from './shtrix.mjs';
 import { muddatiOtganKarta, osonQidiruv } from './oson-qoldiq.mjs';
+import { narxXodimKarta } from './nazorat.mjs';
+import { bronKarta } from './bron.mjs';
 import { inventarOrqaga, inventarView } from './inventar.mjs';
 import { oyinBanner, oyinBosh, oyinView } from './oyin.mjs';
 import { menDavomat } from './davomat.mjs';
+import { bolimlar, eskiKorinishmi, haptik, korinishOyna, korinishQolla, orqagaTugma, sozlamaTugmasi } from './qobiq.mjs';
+import { ikon } from './ikon.mjs';
+import { qarzUsta } from './qarz-usta.mjs';
 
 // Telegram skripti brauzerda ham WebApp obyektini yaratadi — haqiqiy Telegram'da initData bo'sh bo'lmaydi.
 const tg = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData ? window.Telegram.WebApp : null;
@@ -53,8 +58,29 @@ const root = document.getElementById('app');
 // yozmaydi); kech kelgan eski holat yangisining ustidan yozilmaydi. Oyna yopilib sahifa ko'ringach — eski kalitlar unutiladi.
 const sorov = sorovchi({ serverga, initData: () => tg.initData, korinadimi: () => !document.querySelector('.sheet-bg') });
 oynalarYopilganda(() => sorov.korildi());
+// 07.11: internet kutayotgan yozuvlar (sorov.mjs oflayn navbat) — tepada kichik belgi; son o'zgarsa faqat shu belgi yangilanadi.
+function navbatBelgi() {
+  const t = kutayotganMatn();
+  let el = document.querySelector('.oflayn-navbat');
+  if (!t) { if (el) el.remove(); return; }
+  if (!el) { el = h('div', { class: 'msg info oflayn-navbat', role: 'status' }); root.parentNode.insertBefore(el, root); }
+  el.textContent = '⏳ ' + t + ' — internet kelganda o\'zi yuboriladi';
+}
+// Audit 07.11: navbatdagi yozuvni server rad etsa / eskirsa — jim yo'qolmasin: bir marta xabar.
+let tashOxirgi = null;
+function tashlanganTekshir() {
+  const t = kutayotganTashlangan();
+  const oxirgi = t.reduce((a, z) => Math.max(a, z.vaqt || 0), 0);
+  if (tashOxirgi === null) { tashOxirgi = oxirgi; return; }
+  const yangi = t.filter((z) => (z.vaqt || 0) > tashOxirgi);
+  tashOxirgi = Math.max(tashOxirgi, oxirgi);
+  if (yangi.length) setTimeout(() => toast(yangi.length + ' ta yozuv serverga yetmadi va saqlanmadi — ekranni yangilab, qaytadan kiriting', 'xato'), 0);
+}
+try { tashlanganTekshir(); kutayotganKuzat(() => { navbatBelgi(); tashlanganTekshir(); }); } catch (e) { /* xotira yo'q — belgisiz */ }
 
 const xodimOf = (id) => S.xodimlar.find((x) => x.id === id) || {};
+// 07.11: direktor o'chirgan imkoniyat (Xodimlar → Funksiyalar; server ham rad etadi — api.mjs FUNKSIYA_KALIT). Yo'q kalit — yoqiq.
+const fy = (k) => ((S && S.sozlama && S.sozlama.funksiyalar) || {})[k] !== false;
 const filialOf = (id) => S.filiallar.find((f) => f.id === id) || {};
 const kimNomi = (id) => (id === kim ? 'siz' : xodimOf(id).ism || '?');
 // Amal muvaffaqiyatli bo'lgach — shu formaning sahifadagi maydonlari bo'sh ochiladi (saqlangan qiymat unutiladi).
@@ -71,6 +97,7 @@ async function bajar(nom, args, xatoQoy) {
     if (!SERVER) {
       const r = sinovdaBajar(nom, S, men, args);
       saqla(S); render({ unut: FORMA[nom] });
+      haptik('ok');
       return r === undefined ? true : r;
     }
     const [api, a] = serverSorovi(nom, args);   // noto'g'ri summa — shu yerda xato, so'rov yuborilmaydi
@@ -78,10 +105,12 @@ async function bajar(nom, args, xatoQoy) {
     const r = await sorov.yubor(api, a);
     if (r.holat) { S = r.holat; eskirgan = null; }   // audit 06.11: yangi holat keldi — «eski» ogohlantirishi olinadi
     render({ unut: FORMA[nom] });
+    haptik('ok');   // 07.11: saqlandi — Telegram tebranishi (eski Telegram va brauzerda jim)
     // Takror: natija TAKROR (raqam/matn emas) — natijadan xabar tuzadigan joylar buni alohida ko'rsatadi.
     if (r.takror) toast('Bu amal avvalgi urinishda saqlangan ekan ✓');
     return r.natija;
   } catch (e) {
+    haptik('xato');
     // Maydon tagiga — faqat qoida xatosi; tarmoq/server/kirish xatosi — umumiy xabar.
     if (!(xatoQoy && qoidaXatosi(e) && xatoQoy(e.message))) toast(e.message, 'xato');
     return null;
@@ -220,18 +249,22 @@ function renderXodim(x) {
   // "Dorilar": narx qidirish + kam qolgan dori. Uchta bo'lim bitta sahifada emas — tanlov bilan.
   if (tab === 'dorilar') {
     m.append(pills([['kam', 'Kam qoldi'], ['keldi', 'Keldi'], ['narx', 'Narxlar']], dTab, (v) => { dTab = v; render(true); }, 'Dorilar bo\'limi'));
-    if (dTab === 'kam') defekturaXodim(m, { S, amal, amalX, toast, qidir, oson: retseptCtx(x) }, x);
+    if (dTab === 'kam' && !fy('x_defektura')) m.append(h('div', { class: 'card muted' }, 'Kam qolgan dorini yozish direktor tomonidan o\'chirilgan.'));
+    else if (dTab === 'kam') defekturaXodim(m, { S, amal, amalX, toast, qidir, oson: { ...retseptCtx(x), qidiruvYoq: !fy('x_qidiruv') } }, x);
     if (dTab === 'keldi') m.append(kelganKarta(S));
     // Oson qoldig'i (02.11): «Qaysi filialda bor?» — har filialdagi soni va Oson'dagi sotuv narxi; prays-list — pastda.
-    if (dTab === 'narx' && SERVER) m.append(osonQidiruv(retseptCtx(x), (id) => ((S.filiallar || []).find((f) => f.id === id) || {}).nom || id));
+    if (dTab === 'narx' && SERVER && fy('x_qidiruv')) m.append(osonQidiruv(retseptCtx(x), (id) => ((S.filiallar || []).find((f) => f.id === id) || {}).nom || id));
     if (dTab === 'narx') m.append(praysQidiruv({ S, qidir }));
   }
-  if (tab === 'retsept') retseptView(m, retseptCtx(x));
-  if (tab === 'oyin') oyinView(m, retseptCtx(x));
-  // 07.11: telefon bilan inventarizatsiya (o'z filiali; faqat serverda).
-  if (tab === 'inventar') inventarView(m, retseptCtx(x), (id) => filialOf(id).nom || id);
+  const ochiq0 = { retsept: 'x_retsept', oyin: 'x_oyin', inventar: 'x_inventar' }[tab];
+  if (ochiq0 && !fy(ochiq0)) m.append(h('div', { class: 'card muted', role: 'status' }, 'Bu bo\'lim direktor tomonidan o\'chirilgan.'));
+  else {
+    if (tab === 'retsept') retseptView(m, retseptCtx(x));
+    if (tab === 'oyin') oyinView(m, retseptCtx(x));
+    if (tab === 'inventar') inventarView(m, retseptCtx(x), (id) => filialOf(id).nom || id);
+  }
   // O'yin ochilgan bo'lsa (xodim hali kirmagan) — har bo'limning tepasida xabar (qaytish tugmasidan keyin).
-  if (tab !== 'oyin') {
+  if (tab !== 'oyin' && fy('x_oyin')) {
     const ob = oyinBanner(retseptCtx(x), () => { qaytishTab = ichki ? qaytishTab : tab; tab = 'oyin'; render(true); });
     if (ob) { const orqa = m.querySelector(':scope > .orqa-bosh'); if (orqa) orqa.after(ob); else m.prepend(ob); }
   }
@@ -273,19 +306,19 @@ function boshView(m, x) {
       h('span', { class: 'big' }, oylikKorin ? H.som(H.oyOxiri(x, oyKey())) : '••• ••• so\'m'),
       h('span', { class: 'x-oylik-t' }, oylikKorin ? 'Yashirish' : 'Ko\'rsatish')),
     h('div', { class: 'muted' }, kunNomi())));
-  const retsept = retseptRuxsat(S, x);
+  const retsept = retseptRuxsat(S, x) && fy('x_retsept');
   const ochir = (t, d) => () => { tab = t; if (d) dTab = d; render(true); };
   const belgi = (icon, nom, rang, onclick) => h('button', { type: 'button', class: 'x-belgi', onclick },
     h('span', { class: 'x-belgi-d ' + rang }, svg(icon)), h('span', {}, nom));
   m.append(h('nav', { class: 'card x-tor', 'aria-label': 'Amallar' },
-    belgi('qidir', 'Dori qidirish', 'yashil', () => { tab = 'dorilar'; dTab = 'narx'; render(true); qidiruvgaFokus(); }),
-    belgi('odam', 'Qarz yozish', 'sariq', () => qarzSheet(x)),
-    belgi('defektura', 'Kam dori', 'kok', ochir('dorilar', 'kam')),
+    fy('x_qidiruv') ? belgi('qidir', 'Dori qidirish', 'yashil', () => { tab = 'dorilar'; dTab = 'narx'; render(true); qidiruvgaFokus(); }) : null,
+    fy('x_qarz') ? belgi('odam', 'Qarz yozish', 'sariq', () => qarzSheet(x)) : null,
+    fy('x_defektura') ? belgi('defektura', 'Kam dori', 'kok', ochir('dorilar', 'kam')) : null,
     retsept ? belgi('retsept', 'Retsept', 'kok', () => { retseptBosh(); qaytishTab = 'bosh'; tab = 'retsept'; render(true); }) : null,
     belgi('qarz', 'Qarzlarim', 'sariq', ochir('qarz')),
     belgi('oylik', 'Oyligim', 'yashil', ochir('men')),
-    belgi('oyin', 'Bilimdon', 'qizil', () => { oyinBosh(); qaytishTab = 'bosh'; tab = 'oyin'; render(true); }),
-    SERVER ? belgi('quti', 'Inventar', 'kok', () => { qaytishTab = 'bosh'; tab = 'inventar'; render(true); }) : null));
+    fy('x_oyin') ? belgi('oyin', 'Bilimdon', 'qizil', () => { oyinBosh(); qaytishTab = 'bosh'; tab = 'oyin'; render(true); }) : null,
+    SERVER && fy('x_inventar') ? belgi('quti', 'Inventar', 'kok', () => { qaytishTab = 'bosh'; tab = 'inventar'; render(true); }) : null));
   // Shtrix-kodlar — sotuvda doim kerak (28.10; 05.11 foydalanuvchi: "asosiy ekranga — uni doim ishlatadilar"): belgilar ostida.
   const sk = shtrixKarta(S);
   if (sk) { sk.id = 'shtrix-karta'; sk.tabIndex = -1; m.append(sk); }
@@ -306,6 +339,10 @@ function boshView(m, x) {
   // Muddati o'tgan dorilar — o'z filiali (vaqtincha biriktirilgan bo'lsa — o'sha filial; 03.11).
   const mo = muddatiOtganKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); });
   if (mo) m.append(mo);
+  // 07.11: direktor tanlagan narx — Oson'da tuzatish; narxi o'zgargan dorilarga yorliq (o'z filiali).
+  const nk = SERVER && fy('x_narx') ? narxXodimKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); }) : null;
+  if (nk) m.append(nk);
+  { const bk = SERVER && fy('x_bron') ? bronKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); }) : null; if (bk) m.append(bk); }   // 07.11 kech: mijoz bronlari (bron.mjs)
   m.append(yordam('Smena ochish-yopish yo\'q: kunlik savdoni direktor kiritadi. Kassadan pul chiqsa (suv, paket…) — direktorga ayting. '
     + 'Kelganingizni direktor belgilaydi. Mijoz dori so\'rasa — «Dori qidirish»: narxi va qaysi filialda borligi.', 'Har kuni nima qilaman?'));
 }
@@ -313,7 +350,9 @@ function boshView(m, x) {
 // Men: oylik, avanslar, davomat va Bilimdon.
 function menView(m, x) {
   oylikView(m, x);
-  m.append(h('div', { class: 'card list' }, ishQator({ icon: 'oyin', rang: 'warn', sarlavha: 'Bilimdon', izoh: 'O\'yin va mashqlar — dorilarni yaxshiroq bilish uchun', onclick: () => { oyinBosh(); qaytishTab = 'men'; tab = 'oyin'; render(true); } })));
+  m.append(h('div', { class: 'card list' }, !fy('x_oyin') ? null : ishQator({ icon: 'oyin', rang: 'warn', sarlavha: 'Bilimdon', izoh: 'O\'yin va mashqlar — dorilarni yaxshiroq bilish uchun', onclick: () => { oyinBosh(); qaytishTab = 'men'; tab = 'oyin'; render(true); } }),
+    // 07.11: eski ko'rinishdan yangisiga qaytish (Telegram ⋮ → Sozlamalar ham shu oynani ochadi).
+    ishQator({ icon: 'more', rang: '', sarlavha: 'Ko\'rinish', izoh: 'Yangi ko\'rinishga qaytish, harf o\'lchami', onclick: () => xKorinish() })));
 }
 
 function qarzView(m, x) {
@@ -324,7 +363,8 @@ function qarzView(m, x) {
   m.append(h('div', { class: 'card hero' }, h('div', { class: 'line', style: 'border:0;align-items:baseline' }, h('span', { class: 'muted' }, 'Ochiq qarzlaringiz'), h('b', { class: 'big', style: 'font-size:28px' }, H.som(ochiq))),
     h('div', { class: 'bar' + (pct > 80 ? ' over' : ''), role: 'progressbar', 'aria-valuenow': String(pct), 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-label': 'Qarz limitidan foydalanish' }, h('i', { style: 'width:' + pct + '%' })),
     h('div', { class: 'muted' }, 'Limitingiz ' + H.som(S.sozlama.limitXodim) + ' — yana ' + H.som(Math.max(0, S.sozlama.limitXodim - ochiq)) + ' yozish mumkin · bitta mijozga ko\'pi bilan ' + H.som(S.sozlama.limitMijoz))));
-  m.append(h('button', { class: 'p', onclick: () => qarzSheet(x) }, '+ Qarz yozish'));
+  if (fy('x_qarz')) m.append(h('button', { class: 'p', onclick: () => qarzYoz(x) }, '+ Qarz yozish'));
+  else m.append(h('div', { class: 'msg warn', role: 'status' }, 'Qarz yozish direktor tomonidan o\'chirilgan.'));
   m.append(yordam('Mijoz pul qaytarsa — kassaga qo\'shmang, direktorga olib boring. Qarzni direktor yopadi.', 'Mijoz pulni qaytarsa?'));
   const list = h('div', { class: 'card list' }, kartaSarlavha('Siz yozgan qarzlar'));
   if (!mine.length) list.append(h('div', { class: 'muted' }, 'Hali qarz yozmagansiz. Mijoz pulsiz dori olsa — "+ Qarz yozish" ni bosing.'));
@@ -396,6 +436,144 @@ function oylikView(m, x) {
   m.append(dc);
 }
 
+// ---- Xodim — yangi ko'rinish (07.11, egasi «variant A» ni tanladi) ----
+// Pastki menyu yo'q: Bosh sahifadan hamma narsa bir bosishda — salom va davomat, katta qidiruv (+ skaner), 2×2 katta plitka
+// (Qarz yozish, Kam qolgan, Retseptlar — ruxsat bo'lsa, Inventar), shtrix-kodlar, «Bugun», «Men». Ichki sahifada — Telegram
+// «orqaga» va ‹ (kelgan sahifaga). Qarz yozish — 3 qadamli oyna (qarz-usta.mjs; amal va tekshiruv eski oynadagidek).
+const XY_TAB = { bosh: 'Bosh sahifa', qarz: 'Qarzlarim', men: 'Men', oylik: 'Oyligim', dorilar: 'Dorilar', retsept: 'Retseptlar', oyin: 'Bilimdon', inventar: 'Inventar' };
+let xYol = [];   // ichki sahifalar yo'li (orqaga — shu tartibda)
+function xOch(t, d) { if (tab !== t) xYol.push(tab); tab = t; if (d) dTab = d; render(true); }
+function xOrqaga() {
+  if (tab === 'retsept' && retseptIchida()) { retseptBosh(); render(true); return; }
+  if (tab === 'inventar' && inventarOrqaga()) { render(true); return; }
+  tab = xYol.pop() || 'bosh';
+  render(true);
+}
+const qarzYoz = (x) => (eskiKorinishmi() ? qarzSheet(x) : qarzUsta({ S: () => S, x, amalX, toast }));
+
+function renderXodimYangi(x) {
+  if (!XY_TAB[tab]) tab = 'bosh';
+  if (tab === 'bosh') xYol = [];
+  korinishQolla(true);
+  const ichki = tab !== 'bosh';
+  if (!SERVER) root.append(h('div', { class: 'demo' }, 'Sinov rejimi · ', h('button', { class: 's', onclick: () => { kim = null; sessionStorage.removeItem('apteka-kim'); render(true); } }, 'boshqa xodim')));
+  // Retsept punkti ichida o'zining «‹ Retseptlar» tugmasi bor — ikkita qaytish chiqmasin (audit 05.11).
+  const orqa = ichki && !(tab === 'retsept' && retseptIchida()) ? orqagaTugma(xOrqaga) : null;
+  const fNom = filialOf(x.filialId).nom + (x.daraja === 2 ? ' · 2-daraja' : '');
+  root.append(h('header', { class: 'top yh' }, orqa || h('span', { class: 'avatar', 'aria-hidden': 'true' }, x.ism[0]),
+    h('div', { class: 't' }, h('h1', {}, ichki ? XY_TAB[tab] : x.ism), h('span', {}, fNom + ' · ' + (ichki ? x.ism : kunNomi()))),
+    yozuvTugma(render, x.id)));
+  const m = h('main', { class: ichki ? 'y-ichki' : 'y-ildiz yx' });
+  if (tab === 'bosh') xBosh(m, x);
+  if (tab === 'qarz') qarzView(m, x);
+  if (tab === 'men') xMen(m, x);
+  if (tab === 'oylik') oylikView(m, x);
+  if (tab === 'dorilar') {
+    // Defekturadagi dori keldi (oxirgi 3 kun) — karta («Keldi» bo'limida — ro'yxatning o'zi). Eski ko'rinishdagi bilan bir xil.
+    const keldi = kelganlarim(x);
+    if (keldi.length && dTab !== 'keldi') {
+      m.append(h('div', { class: 'card ok' }, kartaSarlavha(['Keldi: ', h('span', { 'data-asl': '' }, keldi.join(', '))]),
+        h('div', { class: 'muted' }, 'Kam dori ro\'yxatidagi dori aptekaga keldi.')));
+    }
+    m.append(pills([['kam', 'Kam qoldi'], ['keldi', 'Keldi'], ['narx', 'Narxlar']], dTab, (v) => { dTab = v; render(true); }, 'Dorilar bo\'limi'));
+    if (dTab === 'kam' && !fy('x_defektura')) m.append(h('div', { class: 'card muted' }, 'Kam qolgan dorini yozish direktor tomonidan o\'chirilgan.'));
+    else if (dTab === 'kam') defekturaXodim(m, { S, amal, amalX, toast, qidir, oson: { ...retseptCtx(x), qidiruvYoq: !fy('x_qidiruv') } }, x);
+    if (dTab === 'keldi') m.append(kelganKarta(S));
+    if (dTab === 'narx' && SERVER && fy('x_qidiruv')) m.append(osonQidiruv(retseptCtx(x), (id) => ((S.filiallar || []).find((f) => f.id === id) || {}).nom || id));
+    if (dTab === 'narx') m.append(praysQidiruv({ S, qidir }));
+  }
+  const ochiq = { retsept: 'x_retsept', oyin: 'x_oyin', inventar: 'x_inventar' }[tab];
+  if (ochiq && !fy(ochiq)) m.append(h('div', { class: 'card muted', role: 'status' }, 'Bu bo\'lim direktor tomonidan o\'chirilgan.'));
+  else {
+    if (tab === 'retsept') retseptView(m, retseptCtx(x));
+    if (tab === 'oyin') oyinView(m, retseptCtx(x));
+    if (tab === 'inventar') inventarView(m, retseptCtx(x), (id) => filialOf(id).nom || id);
+  }
+  // O'yin ochilgan bo'lsa (xodim hali kirmagan) — sahifa tepasida xabar.
+  if (tab !== 'oyin' && fy('x_oyin')) {
+    const ob = oyinBanner(retseptCtx(x), () => { oyinBosh(); xOch('oyin'); });
+    if (ob) m.prepend(ob);
+  }
+  root.append(m);
+  orqagaQoy(ichki ? xOrqaga : null);
+}
+
+// Qidiruv sahifasini ochadi (Dorilar → Narxlar) va maydonga fokus beradi; skan — o'sha yerdagi kamera tugmasi bosiladi.
+// Bosish ichida (iOS klaviatura va kamerani faqat foydalanuvchi bosganda ochadi).
+function qidiruvOch(skan) {
+  xOch('dorilar', 'narx');
+  if (skan) { const b = root.querySelector('main .skan-tugma'); if (b) { b.click(); return; } }
+  qidiruvgaFokus();
+}
+
+// Bosh sahifa (yangi): salom va davomat, qidiruv, 2×2 plitka, shtrix-kodlar, «Bugun», «Men».
+function xBosh(m, x) {
+  const ctx = retseptCtx(x);
+  const dv = menDavomat(ctx);
+  const [dMatn, dRang] = !dv ? ['Davomat yuklanmoqda…', 'kul'] : dv.xato ? ['Davomat olinmadi', 'sariq'] : dv.bugun === true ? ['Bugun keldingiz', 'yashil']
+    : dv.bugun === false ? ['Bugun «kelmadi» belgilangan', 'qizil'] : ['Davomat hali belgilanmagan', 'kul'];
+  const soat = Number(new Date().toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Tashkent' })) % 24;
+  const salom = soat < 11 ? 'Xayrli tong' : soat < 18 ? 'Xayrli kun' : 'Xayrli kech';
+  m.append(h('div', { class: 'yx-salom' }, h('b', {}, salom + '!'),
+    h('span', { class: 'yx-pill ' + dRang, role: 'status' }, dRang === 'yashil' ? ikon('check') : null, dMatn)));
+  // Katta qidiruv (≥ 60 px) va skaner.
+  if (fy('x_qidiruv')) m.append(h('div', { class: 'yx-qidir' },
+    h('button', { type: 'button', class: 'yx-qidir-t', onclick: () => qidiruvOch(false) }, ikon('qidir'), h('span', {}, 'Dori qidirish — narxi, qaysi filialda')),
+    h('button', { type: 'button', class: 'yx-skan', 'aria-label': 'Qutidagi shtrix-kodni kamera bilan o\'qish', onclick: () => qidiruvOch(true) }, ikon('skan'))));
+  // 2×2 katta plitka.
+  const plitka = (ik, nom, rang, onclick, izoh) => h('button', { type: 'button', class: 'yx-p', onclick },
+    h('span', { class: 'yq-d ' + rang, 'aria-hidden': 'true' }, ikon(ik)), h('b', {}, nom), izoh ? h('span', { class: 'muted' }, izoh) : null);
+  const defSoni = H.defekturaGuruh((S.defektura || []).filter((d) => d.filialId === x.filialId)).filter((d) => d.holat === 'yangi').length;
+  m.append(h('nav', { class: 'yx-plitkalar', 'aria-label': 'Asosiy amallar' },
+    fy('x_qarz') ? plitka('qarzYoz', 'Qarz yozish', 'sariq', () => qarzYoz(x), 'Mijoz pulsiz oldi') : null,
+    !fy('x_defektura') ? null : plitka('dori', 'Kam qolgan', 'kok', () => xOch('dorilar', 'kam'), defSoni ? defSoni + ' ta yozilgan' : 'Defekturaga yozish'),
+    retseptRuxsat(S, x) && fy('x_retsept') ? plitka('retsept', 'Retseptlar', 'yashil', () => { retseptBosh(); xOch('retsept'); }, 'Punkt ro\'yxatlari') : null,
+    SERVER && fy('x_inventar') ? plitka('inventar', 'Inventar', 'binafsha', () => xOch('inventar'), 'Telefon bilan sanash') : null));
+  // Shtrix-kodlar — sotuvda doim kerak (05.11 foydalanuvchi: "asosiy ekranga — uni doim ishlatadilar").
+  const sk = shtrixKarta(S);
+  if (sk) { sk.id = 'shtrix-karta'; sk.tabIndex = -1; m.append(sk); }
+  // «Bugun»: kelgan dorilar va bugun yozgan qarzlar (ismsiz — kassa oldida begona ko'rmasin; audit 05.11).
+  const bugun = H.kunKey(Date.now());
+  const qarzlarim = S.qarzlar.filter((q) => q.xodimId === x.id && H.kunKey(q.berildi) === bugun && q.holat !== 'rad');
+  const keldi = kelganlarim(x);
+  const c = h('section', { class: 'card list x-bugun yx-bugun' }, kartaSarlavha('Bugun'));
+  keldi.forEach((nom) => c.append(ishQator({ icon: 'defektura', rang: 'kirim', sarlavha: [h('span', { 'data-asl': '' }, nom), ' keldi'], izoh: 'Kam dori ro\'yxatidagi dori · so\'ragan mijozga ayting', onclick: () => xOch('dorilar', 'keldi') })));
+  if (qarzlarim.length) {
+    const ruxsat = qarzlarim.filter((q) => q.holat === 'ruxsat').length;
+    c.append(ishQator({ icon: 'odam', rang: 'warn', sarlavha: 'Bugun ' + qarzlarim.length + ' ta qarz yozdingiz',
+      izoh: 'Jami ' + H.som(qarzlarim.reduce((a, q) => a + (q.summa || 0), 0)) + (ruxsat ? ' · ' + ruxsat + ' tasi ruxsat kutmoqda' : ''), onclick: () => xOch('qarz') }));
+  }
+  if (!keldi.length && !qarzlarim.length) c.append(h('div', { class: 'muted' }, 'Hozircha yangilik yo\'q.'));
+  m.append(c);
+  const mo = muddatiOtganKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); });
+  if (mo) m.append(mo);
+  const nk = SERVER && fy('x_narx') ? narxXodimKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); }) : null;
+  if (nk) m.append(nk);
+  { const bk = SERVER && fy('x_bron') ? bronKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); }) : null; if (bk) m.append(bk); }   // mijoz bronlari (bron.mjs)
+  // «Men» — qarzlarim, oyligim, Bilimdon.
+  m.append(h('button', { type: 'button', class: 'card yx-men', onclick: () => xOch('men') },
+    h('span', { class: 'avatar', 'aria-hidden': 'true' }, x.ism[0]),
+    h('span', { class: 'yq-m' }, h('b', {}, 'Men'), h('span', { class: 'muted' }, 'Qarzlarim, oyligim, davomat, Bilimdon')),
+    h('span', { class: 'yq-o' }, ikon('oldinga'))));
+  m.append(yordam('Smena ochish-yopish yo\'q: kunlik savdoni direktor kiritadi. Kassadan pul chiqsa (suv, paket…) — direktorga ayting. '
+    + 'Kelganingizni direktor belgilaydi. Mijoz dori so\'rasa — «Dori qidirish»: narxi va qaysi filialda borligi.', 'Har kuni nima qilaman?'));
+}
+
+// Men (yangi): qarzlarim, oyligim (davomat bilan), Bilimdon, ko'rinish.
+function xMen(m, x) {
+  const mine = S.qarzlar.filter((q) => q.xodimId === x.id && (q.holat === 'ochiq' || q.holat === 'ruxsat'));
+  const otgan = mine.filter((q) => q.holat === 'ochiq' && H.muddatiOtgan(q)).length;
+  const dv = menDavomat(retseptCtx(x));
+  m.append(...bolimlar([
+    { nom: 'Men', qatorlar: [
+      { ikon: 'qarz', rang: 'sariq', l: 'Qarzlarim', izoh: otgan ? otgan + ' tasining muddati o\'tgan' : mine.length + ' ta ochiq qarz', diqqat: otgan > 0,
+        qiymat: H.som(H.xodimOchiq(mine, x.id)), onclick: () => xOch('qarz') },
+      { ikon: 'oylik', rang: 'yashil', l: 'Oyligim', izoh: 'Oylik, avanslar' + (dv && !dv.xato ? ' · shu oy ' + dv.keldi + ' kun keldingiz' : ', davomat'), onclick: () => xOch('oylik') },
+      fy('x_oyin') ? { ikon: 'oyin', rang: 'binafsha', l: 'Bilimdon', izoh: 'O\'yin va mashqlar — dorilarni yaxshiroq bilish uchun', onclick: () => { oyinBosh(); xOch('oyin'); } } : null].filter(Boolean) },
+    { nom: 'Ilova', qatorlar: [
+      { ikon: 'korinish', rang: 'kul', l: 'Ko\'rinish', izoh: 'Eski ko\'rinish, harf o\'lchami', onclick: () => xKorinish() }] }]));
+}
+
 // Prays-listdan qidirish (faqat o'qish — holat yangilanmaydi). Xato bo'lsa — bo'sh ro'yxat.
 async function qidir(soz) {
   if (!SERVER) return A.praysQidir(soz);
@@ -435,6 +613,7 @@ function render(o) {
     root.prepend(h('div', { class: 'msg warn eskirgan', role: 'alert' }, h('span', {}, eskirgan),
       eskirdi ? yopishTugma('sm') : h('button', { class: 'sm', onclick: () => serverdanYukla() }, 'Yangilash')));
   }
+  try { navbatBelgi(); } catch (e) { /* belgisiz */ }
   holatniTikla(root);
   // Harakat (29.10): yangi bo'lim/sahifa ochilganda — bloklar ketma-ket chiqadi; holat yangilanganda harakat yo'q.
   if (tepaga) { const mm = root.querySelector('main, .o-main'); if (mm) mm.classList.add('kirish'); }
@@ -454,6 +633,9 @@ function chiz() {
 
 function panelChiz() {
   orqagaQoy(null);   // har panel o'z «orqaga»sini qayta qo'yadi
+  // 07.11: Telegram ⋮ → Sozlamalar va yangi ko'rinish belgisi — direktor va xodim paneli o'zi qo'yadi (punkt, ta'minotchi — yo'q).
+  sozlamaTugmasi(null);
+  korinishQolla(false);
   if (SERVER && !S) return renderServerKutish();
   // Punkt: o'z ro'yxatlari holati (faqat ko'rish).
   const pk = SERVER ? (S.men && S.men.rol === 'punkt' ? S.punkt : null) : kim && ((S.retsept || {}).punktlar || []).find((p) => p.id === kim);
@@ -469,8 +651,12 @@ function panelChiz() {
   if (x.rol === 'direktor') {
     return renderDirektor(root, { S, x, amal, amalX, toast, qidir, rerender: render, server: SERVER, logout: SERVER ? null : chiqish, retseptCtx: () => retseptCtx(x), firma: firmaCtx });
   }
-  renderXodim(x);
+  // 07.11: yangi ko'rinish standart; «Eski ko'rinish» (shu telefonda) — avvalgi panel o'zgarishsiz.
+  sozlamaTugmasi(() => xKorinish());
+  if (eskiKorinishmi()) renderXodim(x); else renderXodimYangi(x);
 }
+// Ko'rinish oynasi (Telegram ⋮ → Sozlamalar; ilovada — Men → «Ko'rinish»). Almashganda — Bosh sahifaga.
+const xKorinish = () => korinishOyna({ rerender: render, almashdi: () => { tab = 'bosh'; xYol = []; } });
 
 // Telegram ichida ochilganmi (SDK kelmagan bo'lsa ham): Telegram manzilga tgWebAppData qo'shadi va o'z ko'prigini qo'yadi.
 const telegramdanOchilgan = () => /tgWebAppData=/.test(location.hash) || typeof window.TelegramWebviewProxy !== 'undefined';

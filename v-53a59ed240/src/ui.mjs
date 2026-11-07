@@ -27,6 +27,8 @@ export function ochiladi(sarlavha, ichki, { k = null, izoh = null, ochiq = false
   d.append(h('div', { class: 'ochil-ich' }, ...[].concat(ichki)));
   return d;
 }
+// Bo'limni oldindan ochiq qilib qo'yish (07.11, yangi ko'rinish: «Xodimlar» qatoridan Sozlamalar → Xodimlar ochiq keladi).
+export function ochiqQoy(k) { if (k) ochiqlar.add(k); }
 // Qisqa yo'riqnoma: ekranda bitta qator, bosilsa to'liq matn.
 export const yordam = (matn, sarlavha = 'Qanday ishlaydi?') => h('details', { class: 'yordam' }, h('summary', {}, sarlavha),
   h('p', {}, matn));
@@ -116,6 +118,8 @@ function orqagaYangila() {
 export function orqagaQoy(fn) { panelOrqaga = typeof fn === 'function' ? fn : null; orqagaYangila(); }
 export function orqagaBos() {
   const o = oynalar[oynalar.length - 1];
+  // 07.11: ko'p qadamli oyna (qarz yozish) — «orqaga» avval oldingi qadamga (o.orqaga() true qaytarsa — oyna yopilmaydi).
+  if (o && o.orqaga) { try { if (o.orqaga()) return true; } catch (e) { /* oyna baribir yopiladi */ } }
   if (o) { (o.sorabYop || o.close)(); return true; }
   if (panelOrqaga) { panelOrqaga(); return true; }
   return false;
@@ -292,6 +296,7 @@ export function korsat(el) {
 // build(box, close) oyna ichini to'ldiradi; funksiya qaytarsa — u oyna yopilganda chaqiriladi (masalan, rasm URL'ini bo'shatish).
 // o.fokus = false — ochilganda yozish maydoniga fokus berilmaydi (klaviatura o'zi chiqmasin; masalan rasm oynasi).
 // o.toliq = true — to'liq ekranli oyna: balandligi klaviatura ochiqligida ham ko'rinadigan qismga teng.
+// o.orqaga — Telegram «orqaga» bosilganda avval shu chaqiriladi; true qaytarsa oyna yopilmaydi (ko'p qadamli oyna, 07.11).
 export function sheet(title, build, o2 = {}) {
   // Yozish maydoni fokusda turganda oyna ochilsa: klaviatura yopiladi va oyna yopilganda o'sha maydonga qaytilmaydi
   // (qaytsa, klaviatura yana chiqib, sahifa sakraydi — audit 26.10).
@@ -304,7 +309,7 @@ export function sheet(title, build, o2 = {}) {
   const bg = h('div', { class: 'sheet-bg' + (o2.toliq ? ' toliq' : '') });
   vvQoy([bg]);
   let tozala = null;
-  const o = { box: null, close: null };
+  const o = { box: null, close: null, orqaga: typeof o2.orqaga === 'function' ? o2.orqaga : null };
   const close = () => {
     if (!bg.isConnected) return;
     bg.remove();
