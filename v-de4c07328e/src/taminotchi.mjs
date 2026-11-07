@@ -5,7 +5,10 @@
 import * as H from './hisob.mjs';
 import { h, input, kartaSarlavha, kunNomi, sana, sheet, tasdiqlash, xatoJoyla, yordam, yozuvTugma } from './ui.mjs';
 import { xaridSheet } from './direktor.mjs';
+import { hisobKarta, qisqaSana } from './taminot-hisob.mjs';
 
+// 07.11: xarid — olib kelgan kuni (qachon dori berdingiz), to'lov — yozilgan kuni.
+const ks = (a) => (a.tur === 'xarid' ? qisqaSana(H.taSana(a)) : sana(a.ts));
 let soni = 20, soniKim = null;   // tarixda nechta yozuv ko'rinadi ("Yana ko'rsatish" ko'paytiradi) — har ta'minotchiga alohida
 
 // Ta'minotchi o'zi yozganmi (server: ozi; sinov: kim === null).
@@ -41,13 +44,16 @@ export function renderTaminotchi(root, ctx, t) {
   const kutish = t.amallar.filter((a) => a.holat === 'kutish' && !a.bekor && !oziYozgan(a));
   kutish.forEach((a) => m.append(h('div', { class: 'card warn' },
     kartaSarlavha([h('span', { 'data-asl': '' }, apteka), ' yozdi: ' + nima(a).toLowerCase() + ' ' + H.som(a.summa)]),
-    h('div', {}, sana(a.ts) + ' · ', h('span', { 'data-asl': '' }, a.izoh)),
+    h('div', {}, ks(a) + ' · ', h('span', { 'data-asl': '' }, a.izoh)),
     qatorlar(a),
     a.etiroz ? etirozMatn(a) : null,
     h('div', { class: 'row' }, h('button', { class: 'p s', onclick: () => togri(ctx, a) }, 'To\'g\'ri'),
       h('button', { class: 's', onclick: () => etirozSheet(ctx, a) }, a.etiroz ? 'E\'tirozni o\'zgartirish' : 'Noto\'g\'ri')))));
 
-  m.append(h('button', { class: 'p', onclick: () => xaridSheet(ctx, t, (s, iz, rows, j) => ctx.amalX(j, 'taXarid', s, iz, rows), 'Yangi xarid (dori berdim)') }, '+ Xarid yozish (dori berdim)'));
+  m.append(h('button', { class: 'p', onclick: () => xaridSheet(ctx, t, (s, iz, rows, j, kun) => ctx.amalX(j, 'taXarid', s, iz, rows, kun), 'Yangi xarid (dori berdim)') }, '+ Xarid yozish (dori berdim)'));
+  // 07.11 (maket C): «Qarz qanday chiqdi» — direktor panelidagi bilan bir xil karta, o'z tomonidan so'zlar bilan; Excel — Telegram'ga.
+  m.append(hisobKarta(t, 'ta', { onYozuv: (a) => tarixSheet(ctx, a),
+    excel: ctx.server ? () => ctx.amal('taExcel').then((r) => { if (r) ctx.toast('Excel Telegram\'ga yuborildi ✓'); }) : null }));
   m.append(yordam('Siz yozgan xarid apteka tasdiqlagach qarzga qo\'shiladi. Apteka yozgan har yozuvni tekshirib "To\'g\'ri" ni bosing; xato bo\'lsa — "Noto\'g\'ri" va sababini yozing. Avval tasdiqlagan yozuvingiz xato chiqsa — Tarixda ustiga bosib "Noto\'g\'ri" ni tanlang.'));
 
   const list = h('div', { class: 'card list' }, kartaSarlavha('Tarix'));
@@ -59,7 +65,7 @@ export function renderTaminotchi(root, ctx, t) {
     list.append(h('button', { type: 'button', class: 'yozuv', onclick: () => tarixSheet(ctx, a) },
       h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { style: a.bekor ? 'text-decoration:line-through' : '' }, nima(a) + ' · ', h('span', { 'data-asl': '' }, a.izoh)),
         h('b', { style: a.bekor ? 'text-decoration:line-through' : '' }, (a.tur === 'xarid' ? '+' : '−') + H.som(a.summa))),
-      h('div', { class: 'muted' }, sana(a.ts) + ' · ', h('span', { style: 'color:' + rang + ';font-weight:600' }, matn),
+      h('div', { class: 'muted' }, ks(a) + ' · ', h('span', { style: 'color:' + rang + ';font-weight:600' }, matn),
         a.qatorlar && a.qatorlar.length ? ' · ' + a.qatorlar.length + ' xil dori' : null)));
   });
   if (hammasi.length > soni) list.append(h('button', { class: 's', onclick: () => { soni += 30; ctx.rerender(); } }, 'Yana ko\'rsatish (' + (hammasi.length - soni) + ' ta)'));
@@ -74,12 +80,12 @@ const etirozMatn = (a) => h('div', { class: 'msg warn' }, 'Siz e\'tiroz bildirga
   h('span', { 'data-asl': '' }, a.etiroz), '». Direktor ko\'rib chiqadi: xato bo\'lsa yozuvni bekor qilib, to\'g\'risini yozadi.');
 
 function togri(ctx, a) {
-  tasdiqlash(nima(a) + ' ' + H.som(a.summa) + ' (' + sana(a.ts) + ') — to\'g\'rimi?')
+  tasdiqlash(nima(a) + ' ' + H.som(a.summa) + ' (' + ks(a) + ') — to\'g\'rimi?')
     .then((ha) => ha && ctx.amal('taTasdiq', a.id).then((r) => r !== null && ctx.toast('Tasdiqlandi ✓')));
 }
 
 function tarixSheet(ctx, a) {
-  sheet(nima(a) + ' · ' + sana(a.ts), (box, close) => {
+  sheet(nima(a) + ' · ' + ks(a), (box, close) => {
     const [matn, rang] = taHolat(a);
     box.append(h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, a.izoh), h('b', {}, H.som(a.summa))),
       h('div', { style: 'color:' + rang + ';font-weight:600' }, matn), ...qatorlar(a));
@@ -96,7 +102,7 @@ function tarixSheet(ctx, a) {
 function etirozSheet(ctx, a) {
   sheet('Nima noto\'g\'ri?', (box, close) => {
     const mt = input('Sababi', { inputmode: 'text', placeholder: 'Masalan: summa 2 000 000 emas, 1 800 000', value: a.etiroz || '' });
-    box.append(h('div', {}, nima(a) + ' ' + H.som(a.summa) + ' · ' + sana(a.ts)),
+    box.append(h('div', {}, nima(a) + ' ' + H.som(a.summa) + ' · ' + ks(a)),
       h('div', { class: 'msg info' }, 'Xabaringiz direktorga boradi va yozuv ostida ko\'rinib turadi. Xato bo\'lsa, direktor yozuvni bekor qilib, to\'g\'risini yozadi.'
         + (a.holat === 'ok' ? ' Bu yozuv hozir hisobingizda — e\'tirozdan keyin u siz tasdiqlamagan bo\'lib qoladi.' : '')), mt.el,
       h('button', { class: 'p', onclick: () => {

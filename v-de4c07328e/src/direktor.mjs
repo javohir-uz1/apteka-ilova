@@ -26,6 +26,8 @@ import { chiqarishView } from './chiqarish.mjs';
 import { kassaView, narxFarqSoni, narxView } from './nazorat.mjs';
 import { funksiyalarView, ochiqSoni } from './funksiya.mjs';
 import { auditView } from './audit.mjs';
+import { sorovKarta, sorovOyna } from './filial-sorov.mjs';
+import { hisobKarta, qisqaSana } from './taminot-hisob.mjs';
 
 // Sahifalar nomi (sarlavha va global qidiruv — 07.11 tun, `globalQidir`).
 export const SAHIFA_NOM = { bosh: 'Direktor paneli', daftar: 'Kunlik daftar', smena: 'Savdo', tamin: 'Ta\'minotchilar', more: 'Bo\'limlar',
@@ -221,6 +223,8 @@ export function renderDirektor(root, ctx) {
     m.append(ishlar.length ? h('div', { class: 'card ishlar' }, ...ishlar) : h('div', { class: 'card muted' }, '✓ Hozircha bajariladigan ish yo\'q'));
     m.append(seyfPlitkalar(ctx, go, bugun));
     m.append(taKarta(ctx, go));
+    // 07.11: «Osnovnoy'dan dori olish» — filiallar so'ragan ochiq dorilar (bo'lmasa — yashirin).
+    if (ctx.server) m.append(sorovKarta(ctx.retseptCtx(), () => ctx.rerender(), { direktor: true }));
     m.append(savdoKarta(ctx, go, bugun));
     const by = bugungiYozuvlar(ctx, bugun);
     if (by) m.append(by);
@@ -384,30 +388,24 @@ export function renderDirektor(root, ctx) {
     }) }, '+ Ta\'minotchi qo\'shish'));
   }
   if (tab === 'tamin' && tObj) {
-    const t = tObj, f = H.bizBoyicha(t) - H.ularBoyicha(t);
-    m.append(t.ulangan
-      ? h('div', { class: 'card' }, h('div', { class: 'msg ok' }, 'Botga ulangan: har xarid va to\'lovni ko\'radi va tasdiqlaydi. Pul qaysi hamyondan berilganini ko\'rmaydi.'),
-        h('div', { class: 'grid2' }, h('div', {}, 'Biz bo\'yicha', h('b', {}, H.som(H.bizBoyicha(t)))), h('div', {}, 'Ta\'minotchi bo\'yicha', h('b', {}, H.som(H.ularBoyicha(t))))),
-        h('div', { class: 'msg ' + (f ? 'warn' : 'ok') }, f ? 'Farq: ' + H.som(Math.abs(f)) : 'Hisob mos ✓'),
-        h('div', { class: 'row' }, h('button', { class: 's', onclick: () => taklifSheet(ctx, t, 'taTaklifYarat') }, 'Yangi havola (telefon almashsa)'),
-          h('button', { class: 's', onclick: () => tasdiqlash(t.nom + ' ilovadan uzilsinmi? U hisobini ko\'ra olmaydi va tasdiqlay olmaydi, eski havolalar ishlamaydi. Tarix qoladi.')
-            .then((ha) => ha && ctx.amal('taminotchiUzish', t.id).then((r) => r !== null && ctx.toast(t.nom + ' ilovadan uzildi'))) }, 'Ilovadan uzish')))
-      : h('div', { class: 'card' }, h('span', { class: 'muted' }, 'Qarzimiz'), h('b', { class: 'big' }, H.som(H.bizBoyicha(t))),
-        h('div', { class: 'muted' }, 'Ta\'minotchi ham ilovaga ulansa — har xarid va to\'lovni ko\'radi va tasdiqlaydi, o\'zi ham xarid yozadi. Pul qaysi hamyondan berilganini ko\'rmaydi.'),
-        h('button', { class: 's', style: 'align-self:flex-start', onclick: () => taklifSheet(ctx, t, 'taTaklifYarat') }, 'Ilovaga ulash (havola)')));
+    // 07.11 (maket C): tepada qarz, «Qarz qanday chiqdi» (boshlang'ich + dorilar − pullar, sanalar ikki ustunda), keyin har yozuv,
+    // pastda ilovaga ulanish. Ta'minotchi paneli ham xuddi shu karta (taminot-hisob.mjs) — raqamlar bir xil.
+    const t = tObj, biz = H.bizBoyicha(t), ular = H.ularBoyicha(t), f = biz - ular;
+    m.append(h('div', { class: 'card hero' }, h('span', { class: 'muted' }, 'Qarzimiz'), h('b', { class: 'big' }, H.som(biz)),
+      t.ulangan ? h('div', { class: 'msg ' + (f ? 'warn' : 'ok') }, f ? 'Ta\'minotchi hisobida: ' + H.som(ular) + ' — farq ' + H.som(Math.abs(f)) + ': hali tasdiqlanmagan yozuvlar'
+        : 'Ta\'minotchi hisobi bilan mos ✓') : null));
     m.append(h('div', { class: 'row' }, h('button', { onclick: () => xaridSheet(ctx, t) }, '+ Xarid (dori oldik)'),
       h('button', { class: 'p', onclick: () => tolovSheet(ctx, t) }, '+ To\'lov (pul berdik)')));
-    const list = h('div', { class: 'card list' }, kartaSarlavha('Tarix'));
-    if (t.boshlangichQarz) list.append(h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', {}, 'Boshlang\'ich qarz'), h('b', {}, H.som(t.boshlangichQarz)))));
-    // Har yozuv — bitta qator; bosilsa dori ro'yxati va "Bekor qilish" oynada. Tasdiq kutayotgani — qator tagida tugma.
+    // Har yozuv oynasi: dorilar, izoh, «To'g'ri — tasdiqlash» (ta'minotchi yozgan), «Bekor qilish» / «Rad etish».
     // 04.11: e'tiroz yozuv ostida; ta'minotchi yozgan xarid — «Rad etish» (qarzimizga hali kirmagan); bekor — chizilgan, xira emas.
     const etirozQator = (a) => h('div', { class: 'msg warn' }, 'E\'tiroz' + (a.etirozTs ? ' (' + sana(a.etirozTs) + ')' : '') + ': «', h('span', { 'data-asl': '' }, a.etiroz),
       '». Xato bo\'lsa — yozuvni bekor qiling va to\'g\'risini yozing; ta\'minotchi o\'zi ham «To\'g\'ri»ni bosishi mumkin.');
-    t.amallar.slice().reverse().forEach((a) => {
+    const yozuvOch = (a) => {
       const nima = (a.tur === 'xarid' ? 'Xarid' : 'To\'lov') + (a.qatorlar && a.qatorlar.length ? ' · ' + a.qatorlar.length + ' xil dori' : '');
-      const st = t.ulangan || a.holat !== 'ok' || a.etiroz ? H.taHolatDir(a) : null, rad = a.holat === 'ular';
-      list.append(h('button', { type: 'button', class: 'yozuv', onclick: () => sheet(nima, (box, close) => {
-        box.append(h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, a.izoh), h('b', {}, H.som(a.summa))), h('div', { class: 'muted' }, sana(a.ts)),
+      const rad = a.holat === 'ular';
+      sheet(nima, (box, close) => {
+        box.append(h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, a.izoh), h('b', {}, H.som(a.summa))),
+          h('div', { class: 'muted' }, a.tur === 'xarid' ? 'Olib kelgan kuni: ' + qisqaSana(H.taSana(a)) + ' · yozilgan: ' + sana(a.ts) : sana(a.ts)),
           ...(a.qatorlar || []).map((q, i) => h('div', { class: 'line', style: 'font-size:14px' },
             h('span', {}, (i + 1) + '. ', h('span', { 'data-asl': '' }, q.dori)), h('span', { style: 'white-space:nowrap' }, q.soni + ' × ' + H.som(q.narx) + ' = ' + H.som(q.summa)))));
         if (a.bekor) { box.append(h('div', { class: 'msg info' }, 'Bekor qilingan' + (a.bekorSabab ? ': ' + a.bekorSabab : ''))); return; }
@@ -422,17 +420,34 @@ export function renderDirektor(root, ctx) {
             if (xatolar([[sb, matnBormi(sb) ? null : 'Sababini yozing']])) return;
             ctx.amalX(xatoJoyla([[sb, /sabab/i]]), 'amalBekor', t.id, a.id, sb.i.value).then((r) => r !== null && close());
           } }, rad ? 'Rad etish' : 'Bekor qilish'));
-      }, { fokus: false }) },
-      h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { style: a.bekor ? 'text-decoration:line-through' : '' }, (a.tur === 'xarid' ? 'Xarid · ' : 'To\'lov · '), h('span', { 'data-asl': '' }, a.izoh)),
-        h('b', { style: a.bekor ? 'text-decoration:line-through' : '' }, (a.tur === 'xarid' ? '+' : '−') + H.som(a.summa))),
-      h('div', { class: 'muted' }, sana(a.ts), a.bekor ? ' · bekor qilingan' : st ? [' · ', h('span', { style: 'color:' + st[1] + ';font-weight:600' }, st[0])] : null,
-        a.qatorlar && a.qatorlar.length ? ' · ' + a.qatorlar.length + ' xil dori' : null)));
+      }, { fokus: false });
+    };
+    m.append(hisobKarta(t, 'dir', { onYozuv: yozuvOch,
+      excel: ctx.server ? () => ctx.amal('taminotExcel', t.id).then((r) => { if (r) ctx.toast('Excel Telegram\'ga yuborildi ✓'); }) : null }));
+    const list = h('div', { class: 'card list' }, kartaSarlavha('Har bir yozuv (yangisi tepada)'));
+    if (t.boshlangichQarz) list.append(h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', {}, 'Boshlang\'ich qarz'), h('b', {}, H.som(t.boshlangichQarz)))));
+    // Har yozuv — bitta qator; bosilsa oyna (yozuvOch). Tasdiq kutayotgani — qator tagida tugma.
+    t.amallar.slice().reverse().forEach((a) => {
+      const st = t.ulangan || a.holat !== 'ok' || a.etiroz ? H.taHolatDir(a) : null, rad = a.holat === 'ular';
+      list.append(h('button', { type: 'button', class: 'yozuv', onclick: () => yozuvOch(a) },
+        h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { style: a.bekor ? 'text-decoration:line-through' : '' }, (a.tur === 'xarid' ? 'Xarid · ' : 'To\'lov · '), h('span', { 'data-asl': '' }, a.izoh)),
+          h('b', { style: a.bekor ? 'text-decoration:line-through' : '' }, (a.tur === 'xarid' ? '+' : '−') + H.som(a.summa))),
+        h('div', { class: 'muted' }, a.tur === 'xarid' ? qisqaSana(H.taSana(a)) : sana(a.ts), a.bekor ? ' · bekor qilingan' : st ? [' · ', h('span', { style: 'color:' + st[1] + ';font-weight:600' }, st[0])] : null,
+          a.qatorlar && a.qatorlar.length ? ' · ' + a.qatorlar.length + ' xil dori' : null)));
       if (a.etiroz && !a.bekor && a.holat === 'kutish') list.append(etirozQator(a));
       if (!a.bekor && rad) list.append(h('button', { class: 'p s', style: 'align-self:flex-start;margin-bottom:8px', onclick: () => tasdiqlash(t.nom + ': xarid ' + H.som(a.summa) + ' — to\'g\'rimi? Qarzimizga qo\'shiladi.')
         .then((ha) => ha && ctx.amal('amalTasdiq', t.id, a.id).then((r) => r !== null && ctx.toast('Tasdiqlandi ✓'))) }, 'To\'g\'ri — tasdiqlash'));
     });
     if (!t.amallar.length && !t.boshlangichQarz) list.append(h('div', { class: 'muted' }, 'Hali yozuv yo\'q. Dori olganda — "+ Xarid", pul berganda — "+ To\'lov".'));
     m.append(list);
+    // Ilovaga ulanish — pastda (kam ishlatiladi).
+    m.append(t.ulangan
+      ? h('div', { class: 'card' }, h('div', { class: 'msg ok' }, 'Ilovaga ulangan: har xarid va to\'lovni ko\'radi va tasdiqlaydi. Pul qaysi hamyondan berilganini ko\'rmaydi.'),
+        h('div', { class: 'row' }, h('button', { class: 's', onclick: () => taklifSheet(ctx, t, 'taTaklifYarat') }, 'Yangi havola (telefon almashsa)'),
+          h('button', { class: 's', onclick: () => tasdiqlash(t.nom + ' ilovadan uzilsinmi? U hisobini ko\'ra olmaydi va tasdiqlay olmaydi, eski havolalar ishlamaydi. Tarix qoladi.')
+            .then((ha) => ha && ctx.amal('taminotchiUzish', t.id).then((r) => r !== null && ctx.toast(t.nom + ' ilovadan uzildi'))) }, 'Ilovadan uzish')))
+      : h('div', { class: 'card' }, h('div', { class: 'muted' }, 'Ta\'minotchi ham ilovaga ulansa — har xarid va to\'lovni ko\'radi va tasdiqlaydi, o\'zi ham xarid yozadi. Pul qaysi hamyondan berilganini ko\'rmaydi.'),
+        h('button', { class: 's', style: 'align-self:flex-start', onclick: () => taklifSheet(ctx, t, 'taTaklifYarat') }, 'Ilovaga ulash (havola)')));
   }
 
   // ---------- Bo'limlar ----------
@@ -455,6 +470,7 @@ export function renderDirektor(root, ctx) {
         onclick: () => { DEF_TAB.v = 'kerak'; go('more', 'defektura'); } },
         { l: 'Buyurtma berilganlar', n: defBuyurtma ? defBuyurtma + ' ta dori kelishi kutilmoqda' : 'Hozir yo\'q', onclick: () => { DEF_TAB.v = 'buyurtma'; go('more', 'defektura'); } },
         q('prays', 'Prays-list', S.prays && S.prays.soni ? S.prays.soni + ' ta dori' : 'Narxlarni qidirish'),
+        ctx.server ? { l: 'Filiallararo dori so\'rovlari', n: 'Filiallar Osnovnoy\'dan, Osnovnoy filiallardan', onclick: () => sorovOyna(ctx.retseptCtx(), () => ctx.rerender()) } : null,
         ctx.server ? q('firmalar', 'Firma prayslari', 'Qaysi firmada arzon — defektura uchun') : null,
         ctx.server ? { l: 'Hisobdan chiqarilganlar', n: 'Muddati o\'tgan, singan, firmaga qaytarilgan', onclick: () => go('qoldiq', 'chiqarish') } : null,
         q('shtrix', 'Shtrix-kodlar', (S.shtrixlar || []).length ? (S.shtrixlar || []).length + ' ta · shprits, sistema…' : 'Shprits, sistema — xodimlar skanerga tutadi')] },
@@ -951,6 +967,8 @@ function bugunView(m, ctx, go, bugun) {
   m.append(h('section', { class: 'yb', 'aria-label': 'Diqqat qiling' }, h('h2', { class: 'yb-s' }, 'Diqqat qiling'),
     dq.length ? h('div', { class: 'card yb-r' }, ...dq.map(qator))
       : h('div', { class: 'card yb-bosh' }, ikon('check'), h('span', {}, 'Hammasi joyida — hozir bajariladigan ish yo\'q'))));
+  // 07.11: «Osnovnoy'dan dori olish» — filiallar so'ragan ochiq dorilar (bo'lmasa — yashirin).
+  if (ctx.server) m.append(sorovKarta(ctx.retseptCtx(), () => ctx.rerender(), { direktor: true }));
   const bl = boshlashKarta(ctx, go);
   if (bl) m.append(bl);
   // «Bilimdon» o'yini ketayotgan bo'lsa — kuzatishga qaytish kartasi (Defekturadan keyin: Defektura doim birinchi).
@@ -1015,6 +1033,7 @@ function omborBolim(m, ctx, go, fil) {
       sv ? { ikon: 'ombor', rang: 'yashil', l: 'Oson qoldig\'i', izoh: 'Tugadi, kam qoldi, ko\'chirsa — hamma filial', onclick: () => go('qoldiq') } : null,
       sv ? { ikon: 'aqlli', rang: 'binafsha', l: 'Aqlli buyurtma', izoh: 'Nima va qancha olish kerak', onclick: () => go('qoldiq', 'buyurtma') } : null,
       { ikon: 'defektura', rang: 'sariq', l: 'Defektura', izoh: def ? def + ' ta dori kerak' : 'Kam qolgan dorilar', diqqat: def > 0, onclick: () => { DEF_TAB.v = 'kerak'; go('more', 'defektura'); } },
+      sv ? { ikon: 'kochirish', rang: 'kok', l: 'Filiallararo dori so\'rovlari', izoh: 'Filiallar Osnovnoy\'dan, Osnovnoy filiallardan', onclick: () => sorovOyna(rc, chiz) } : null,
       sv ? { ikon: 'kochirish', rang: 'kok', l: 'Ko\'chirish', izoh: 'Filiallar orasida — muddat, ortiqcha', onclick: () => go('qoldiq', 'kochirish') } : null,
       sv ? { ikon: 'inventar', rang: 'kok', l: 'Inventarizatsiya', izoh: 'Telefon bilan sanash', onclick: () => go('qoldiq', 'inventar') } : null] },
     { nom: 'Nazorat', qatorlar: [
@@ -1751,8 +1770,9 @@ function havolaSheet(ctx, z, amal, telefon = null) {
 // saqla(summa, izoh, qatorlar, xatoQoy) → Promise; berilmasa — direktor xaridi. Ta'minotchi ekrani ham shu oynani ishlatadi.
 export function xaridSheet(ctx, t, saqla = null, sarlavha = t.nom + ' — xarid') {
   const dirYozadi = !saqla;   // direktor yozadi (ta'minotchi o'z saqla funksiyasi bilan chaqiradi)
-  if (!saqla) saqla = (s, iz, rows, j) => ctx.amalX(j, 'xarid', t.id, s, iz, rows);
-  const esl = H.xaridEslatma(t);   // shu ta'minotchining oldingi xaridlaridagi dori nomlari («Shumi?»)
+  if (!saqla) saqla = (s, iz, rows, j, kun) => ctx.amalX(j, 'xarid', t.id, s, iz, rows, kun);
+  // Shu ta'minotchining dorilari (07.11: ro'yxat + oldingi xaridlar) — «Shumi?» takliflari va tepadagi tugmalar.
+  const esl = H.taDoriEslatma(t);
   sheet(sarlavha, (box, close) => {
     const rows = [];
     let royxatsiz = false;
@@ -1761,8 +1781,10 @@ export function xaridSheet(ctx, t, saqla = null, sarlavha = t.nom + ' — xarid'
     const jamiX = guruhXato(null);
     const s = input('Jami summa, so\'m'), iz = input('Izoh yoki faktura raqami (ixtiyoriy' + (dirYozadi && t.ulangan ? ', ta\'minotchi ko\'radi)' : ')'), { inputmode: 'text' });
     const qiymat = () => (royxatsiz ? [] : rows.filter((q) => q.el.isConnected).map((q) => ({ dori: q.d.i.value, soni: q.n.i.value, narx: q.p.i.value })));
+    let chipYangila = () => {};   // ta'minotchi dorilari tugmalari (pastda aniqlanadi) — har o'zgarishda yangilanadi
     const upd = () => {
       list.hidden = royxatsiz; qoshBtn.hidden = royxatsiz; s.el.hidden = !royxatsiz;
+      chipYangila();
       rejim.textContent = royxatsiz ? 'Dori ro\'yxati bilan yozish' : 'Ro\'yxatsiz — faqat jami summa';
       jamiX.xato('');
       if (royxatsiz) { jami.hidden = true; return; }
@@ -1777,7 +1799,8 @@ export function xaridSheet(ctx, t, saqla = null, sarlavha = t.nom + ' — xarid'
       const tk = h('div', { class: 'shumi', 'aria-live': 'polite' });
       const taklif = () => {
         tk.textContent = '';
-        const l = H.doriTaklif(esl, q.d.i.value);
+        // Server ro'yxati bo'lsa — takliflar ham shundan (direktor olib tashlagan / eski qisqa nomlar chiqmasin), aks holda xaridlardan.
+        const l = H.doriTaklif(Array.isArray(t.dorilar) ? dorilar : esl, q.d.i.value);
         if (!l.length) return;
         tk.append(h('span', { class: 'muted' }, 'Shumi?'), ...l.map((e) => h('button', { type: 'button', class: 'shumi-t', 'data-klav': 'qoldir', onclick: () => {
           q.d.i.value = e.dori;
@@ -1795,9 +1818,60 @@ export function xaridSheet(ctx, t, saqla = null, sarlavha = t.nom + ' — xarid'
     };
     const qoshBtn = h('button', { type: 'button', onclick: () => qosh().d.i.focus() }, '+ Yana dori');
     const rejim = h('button', { type: 'button', class: 'link', onclick: () => { royxatsiz = !royxatsiz; upd(); } });
+    // 07.11: ta'minotchi dorilari — tugmalar (bosilsa bo'sh qatorga yoki yangi qatorga nom va oxirgi narx yoziladi).
+    // Direktor «Ro'yxatni tahrirlash» bilan keraksizini olib tashlaydi (xaridlar o'zgarmaydi).
+    // Tugmalar — serverdagi ro'yxat (t.dorilar: direktor olib tashlagani qaytib kelmaydi); yo'q bo'lsa (eski server) — oldingi xaridlar.
+    // Narx — oldingi xariddagi oxirgisi (esl), bo'lmasa ro'yxatdagi.
+    const dorilar = (Array.isArray(t.dorilar)
+      ? t.dorilar.map((d) => { const k = H.qidiruvKalit(d.nom), e = esl.find((x) => x.k === k); return { dori: String(d.nom).trim(), narx: (e && e.narx) || d.narx || null, k, marta: d.n || 0 }; }).filter((e) => e.k)
+      : esl.slice().sort((a, b) => (b.marta - a.marta) || a.dori.localeCompare(b.dori))).slice(0, 40);
+    const tugmalar = h('div', { class: 'ta-dorilar', role: 'group', 'aria-label': 'Ta\'minotchi dorilari' });
+    let tahrir = false;
+    const tugmaChiz = () => {
+      const qatorlar = rows.filter((q) => q.el.isConnected);
+      tugmalar.replaceChildren(...dorilar.map((e) => {
+        const on = qatorlar.find((q) => H.qidiruvKalit(q.d.i.value) === e.k);
+        return h('button', { type: 'button', class: 'ta-dori' + (on && !tahrir ? ' on' : ''), 'data-klav': 'qoldir', 'aria-pressed': tahrir ? null : String(!!on),
+          onclick: () => {
+            if (tahrir) {
+              tasdiqlash('«' + e.dori + '» ' + t.nom + ' ro\'yxatidan olib tashlansinmi? Xaridlar o\'zgarmaydi.').then((ha) => ha && ctx.amal('taminotDori', t.id, e.dori, false)
+                .then((r) => {
+                  if (r === null) return;
+                  dorilar.splice(dorilar.indexOf(e), 1);
+                  const i = esl.findIndex((x) => x.k === e.k);
+                  if (i >= 0) esl.splice(i, 1);   // «Shumi?» ham taklif qilmasin
+                  tugmaChiz();
+                }));
+              return;
+            }
+            if (on) { on.n.i.focus(); return; }   // allaqachon qatorda — sonini yozish (ikkinchi qator ochilmaydi)
+            const q = rows.find((z) => z.el.isConnected && !String(z.d.i.value).trim()) || qosh();
+            q.d.i.value = e.dori;
+            if (!String(q.p.i.value).trim() && e.narx) q.p.i.value = String(e.narx);
+            upd(); q.n.i.focus();
+          } }, on && !tahrir ? '✓ ' : null, h('span', { 'data-asl': '' }, e.dori), tahrir ? h('span', { class: 'x', 'aria-hidden': 'true' }, '✕') : null);
+      }));
+    };
+    const tahrirBtn = dirYozadi && dorilar.length ? h('button', { type: 'button', class: 'link', onclick: () => {
+      tahrir = !tahrir; tahrirBtn.textContent = tahrir ? 'Tahrirlash tugadi' : 'Ro\'yxatni tahrirlash'; tugmaChiz();
+    } }, 'Ro\'yxatni tahrirlash') : null;
+    const chipBlok = h('div', { style: 'display:flex;flex-direction:column;gap:8px' }, h('div', { class: 'row', style: 'justify-content:space-between;align-items:center' },
+      h('b', {}, dirYozadi ? [h('span', { 'data-asl': '' }, t.nom), ' dorilari — bosing'] : 'Sizning dorilaringiz — bosing'), tahrirBtn), tugmalar);
+    // Ro'yxatsiz (faqat jami summa) rejimida tugmalar yo'q — bosilsa jim rejim almashib, yozilgan summa yo'qolardi.
+    chipYangila = () => { chipBlok.hidden = royxatsiz || !dorilar.length; tugmaChiz(); };
+    list.addEventListener('input', () => tugmaChiz());
+    // «Qachon olib keldi» — bugun (standart) yoki oxirgi 90 kun (SQL ilova.taminot_sana).
+    const bugunK = H.kunKey(Date.now()), eng = H.kunQosh(bugunK, -90);
+    const sanaI = input(dirYozadi ? 'Qachon olib keldi' : 'Qachon dori berdingiz', { type: 'date', value: bugunK, max: bugunK, min: eng });
     qosh();
-    box.append(list, qoshBtn, jami, jamiX.el, s.el, rejim, iz.el,
+    chipYangila();
+    box.append(chipBlok, list, qoshBtn, jami, jamiX.el, s.el, rejim, sanaI.el, iz.el,
       h('button', { class: 'p', onclick: () => {
+        const kun = String(sanaI.i.value || '').trim();
+        // Bugun — saqlash paytida (oyna yarim tundan keyin ham ochiq turgan bo'lishi mumkin).
+        const hozir = H.kunKey(Date.now()), eng2 = H.kunQosh(hozir, -90);
+        if (xatolar([[sanaI, !kun ? null : !/^\d{4}-\d{2}-\d{2}$/.test(kun) ? 'Sanani kalendardan tanlang' : kun > hozir ? 'Sana kelajakda bo\'lmasin'
+          : kun < eng2 ? 'Sana 90 kundan eski bo\'lmasin' : null]])) return;
         if (royxatsiz) { if (xatolar([[s, pulXato(s, 'Xarid summasini yozing')]])) return; }
         else {
           const r = H.xaridQatorlar(qiymat());
@@ -1809,7 +1883,8 @@ export function xaridSheet(ctx, t, saqla = null, sarlavha = t.nom + ' — xarid'
         const tekshir = royxatsiz ? [] : rows.filter((q) => q.el.isConnected).map((q) => [q, H.doriOxshash(esl, q.d.i.value)]).filter(([, e]) => e);
         tekshir.reduce((p, [q, e]) => p.then(() => tasdiqlash('«' + q.d.i.value.trim() + '» deb yozdingiz. Avval «' + e.dori + '» deb yozilgan — shumi?')
           .then((ha) => { if (ha) q.d.i.value = e.dori; })), Promise.resolve())
-          .then(() => saqla(royxatsiz ? s.i.value : '', iz.i.value, qiymat(), xatoJoyla(royxatsiz ? [[s, /summa/i]] : [[jamiX, /qator|summa|dori/i]])))
+          .then(() => saqla(royxatsiz ? s.i.value : '', iz.i.value, qiymat(), xatoJoyla(royxatsiz ? [[sanaI, /sana/i], [s, /summa/i]] : [[sanaI, /sana/i], [jamiX, /qator|summa|dori/i]]),
+            kun === hozir ? '' : kun))
           .then((ok) => ok && close());
       } }, 'Saqlash'));
     upd();

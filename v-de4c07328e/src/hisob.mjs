@@ -197,6 +197,23 @@ export const oyOxiri = (x, oy) => (x.oylik || 0) - avansJami(x, oy);
 const ishora = (a) => (a.tur === 'xarid' ? a.summa : -a.summa);
 export const bizBoyicha = (t) => (t.boshlangichQarz || 0) + t.amallar.filter((a) => a.holat !== 'ular' && !a.bekor).reduce((s, a) => s + ishora(a), 0);
 export const ularBoyicha = (t) => (t.boshlangichQarz || 0) + t.amallar.filter((a) => a.holat !== 'kutish' && !a.bekor).reduce((s, a) => s + ishora(a), 0);
+// 07.11 (maket C, foydalanuvchi tanladi): «Qarz qanday chiqdi» — boshlang'ich + dorilar − pullar = qarz. rol 'dir' — bizBoyicha
+// (ta'minotchi yozib hali tasdiqlanmagani kirmaydi), 'ta' — ularBoyicha (apteka yozib u hali tasdiqlamagani kirmaydi). Natija qarz
+// har doim bizBoyicha / ularBoyicha bilan teng (test tekshiradi). Yozuvlar sanasi — a.sana (olib kelingan kun) yoki yozilgan kun.
+export function taSana(a) { return (a && /^\d{4}-\d{2}-\d{2}$/.test(a.sana || '') ? a.sana : kunKey(a && a.ts)); }
+export function taHisob(t, rol) {
+  const kirmaydi = rol === 'ta' ? 'kutish' : 'ular';
+  const hisobda = (a) => !a.bekor && a.holat !== kirmaydi;
+  const yoz = ((t && t.amallar) || []).map((a) => ({ a, sana: taSana(a), hisobda: hisobda(a) }))
+    .sort((x, y) => (x.sana < y.sana ? -1 : x.sana > y.sana ? 1 : (x.a.ts || 0) - (y.a.ts || 0)));
+  const dori = yoz.filter((y) => y.a.tur === 'xarid'), pul = yoz.filter((y) => y.a.tur !== 'xarid');
+  const jamiD = dori.filter((y) => y.hisobda).reduce((s, y) => s + (y.a.summa || 0), 0);
+  const jamiP = pul.filter((y) => y.hisobda).reduce((s, y) => s + (y.a.summa || 0), 0);
+  // Boshqa tomon hali tasdiqlamagan (hisobga kirmagan, bekor emas) — alohida ko'rsatiladi.
+  const kutish = yoz.filter((y) => !y.a.bekor && !y.hisobda);
+  return { bosh: (t && t.boshlangichQarz) || 0, dori, pul, jamiD, jamiP, nD: dori.filter((y) => y.hisobda).length, nP: pul.filter((y) => y.hisobda).length,
+    qarz: ((t && t.boshlangichQarz) || 0) + jamiD - jamiP, kutish, kutishSumma: kutish.reduce((s, y) => s + ishora(y.a), 0) };
+}
 // Ta'minotchi «Noto'g'ri» degan, hali hal qilinmagan yozuvlar (04.11): bekor qilinmagan va u hali tasdiqlamagan.
 export const taEtirozlar = (t) => (t.amallar || []).filter((a) => a.etiroz && !a.bekor && a.holat === 'kutish');
 // Direktor ko'radigan holat matni: ulanmagan paytda yozilgan (avto) — alohida.
@@ -223,6 +240,18 @@ export function xaridEslatma(t) {
     }
   }
   return [...m.values()].sort((x, y) => y.ts - x.ts);
+}
+// 07.11: xarid oynasi uchun — ta'minotchi dorilari ro'yxati (server t.dorilar: direktor kiritgan + xaridlardan) va oldingi
+// xaridlardagi nomlar birga (bir dori bir marta — talaffuz kaliti bo'yicha; oldingi xariddagi oxirgi narx ustun).
+export function taDoriEslatma(t) {
+  const esl = xaridEslatma(t), bor = new Set(esl.map((e) => e.k));
+  for (const d of (t && t.dorilar) || []) {
+    const k = qidiruvKalit(d.nom);
+    if (!k || bor.has(k)) { const e = esl.find((x) => x.k === k); if (e && d.n > e.marta) e.marta = d.n; continue; }
+    bor.add(k);
+    esl.push({ dori: String(d.nom).trim(), narx: d.narx || null, soni: null, ts: 0, k, marta: d.n || 0 });
+  }
+  return esl;
 }
 // Yozilayotgan matnga mos oldingi nomlar (eng ko'pi n ta): har so'z biror so'z boshida bo'lsin; boshi mos — oldin, keyin ko'p yozilgani.
 export function doriTaklif(esl, matn, n = 3) {

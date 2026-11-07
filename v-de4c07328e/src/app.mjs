@@ -19,6 +19,7 @@ import { shtrixKarta } from './shtrix.mjs';
 import { muddatiOtganKarta, osonQidiruv } from './oson-qoldiq.mjs';
 import { narxXodimKarta } from './nazorat.mjs';
 import { bronKarta } from './bron.mjs';
+import { sorovKarta } from './filial-sorov.mjs';
 import { inventarOrqaga, inventarView } from './inventar.mjs';
 import { oyinBanner, oyinBosh, oyinView } from './oyin.mjs';
 import { menDavomat } from './davomat.mjs';
@@ -338,6 +339,8 @@ function boshView(m, x) {
   if (!keldi.length && !qarzlarim.length) c.append(h('div', { class: 'muted' }, 'Hozircha yangilik yo\'q. Mijozga qarzga dori bersangiz — «Qarz yozish».'));
   m.append(c);
   // Muddati o'tgan dorilar — o'z filiali (vaqtincha biriktirilgan bo'lsa — o'sha filial; 03.11).
+  // 07.11: «Osnovnoy'dan dori olish» — filial xodimi so'raydi, Osnovnoy xodimi tayyorlaydi (filial-sorov.mjs; faqat serverda).
+  if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') render(); }));
   const mo = muddatiOtganKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); });
   if (mo) m.append(mo);
   // 07.11: direktor tanlagan narx — Oson'da tuzatish; narxi o'zgargan dorilarga yorliq (o'z filiali).
@@ -549,6 +552,8 @@ function xBosh(m, x) {
   }
   if (!keldi.length && !qarzlarim.length) c.append(h('div', { class: 'muted' }, 'Hozircha yangilik yo\'q.'));
   m.append(c);
+  // 07.11: «Osnovnoy'dan dori olish» — filial xodimi so'raydi, Osnovnoy xodimi tayyorlaydi (filial-sorov.mjs; faqat serverda).
+  if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') render(); }));
   const mo = muddatiOtganKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); });
   if (mo) m.append(mo);
   const nk = SERVER && fy('x_narx') ? narxXodimKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); }) : null;
