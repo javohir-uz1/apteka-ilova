@@ -21,12 +21,13 @@ import { globalQidiruvOyna } from './qidiruv.mjs';
 import { tanishuvAvto, tanishuvOch } from './tanishuv.mjs';
 import { mijozBelgi } from './mijoz.mjs';
 import { buyurtmaView, ertalabKarta, kochirishView, pulKirish, pulView } from './pul.mjs';
+import { filialMijozOyna } from './filial-mijoz.mjs';
 import { inventarOrqaga, inventarView } from './inventar.mjs';
 import { chiqarishView } from './chiqarish.mjs';
 import { kassaView, narxFarqSoni, narxView } from './nazorat.mjs';
 import { funksiyalarView, ochiqSoni } from './funksiya.mjs';
 import { auditView } from './audit.mjs';
-import { sorovKarta, sorovOyna } from './filial-sorov.mjs';
+import { harakatOyna, sorovKarta, sorovOyna } from './filial-sorov.mjs';
 import { hisobKarta, qisqaSana } from './taminot-hisob.mjs';
 
 // Sahifalar nomi (sarlavha va global qidiruv — 07.11 tun, `globalQidir`).
@@ -217,14 +218,14 @@ export function renderDirektor(root, ctx) {
       ['qosh', 'Savdo', '', () => savdoSheet(ctx)],
       ['chiqim', 'Pul chiqdi', 'chiqim', () => (UY_PULI ? yozuvSheet(ctx, { soha: 'apteka' }) : pulChiqdiSheet(ctx))],
       ['tamin', 'Ta\'minot', '', () => go('tamin')]]));
+    // 07.11 kech (foydalanuvchi: "dori so'rovi asosiy ekranda ajralib ko'rinsin"): tez tugmalar ostida — filiallararo so'rovlar.
+    if (ctx.server) m.append(sorovKarta(ctx.retseptCtx(), () => ctx.rerender(), { direktor: true }));
     // Bajarish kerak: pul qabuli, savdo tasdig'i, qarz ruxsati, ta'minotchi yozuvi, buyurtma kutayotgan dori.
     const ishlar = boshIshlar(ctx, go, bugun).map((i) => ishQator(i));
     m.append(h('div', { class: 'bolim-bosh' }, h('h2', {}, 'Bajarish kerak'), h('span', { class: 'muted' }, ishlar.length ? ishlar.length + ' ta' : '')));
     m.append(ishlar.length ? h('div', { class: 'card ishlar' }, ...ishlar) : h('div', { class: 'card muted' }, '✓ Hozircha bajariladigan ish yo\'q'));
     m.append(seyfPlitkalar(ctx, go, bugun));
     m.append(taKarta(ctx, go));
-    // 07.11: «Osnovnoy'dan dori olish» — filiallar so'ragan ochiq dorilar (bo'lmasa — yashirin).
-    if (ctx.server) m.append(sorovKarta(ctx.retseptCtx(), () => ctx.rerender(), { direktor: true }));
     m.append(savdoKarta(ctx, go, bugun));
     const by = bugungiYozuvlar(ctx, bugun);
     if (by) m.append(by);
@@ -470,7 +471,8 @@ export function renderDirektor(root, ctx) {
         onclick: () => { DEF_TAB.v = 'kerak'; go('more', 'defektura'); } },
         { l: 'Buyurtma berilganlar', n: defBuyurtma ? defBuyurtma + ' ta dori kelishi kutilmoqda' : 'Hozir yo\'q', onclick: () => { DEF_TAB.v = 'buyurtma'; go('more', 'defektura'); } },
         q('prays', 'Prays-list', S.prays && S.prays.soni ? S.prays.soni + ' ta dori' : 'Narxlarni qidirish'),
-        ctx.server ? { l: 'Osnovnoy\'dan dori olish', n: 'Filiallar so\'ragan dorilar', onclick: () => sorovOyna(ctx.retseptCtx(), () => ctx.rerender()) } : null,
+        ctx.server ? { l: 'Filiallararo dori so\'rovlari', n: 'Har filial boshqa filialdan so\'raydi', onclick: () => sorovOyna(ctx.retseptCtx(), () => ctx.rerender()) } : null,
+        ctx.server ? { l: 'Keldi-ketdi (Oson\'da ko\'chirish)', n: 'Qaysi filialdan nima olib ketildi', onclick: () => harakatOyna(ctx.retseptCtx(), () => ctx.rerender()) } : null,
         ctx.server ? q('firmalar', 'Firma prayslari', 'Qaysi firmada arzon — defektura uchun') : null,
         ctx.server ? { l: 'Hisobdan chiqarilganlar', n: 'Muddati o\'tgan, singan, firmaga qaytarilgan', onclick: () => go('qoldiq', 'chiqarish') } : null,
         q('shtrix', 'Shtrix-kodlar', (S.shtrixlar || []).length ? (S.shtrixlar || []).length + ' ta · shprits, sistema…' : 'Shprits, sistema — xodimlar skanerga tutadi')] },
@@ -963,12 +965,12 @@ function bugunView(m, ctx, go, bugun) {
     // 07.11 (egasi: "Retseptlarni asosiy ekran savdo, qarzlarning yoniga").
     ['retsept', 'Retsept', 'yashil', () => { retseptBosh(); go('retsept'); }],
     ['buyurtma', 'Buyurtma', 'kok', () => { DEF_TAB.v = 'buyurtma'; go('more', 'defektura'); }]]));
+  // 07.11 kech: filiallararo dori so'rovlari — tugmalar ostida, ajralib turadi (filial-sorov.mjs).
+  if (ctx.server) m.append(sorovKarta(ctx.retseptCtx(), () => ctx.rerender(), { direktor: true }));
   const dq = diqqatQatorlari(ctx, go, bugun);
   m.append(h('section', { class: 'yb', 'aria-label': 'Diqqat qiling' }, h('h2', { class: 'yb-s' }, 'Diqqat qiling'),
     dq.length ? h('div', { class: 'card yb-r' }, ...dq.map(qator))
       : h('div', { class: 'card yb-bosh' }, ikon('check'), h('span', {}, 'Hammasi joyida — hozir bajariladigan ish yo\'q'))));
-  // 07.11: «Osnovnoy'dan dori olish» — filiallar so'ragan ochiq dorilar (bo'lmasa — yashirin).
-  if (ctx.server) m.append(sorovKarta(ctx.retseptCtx(), () => ctx.rerender(), { direktor: true }));
   const bl = boshlashKarta(ctx, go);
   if (bl) m.append(bl);
   // «Bilimdon» o'yini ketayotgan bo'lsa — kuzatishga qaytish kartasi (Defekturadan keyin: Defektura doim birinchi).
@@ -1033,7 +1035,8 @@ function omborBolim(m, ctx, go, fil) {
       sv ? { ikon: 'ombor', rang: 'yashil', l: 'Oson qoldig\'i', izoh: 'Tugadi, kam qoldi, ko\'chirsa — hamma filial', onclick: () => go('qoldiq') } : null,
       sv ? { ikon: 'aqlli', rang: 'binafsha', l: 'Aqlli buyurtma', izoh: 'Nima va qancha olish kerak', onclick: () => go('qoldiq', 'buyurtma') } : null,
       { ikon: 'defektura', rang: 'sariq', l: 'Defektura', izoh: def ? def + ' ta dori kerak' : 'Kam qolgan dorilar', diqqat: def > 0, onclick: () => { DEF_TAB.v = 'kerak'; go('more', 'defektura'); } },
-      sv ? { ikon: 'kochirish', rang: 'kok', l: 'Osnovnoy\'dan dori olish', izoh: 'Filiallar so\'ragan dorilar', onclick: () => sorovOyna(rc, chiz) } : null,
+      sv ? { ikon: 'kochirish', rang: 'kok', l: 'Filiallararo dori so\'rovlari', izoh: 'Har filial boshqa filialdan so\'raydi', onclick: () => sorovOyna(rc, chiz) } : null,
+      sv ? { ikon: 'kochirish', rang: 'sariq', l: 'Keldi-ketdi (Oson\'da ko\'chirish)', izoh: 'Qaysi filialdan nima olib ketildi', onclick: () => harakatOyna(rc, chiz) } : null,
       sv ? { ikon: 'kochirish', rang: 'kok', l: 'Ko\'chirish', izoh: 'Filiallar orasida — muddat, ortiqcha', onclick: () => go('qoldiq', 'kochirish') } : null,
       sv ? { ikon: 'inventar', rang: 'kok', l: 'Inventarizatsiya', izoh: 'Telefon bilan sanash', onclick: () => go('qoldiq', 'inventar') } : null] },
     { nom: 'Nazorat', qatorlar: [
@@ -1282,8 +1285,10 @@ function sozlamaView(m, ctx, x, fil) {
       saqla(xatoJoyla([[n]]), n.i.value).then((ok) => ok && (close(), ctx.toast('Saqlandi ✓')));
     } }, 'Saqlash'));
   });
-  S.filiallar.forEach((z) => fl.append(h('div', { class: 'line', style: 'align-items:center' }, h('span', {}, z.nom + (z.asosiy || z.id === 'osnovnoy' ? ' · asosiy' : '')),
-    h('button', { class: 's', style: 'flex:none', onclick: () => nomSheet('Filial nomi', z.nom, (j, v) => ctx.amalX(j, 'filialNomla', z.id, v)) }, 'Nomini o\'zgartirish'))));
+  // 08.11: «Mijozlar uchun» — mijoz botida ko'rinadigan nom, manzil, xarita, surat (filial-mijoz.mjs; faqat serverda).
+  S.filiallar.forEach((z) => fl.append(h('div', { class: 'line', style: 'align-items:center;flex-wrap:wrap;gap:6px' }, h('span', { style: 'flex:1 1 100%' }, z.nom + (z.asosiy || z.id === 'osnovnoy' ? ' · asosiy' : '')),
+    h('button', { class: 's', style: 'flex:none', onclick: () => nomSheet('Filial nomi', z.nom, (j, v) => ctx.amalX(j, 'filialNomla', z.id, v)) }, 'Nomini o\'zgartirish'),
+    ctx.server ? h('button', { class: 's', style: 'flex:none', onclick: () => filialMijozOyna({ ...ctx.retseptCtx(), firma: ctx.firma }, z) }, '📍 Mijozlar uchun') : null)));
   fl.append(h('button', { onclick: () => nomSheet('Yangi filial', '', (j, v) => ctx.amalX(j, 'filialQosh', v)) }, '+ Filial qo\'shish'));
   m.append(fl);
 

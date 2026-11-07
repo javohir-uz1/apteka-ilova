@@ -14,6 +14,7 @@ import { defNarxQator, firmalarOl } from './firma.mjs';
 import { skanerTugma } from './shtrix-skan.mjs';
 // 07.11 tun: hisobdan chiqarish / firmaga qaytarish (chiqarish.mjs bu fayldan qoldiqMatn oladi — aylanma import faqat chaqiruvda ishlatiladi).
 import { chiqarishOyna, chiqarishRuxsat, chiqarishTugma } from './chiqarish.mjs';
+import { ozFilialmi, sorashOch } from './filial-sorov.mjs';
 
 const BOSH = () => ({ j: null, vaqt: 0, yuklanmoqda: null, keyin: false, xato: null, filial: '', ochiq: {}, tartib: {}, rejim: 'tugadi', defda: new Map(),
   muddat: { oy: 3, j: null, vaqt: 0, yuklanmoqda: null, xato: null }, otgan: { j: null, vaqt: 0, yuklanmoqda: null, ochiq: false }, qidir: { soz: '', jSoz: null, j: null, xato: null, taymer: 0, avlod: 0, chiz: null } });
@@ -319,6 +320,17 @@ function doriSheet(ctx, q, fNom, chiz) {
         q.narx ? 'sotuv narxi ' + H.som(q.narx) : null,
         q.minimum != null ? 'Oson minimumi ' + soniMatn(q.minimum) + ' quti' : null]),
       j.direktor ? narxJoy : null,
+      // 07.11 kech: boshqa filialda bor — o'sha filialdan so'rash (filiallararo so'rov; kim uchun — shu filial, kimdan — o'sha).
+      // Faqat o'z filiali uchun (direktor — hammasi): boshqa filialning dorisiga «so'rash» chiqmasin (audit 07.11 kech).
+      // Bir bizdagi filialga bir nechta Oson filiali bog'langan bo'lsa — bitta tugma.
+      ...(ctx.server && ctx.amalFon && bizFilial(q.b) && ozFilialmi(ctx, bizFilial(q.b))
+        ? boshqaBor(q).filter((b, i, l) => bizFilial(b.b) && bizFilial(b.b) !== bizFilial(q.b)
+          && l.findIndex((z) => bizFilial(z.b) === bizFilial(b.b)) === i).map((b) =>
+        h('button', { type: 'button', class: 's sorov-t', onclick: () => {
+          close();
+          sorashOch(ctx, { nom: q.nom, filial: bizFilial(q.b), manba: bizFilial(b.b),
+            qoldiq: [{ f: bizFilial(q.b), soni: q.tugadi ? 0 : q.soni, dona: q.dona }, ...boshqaBor(q).map((z) => ({ f: bizFilial(z.b), soni: z.soni, dona: z.dona }))] });
+        } }, '📦 ' + fNom(b.b) + '\'dan so\'rash (' + qoldiqMatn(b.soni, b.dona) + ' bor)')) : []),
       defda(q) ? h('div', { class: 'belgi ok', style: 'align-self:flex-start' }, '✓ Defekturada bor')
         : h('button', { class: 'p', onclick: () => { close(); defekturaga(ctx, q, chiz); } }, '+ Defekturaga'),
       // 07.11 tun: qoldig'i bor dori — hisobdan chiqarish / firmaga qaytarish (shu oyna yopilib, forma ochiladi).
@@ -473,6 +485,9 @@ export function osonQidiruv(ctx, fil, o = {}) {
         h('div', { class: 'oq-qf-royxat' }, ...fl.map((x) => h('div', { class: 'oq-qf' + (men && x.f === men ? ' men' : '') },
           h('span', { class: 'oq-fil ' + rang(x), 'data-asl': '' }, fNom(x)), men && x.f === men ? h('span', { class: 'muted' }, '(siz)') : null,
           h('b', { class: x.soni > 0 ? 'bor' : 'yoq' }, x.soni > 0 ? qoldiqMatn(x.soni, x.dona) : 'yo\'q')))),
+        // 07.11 kech: boshqa filialda bor — o'sha yerdan so'rash (so'rash oynasida har filial qoldig'i, eng ko'pi tanlangan).
+        ctx.server && ctx.amalFon && fl.some((x) => x.f && x.f !== men && x.soni > 0)
+          ? h('button', { type: 'button', class: 's sorov-t', onclick: () => sorashOch(ctx, { nom: d.nom, filial: men || undefined, qoldiq: fl }) }, '📦 Boshqa filialdan so\'rash') : null,
         // 07.11: analog — o'z filialida (direktorda — hech qayerda) yo'q bo'lsa ajralib turadi.
         d.g && !ctx.qidiruvYoq ? h('button', { type: 'button', class: 's analog-t', onclick: () => analogOyna(ctx, fil, d) },
           (men ? !fl.some((x) => x.f === men && x.soni > 0) : !fl.some((x) => x.soni > 0)) ? '🔄 Yo\'q — analogini ko\'rish' : '🔄 Analog') : null));

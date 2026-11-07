@@ -1265,3 +1265,8 @@ html.matn-katta .yt.yt-5 .yt-t { font-size: 15px; }
 /* Tor ekranda (yoki «Katta harf») ikki ustun sig'masa — bitta ustun. */
 @media (max-width: 379px) { .ta-cols { grid-template-columns: 1fr; } }
 html.matn-katta .ta-cols, .oddiy-rejim .ta-cols { grid-template-columns: 1fr; }
+
+/* 07.11 kech: filiallararo dori so'rovlari kartasi Bosh sahifada ajralib turadi (filial-sorov.mjs). */
+.sorov-karta.muhim { border: 2px solid var(--accent); box-shadow: 0 2px 10px rgba(14, 110, 100, .12); }
+.sorov-karta.muhim > .ct { color: var(--accent); }
+.sorov-oson { min-height: 48px; border: 0; border-radius: 12px; background: var(--warn-bg); color: var(--warn); font-weight: 700; text-align: left; padding: 10px 12px; }

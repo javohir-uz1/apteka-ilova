@@ -82,6 +82,20 @@ export async function faylOl(id, initData) {
   let b = {}; try { b = await res.json(); } catch (e) { /* bo'sh */ }
   throw Object.assign(new Error(b.xato || 'Fayl olinmadi'), { status: res.status });
 }
+// 08.11: filial surati (direktor) — { f, rasm: JPEG base64 } → true. Takror yuborilsa zarar yo'q (oxirgisi qoladi).
+export async function filialSuratYukla(body, initData) {
+  let res, b = {};
+  try {
+    [res, b] = await yol.yubor(async (y, signal, ulandi) => {
+      const r = await yuborFetch(y + '/filial_surat', { method: 'POST', headers: sarlavha(initData), body: JSON.stringify(body) }, signal);
+      ulandi();
+      let j = {}; try { j = await r.json(); } catch (e) { /* bo'sh */ }
+      return [r, j];
+    }, { muddat: [90000], faqatBirinchi: true });
+  } catch (e) { throw Object.assign(new Error('Internet yo\'q — surat yuklanmadi'), { tarmoq: true }); }
+  if (!res.ok) throw Object.assign(new Error(b.xato || 'Surat yuklanmadi'), { status: res.status });
+  return b.natija;
+}
 // Firma praysi: { firma, fayl, faylNom, qatorlar: [[nom, yuz, kech, muddat, ishlab]] } → saqlangan qatorlar soni.
 export async function firmaPraysYukla(body, initData) {
   let res, b = {};

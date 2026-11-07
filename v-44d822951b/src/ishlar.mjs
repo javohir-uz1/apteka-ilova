@@ -181,7 +181,15 @@ export const ISHLAR = {
   bronHolat: [() => A.osonYoq(), (id, holat) => ['bron_holat', [id, m(holat)]]],
   // 07.11 (20261107280000_filial_sorov): «Osnovnoy'dan dori olish» — faqat serverda (filial-sorov.mjs).
   doriSorovRoyxat: [() => A.osonYoq(), () => ['dori_sorov_royxat', []]],
-  doriSorovYoz: [() => A.osonYoq(), (f, nom, soni, birlik, izoh) => ['dori_sorov_yoz', [m(f), m(nom), Number.isInteger(soni) ? soni : null, m(birlik), m(izoh)]]],
+  // manba — kimdan so'raladi (07.11 kech: Osnovnoy ham filialdan so'raydi; bo'sh — filial uchun Osnovnoy).
+  doriSorovYoz: [() => A.osonYoq(), (f, nom, soni, birlik, izoh, manba) => ['dori_sorov_yoz', [m(f), m(nom), Number.isInteger(soni) ? soni : null, m(birlik), m(izoh), m(manba)]]],
+  // 07.11 kech (20261107310000_sorov_boglash): direktor — Oson'da ko'chirildi (id'lar), keldi-ketdi ro'yxati (kun).
+  doriSorovOson: [() => A.osonYoq(), (idlar, belgi) => ['dori_sorov_oson', [JSON.stringify(idlar || []), !!belgi]]],
+  doriHarakat: [() => A.osonYoq(), (kun) => ['dori_harakat', [Number.isInteger(kun) ? kun : 7]]],
+  // 08.11 (20261108100000_filial_mijoz): filialning mijozlarga ko'rinishi (filial-mijoz.mjs) — faqat serverda.
+  filialMijozRoyxat: [() => A.osonYoq(), () => ['filial_mijoz_royxat', []]],
+  filialMijozYoz: [() => A.osonYoq(), (id, d) => ['filial_mijoz_yoz', [m(id), m(d.nom), m(d.manzil), m(d.moljal), m(d.ish), m(d.tel), m(d.joy)]]],
+  filialSuratOchir: [() => A.osonYoq(), (id) => ['filial_surat_ochir', [m(id)]]],
   doriSorovHolat: [() => A.osonYoq(), (id, holat, berildi, javob) => ['dori_sorov_holat', [id, m(holat), Number.isInteger(berildi) ? berildi : null, m(javob)]]],
   // 07.11 tun (20261107260000_hisobdan_chiqarish): hisobdan chiqarish / firmaga qaytarish — faqat serverda (chiqarish.mjs).
   chiqarishYoz: [() => A.osonYoq(), (b, pr, tur, quti, dona, sabab, izoh, firma) => ['chiqarish_yoz',
