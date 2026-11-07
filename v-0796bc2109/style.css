@@ -1234,3 +1234,34 @@ html.matn-katta .tn-s { font-size: 30px; } html.matn-katta .tn-ekran p { font-si
   .tn-ekran { animation: none !important; }
   .yh-qidir:active { transform: none !important; }
 }
+/* 07.11: Bugun — 5 ta dumaloq tugma (Savdo, Xarajat, Qarz, Retsept, Buyurtma) bitta qatorda; 375 px telefonda ham sig'adi. */
+.yt.yt-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; }
+.yt.yt-5 .yt-d { width: 54px; height: 54px; border-radius: 27px; }
+.yt.yt-5 .yt-t { font-size: 14px; min-height: 90px; }
+html.matn-katta .yt.yt-5 .yt-t { font-size: 15px; }
+
+/* 07.11: ta'minotchi hisobi — C ko'rinish (taminot-hisob.mjs): formula va ikki ustun (dori kelgan / pul berilgan sanalar). */
+.ta-f { display: flex; flex-direction: column; gap: 6px; }
+.ta-l { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; }
+.ta-l .num, .ta-ci .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ta-plus { color: var(--chiqim); } .ta-minus { color: var(--kirim); }
+.ta-tot { border-top: 2px solid var(--ink); padding-top: 6px; font-weight: 700; font-size: 17px; color: var(--ink); }
+.ta-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ta-col { display: flex; flex-direction: column; min-width: 0; }
+.ta-col h3 { margin: 0 0 4px; font-size: 14px; }
+.ta-ci { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 2px 6px; min-height: 44px; padding: 6px 2px; border: 0;
+  border-bottom: 1px solid var(--sep); background: transparent; color: var(--ink); font: inherit; font-size: 14px; text-align: left; width: 100%; }
+.ta-ci:last-child { border-bottom: 0; }
+.ta-ci.bekor .num, .ta-ci.bekor .ta-cs { text-decoration: line-through; color: var(--muted); }
+.ta-cs { display: flex; flex-direction: column; gap: 2px; }
+.ta-pill { font-size: 13px; font-weight: 600; color: var(--muted); }
+.ta-pill.warn { color: var(--warn); } .ta-pill.diq { color: var(--red); }
+.ta-eski summary { font-size: 14px; color: var(--muted); min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+/* Xarid oynasi: ta'minotchi dorilari tugmalari */
+.ta-dorilar { display: flex; flex-wrap: wrap; gap: 6px; }
+.ta-dori { min-height: 44px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--sep); background: var(--card); color: var(--ink); font-size: 14px; text-align: left; }
+.ta-dori.on { background: var(--kirim-bg); border-color: var(--kirim-line); color: var(--kirim); font-weight: 600; }
+.ta-dori .x { margin-left: 6px; color: var(--red); font-weight: 700; }
+/* Tor ekranda (yoki «Katta harf») ikki ustun sig'masa — bitta ustun. */
+@media (max-width: 379px) { .ta-cols { grid-template-columns: 1fr; } }
+html.matn-katta .ta-cols, .oddiy-rejim .ta-cols { grid-template-columns: 1fr; }

@@ -117,7 +117,8 @@ export function bolimlar(gs) {
 
 // Dumaloq tez tugmalar: [[ikonka, nom, rang, onclick]] — bir qatorda 4 tagacha.
 export function dumaloqlar(items) {
-  return h('div', { class: 'yt' }, ...items.filter(Boolean).map(([ik, nom, rang, onclick]) => h('button', { type: 'button', class: 'yt-t', onclick },
+  const q = items.filter(Boolean);
+  return h('div', { class: 'yt' + (q.length === 5 ? ' yt-5' : '') }, ...q.map(([ik, nom, rang, onclick]) => h('button', { type: 'button', class: 'yt-t', onclick },
     h('span', { class: 'yt-d ' + (rang || 'yashil') }, ikon(ik)), h('span', { class: 'yt-n' }, nom))));
 }
 

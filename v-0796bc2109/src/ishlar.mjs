@@ -47,11 +47,16 @@ export const ISHLAR = {
     (sm, naqd, karta, sabab) => ['savdo_tuzatish', [sm, p(naqd), p(karta), sabab || '']]],
   sozlamaSaqla: [(S, men, f) => A.sozlamaSaqla(S, f), (f) => ['sozlama_saqla', [p(f.limitMijoz), p(f.limitXodim), m(f.xulosaVaqti)]]],
   taminotchiQosh: [(S, men, f) => A.taminotchiQosh(S, f), (f) => ['taminotchi_qosh', [m(f.nom), !!f.yuridik, p0(f.boshlangichQarz)]]],
-  xarid: [(S, men, t, s, iz, rows) => A.xarid(S, t, s, iz, men.id, rows), (t, s, iz, rows) => {
+  // 07.11: sana — «qachon olib keldi» (YYYY-MM-DD; bo'sh — bugun).
+  xarid: [(S, men, t, s, iz, rows, sana) => A.xarid(S, t, s, iz, men.id, rows, sana), (t, s, iz, rows, sana) => {
     const r = H.xaridQatorlar(rows);
     if (r.xato) throw new Error(r.xato);
-    return ['xarid', [t, r.qatorlar.length ? null : p(s), iz || '', r.qatorlar.length ? r.qatorlar : null]];
+    return ['xarid', [t, r.qatorlar.length ? null : p(s), iz || '', r.qatorlar.length ? r.qatorlar : null, m(sana)]];
   }],
+  // 07.11 (20261107290000_taminot_hisob): ta'minotchi dorilari ro'yxati (direktor) va hisob-kitob Excel'i (bot yuboradi).
+  taminotDori: [(S, men, t, nom, bor) => A.taminotDori(S, t, nom, bor), (t, nom, bor) => ['taminot_dori', [t, m(nom), !!bor]]],
+  taminotExcel: [() => { throw new Error('Sinov rejimida Excel yo\'q — Telegram ilovasida ishlaydi'); }, (t) => ['taminot_excel', [t]]],
+  taExcel: [() => { throw new Error('Sinov rejimida Excel yo\'q — Telegram ilovasida ishlaydi'); }, () => ['ta_excel', []]],
   tolov: [(S, men, t, q, iz) => A.tolov(S, t, q, iz, men.id), (t, q, iz) => ['tolov', [t, p0(q.kassa), p0(q.uy), p0(q.bank), iz || '']]],
   amalTasdiq: [(S, men, t, a) => A.amalTasdiq(S, t, a), (t, a) => ['amal_tasdiq', [a]]],
   xodimQosh: [(S, men, f) => A.xodimQosh(S, f), (f) => ['xodim_qosh', [m(f.ism), m(f.filialId), m(f.rol), m(f.smena), p0(f.oylik)]]],
@@ -174,6 +179,10 @@ export const ISHLAR = {
   // 07.11 kech (20261107220000_mijoz_boti): mijoz botda qilgan bronlar — faqat serverda (bron.mjs).
   bronlar: [() => A.osonYoq(), () => ['bron_royxat', []]],
   bronHolat: [() => A.osonYoq(), (id, holat) => ['bron_holat', [id, m(holat)]]],
+  // 07.11 (20261107280000_filial_sorov): «Osnovnoy'dan dori olish» — faqat serverda (filial-sorov.mjs).
+  doriSorovRoyxat: [() => A.osonYoq(), () => ['dori_sorov_royxat', []]],
+  doriSorovYoz: [() => A.osonYoq(), (f, nom, soni, birlik, izoh) => ['dori_sorov_yoz', [m(f), m(nom), Number.isInteger(soni) ? soni : null, m(birlik), m(izoh)]]],
+  doriSorovHolat: [() => A.osonYoq(), (id, holat, berildi, javob) => ['dori_sorov_holat', [id, m(holat), Number.isInteger(berildi) ? berildi : null, m(javob)]]],
   // 07.11 tun (20261107260000_hisobdan_chiqarish): hisobdan chiqarish / firmaga qaytarish — faqat serverda (chiqarish.mjs).
   chiqarishYoz: [() => A.osonYoq(), (b, pr, tur, quti, dona, sabab, izoh, firma) => ['chiqarish_yoz',
     [m(b), m(pr), m(tur), Math.trunc(Number(quti) || 0), Math.trunc(Number(dona) || 0), m(sabab), String(izoh || '').trim().slice(0, 300), String(firma || '').trim().slice(0, 200)]]],
@@ -202,10 +211,10 @@ export const ISHLAR = {
   // 07.11: direktor — xodim va mijoz (bot) imkoniyatlarini yoqish/o'chirish (faqat serverda; sinov rejimida hammasi yoqiq).
   funksiyalar: [() => { throw new Error('Faqat Telegram ilovasida (serverda) ishlaydi'); }, () => ['funksiyalar', []]],
   funksiyaSaqla: [() => { throw new Error('Faqat Telegram ilovasida (serverda) ishlaydi'); }, (kalit, yoq) => ['funksiya_saqla', [m(kalit), !!yoq]]],
-  taXarid: [(S, men, s, iz, rows) => A.taXarid(S, men.id, s, iz, rows), (s, iz, rows) => {
+  taXarid: [(S, men, s, iz, rows, sana) => A.taXarid(S, men.id, s, iz, rows, sana), (s, iz, rows, sana) => {
     const r = H.xaridQatorlar(rows);
     if (r.xato) throw new Error(r.xato);
-    return ['ta_xarid', [r.qatorlar.length ? null : p(s), iz || '', r.qatorlar.length ? r.qatorlar : null]];
+    return ['ta_xarid', [r.qatorlar.length ? null : p(s), iz || '', r.qatorlar.length ? r.qatorlar : null, m(sana)]];
   }]
 };
 

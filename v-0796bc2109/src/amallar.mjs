@@ -381,8 +381,9 @@ export function taminotchiQosh(s, f) {
 const tamin = (s, id) => { const t = s.taminotchilar.find((x) => x.id === id); if (!t) throw new Error('Ta\'minotchi topilmadi'); return t; };
 
 // Dori ro'yxati berilsa — summa qatorlar yig'indisi (soni × dona narxi); ro'yxatsiz — faqat jami summa.
-export function xarid(s, tId, summaStr, izoh, kim, rows = []) {
+export function xarid(s, tId, summaStr, izoh, kim, rows = [], sana = null) {
   const t = tamin(s, tId);
+  const kun = taSana(sana);
   const r = H.xaridQatorlar(rows);
   if (r.xato) throw new Error(r.xato);
   const summa = r.qatorlar.length ? r.jami : H.pul(summaStr);
@@ -391,8 +392,41 @@ export function xarid(s, tId, summaStr, izoh, kim, rows = []) {
   // Ta'minotchi ulanmagan — darhol "ok", lekin avto (u tasdiqlamagan; SQL taminot_amal_yangi).
   const a = { id: yangiId('a'), tur: 'xarid', summa, izoh: String(izoh || '').trim() || 'Dori xaridi', ts: Date.now(), kim, holat: t.ulangan ? 'kutish' : 'ok' };
   if (!t.ulangan) a.avto = true;
+  a.sana = kun || H.kunKey(a.ts);
   if (r.qatorlar.length) a.qatorlar = r.qatorlar.map((q) => ({ ...q, summa: q.soni * q.narx }));
   t.amallar.push(a);
+  taDoriEsla(t, a);
+}
+// «Qachon olib keldi» (SQL ilova.taminot_sana): bo'sh — bugun; oxirgi 90 kun, kelajak emas.
+function taSana(sana) {
+  const v = String(sana || '').trim();
+  if (!v) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || H.kunKey(Date.parse(v + 'T12:00:00+05:00')) !== v) throw new Error('Sana noto\'g\'ri — kalendardan tanlang');
+  const bugun = H.kunKey(Date.now());
+  if (v > bugun) throw new Error('Sana kelajakda bo\'lmasin');
+  if (v < H.kunQosh(bugun, -90)) throw new Error('Sana 90 kundan eski — boshlang\'ich qarzga qo\'shing yoki direktorga ayting');
+  return v;
+}
+// Xariddagi dorilar — ta'minotchi ro'yxatiga (SQL trigger taminot_dori_eslab).
+function taDoriEsla(t, a) {
+  t.dorilar = t.dorilar || [];
+  for (const q of a.qatorlar || []) {
+    const k = H.qidiruvKalit(q.dori);
+    const d = t.dorilar.find((x) => H.qidiruvKalit(x.nom) === k);
+    if (d) { d.narx = q.narx; d.n = (d.n || 0) + 1; } else t.dorilar.push({ nom: q.dori, narx: q.narx, n: 1 });
+  }
+}
+// Direktor: ro'yxatga qo'shish / olib tashlash (SQL ilova.taminot_dori).
+export function taminotDori(s, tId, nom, bor) {
+  const t = tamin(s, tId);
+  const v = String(nom || '').trim().replace(/\s+/g, ' ');
+  if (v.length < 2) throw new Error('Dori nomini yozing');
+  t.dorilar = t.dorilar || [];
+  const k = H.qidiruvKalit(v), i = t.dorilar.findIndex((x) => H.qidiruvKalit(x.nom) === k);
+  if (bor && i < 0) t.dorilar.push({ nom: v, n: 0 });
+  if (bor && i >= 0) t.dorilar[i].nom = v;   // server ham: nomi yangilanadi
+  if (!bor && i >= 0) t.dorilar.splice(i, 1);
+  return i >= 0 || bor ? 1 : 0;
 }
 // Bitta yozuv 100 mlrd so'mdan oshmaydi (SQL taminot_amal_yangi).
 const summaChegara = (v) => { if (v > 100000000000) throw new Error('Summa juda katta — 100 mlrd so\'mdan oshmasin'); };
@@ -685,16 +719,19 @@ export function taEtiroz(s, tId, amalId, matn) {
   xabar(s, t.nom + ' e\'tiroz bildirdi: ' + (a.tur === 'xarid' ? 'xarid ' : 'to\'lov ') + H.som(a.summa) + ' (' + ui_kun(a.ts) + ') — ' + m, 'ogoh');
 }
 const ui_kun = (ts) => new Date(ts).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tashkent', day: '2-digit', month: '2-digit' });
-export function taXarid(s, tId, summaStr, izoh, rows = []) {
+export function taXarid(s, tId, summaStr, izoh, rows = [], sana = null) {
   const t = taUlangan(s, tId);
+  const kun = taSana(sana);
   const r = H.xaridQatorlar(rows);
   if (r.xato) throw new Error(r.xato);
   const summa = r.qatorlar.length ? r.jami : H.pul(summaStr);
   if (!summa || summa <= 0) throw new Error('Xarid summasini kiriting');
   summaChegara(summa);
   const a = { id: yangiId('a'), tur: 'xarid', summa, izoh: String(izoh || '').trim() || 'Dori xaridi', ts: Date.now(), kim: null, holat: 'ular' };
+  a.sana = kun || H.kunKey(a.ts);
   if (r.qatorlar.length) a.qatorlar = r.qatorlar.map((q) => ({ ...q, summa: q.soni * q.narx }));
   t.amallar.push(a);
+  taDoriEsla(t, a);
   xabar(s, t.nom + ' xarid yozdi: ' + H.som(summa) + ' — Ta\'minot bo\'limida tasdiqlang', 'sorov');
   return a.id;
 }
