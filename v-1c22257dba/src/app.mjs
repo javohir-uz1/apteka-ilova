@@ -322,6 +322,8 @@ function boshView(m, x) {
     fy('x_oyin') ? belgi('oyin', 'Bilimdon', 'qizil', () => { oyinBosh(); qaytishTab = 'bosh'; tab = 'oyin'; render(true); }) : null,
     SERVER && fy('x_inventar') ? belgi('quti', 'Inventar', 'kok', () => { qaytishTab = 'bosh'; tab = 'inventar'; render(true); }) : null));
   // Shtrix-kodlar — sotuvda doim kerak (28.10; 05.11 foydalanuvchi: "asosiy ekranga — uni doim ishlatadilar"): belgilar ostida.
+  // 07.11 kech (foydalanuvchi: "dori so'rovi asosiy ekranda ajralib ko'rinib tursin"): amallar ostida, birinchi karta (filial-sorov.mjs).
+  if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') render(); }));
   const sk = shtrixKarta(S);
   if (sk) { sk.id = 'shtrix-karta'; sk.tabIndex = -1; m.append(sk); }
   // Bugun: kelgan dorilar va bugun yozgan qarzlar.
@@ -339,8 +341,6 @@ function boshView(m, x) {
   if (!keldi.length && !qarzlarim.length) c.append(h('div', { class: 'muted' }, 'Hozircha yangilik yo\'q. Mijozga qarzga dori bersangiz — «Qarz yozish».'));
   m.append(c);
   // Muddati o'tgan dorilar — o'z filiali (vaqtincha biriktirilgan bo'lsa — o'sha filial; 03.11).
-  // 07.11: «Osnovnoy'dan dori olish» — filial xodimi so'raydi, Osnovnoy xodimi tayyorlaydi (filial-sorov.mjs; faqat serverda).
-  if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') render(); }));
   const mo = muddatiOtganKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); });
   if (mo) m.append(mo);
   // 07.11: direktor tanlagan narx — Oson'da tuzatish; narxi o'zgargan dorilarga yorliq (o'z filiali).
@@ -537,6 +537,8 @@ function xBosh(m, x) {
     retseptRuxsat(S, x) && fy('x_retsept') ? plitka('retsept', 'Retseptlar', 'yashil', () => { retseptBosh(); xOch('retsept'); }, 'Punkt ro\'yxatlari') : null,
     SERVER && fy('x_inventar') ? plitka('inventar', 'Inventar', 'binafsha', () => xOch('inventar'), 'Telefon bilan sanash') : null));
   // Shtrix-kodlar — sotuvda doim kerak (05.11 foydalanuvchi: "asosiy ekranga — uni doim ishlatadilar").
+  // 07.11 kech (foydalanuvchi: "dori so'rovi asosiy ekranda ajralib ko'rinib tursin"): amallar ostida, birinchi karta (filial-sorov.mjs).
+  if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') render(); }));
   const sk = shtrixKarta(S);
   if (sk) { sk.id = 'shtrix-karta'; sk.tabIndex = -1; m.append(sk); }
   // «Bugun»: kelgan dorilar va bugun yozgan qarzlar (ismsiz — kassa oldida begona ko'rmasin; audit 05.11).
@@ -552,8 +554,6 @@ function xBosh(m, x) {
   }
   if (!keldi.length && !qarzlarim.length) c.append(h('div', { class: 'muted' }, 'Hozircha yangilik yo\'q.'));
   m.append(c);
-  // 07.11: «Osnovnoy'dan dori olish» — filial xodimi so'raydi, Osnovnoy xodimi tayyorlaydi (filial-sorov.mjs; faqat serverda).
-  if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') render(); }));
   const mo = muddatiOtganKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); });
   if (mo) m.append(mo);
   const nk = SERVER && fy('x_narx') ? narxXodimKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); }) : null;
