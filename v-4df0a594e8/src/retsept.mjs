@@ -5,9 +5,11 @@ import { BOT_USERNAME } from './config.mjs';
 import { h, input, ishQator, kartaSarlavha, kunNomi, matnMaydon, nusxaOl, ochiladi, pills, sana, sheet, tasdiqlash, vaqt, xatoJoyla, yordam } from './ui.mjs';
 import { qrOqi } from './qr.mjs';
 import { raqamMaydon } from './punkt.mjs';
+import { qoldiqMatn } from './oson-qoldiq.mjs';
 import { KIRILL, kirill } from './kirill.mjs';
 const yozuvMatni = (m) => (document.documentElement.classList.contains(KIRILL) ? kirill(m) : m);
 import { rasmKorilganmi, rasmQrXabari, royxatXabari } from './xabar.mjs';
+import { yuklashTugmalari } from './yuklash.mjs';
 
 // Ro'yxat serverdan olinadi va ekranda turadi; yangisi kelguncha eskisi ko'rinadi (sahifa tepaga sakramaydi).
 const BOSH = () => ({ punktlar: [], xabarlar: [], bemorlar: [] });
@@ -417,6 +419,9 @@ function qadoqQosh(list) {
 // Partiyalar (26.10): kompyuterlardagi kengaytma ro'yxati serverda sinxron — shu yerda faqat ko'rish (tahrirlash — kompyuterda,
 // kengaytmaning "Partiyalar" sahifasida). Muddati o'tgan va 30 kun ichida tugaydigani yuqorida, ajratilgan.
 let PART = null, partXato = null, partYuklanmoqda = false, partVaqt = 0;
+// 07.11 (20261107180000_narx_kassa_partiya): har partiya — Oson'dagi dori, qoldiq, bir donasi qimmatroq analog, ogohlantirish.
+let NAZ = null, nazXato = null, narxBand = false;
+export function partiyaUnut() { PART = null; partXato = null; partYuklanmoqda = false; partVaqt = 0; NAZ = null; nazXato = null; narxBand = false; }
 const muddatKun = (s) => {
   const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(String(s || '').trim());
   if (!m) return null;
@@ -424,13 +429,77 @@ const muddatKun = (s) => {
   if (dt.getUTCDate() !== +m[1] || dt.getUTCMonth() !== +m[2] - 1) return null;   // 31.02 — sana noto'g'ri
   return Math.floor((t - Date.parse(H.kunKey(Date.now()))) / 864e5);
 };
+function partiyaOson(ctx, z, direktor) {
+  if (!z) return [];
+  const el = [];
+  const mos = z.mos.slice(0, 3);
+  if (mos.length) {
+    // Bir nomli generiklar (Navbahor, Radiks…) — ishlab chiqaruvchisi bilan ajraladi.
+    el.push(h('div', { class: 'muted', style: 'font-size:13px' }, 'Oson\'da: ', ...mos.map((d, i) => h('span', {}, i ? '; ' : '', h('span', { 'data-asl': '' }, d.nom),
+      z.mos.length > 1 && d.ishlab ? h('span', { 'data-asl': '' }, ' (' + String(d.ishlab).split(',')[0].replace(/\s*\(.*$/, '') + ')') : null,
+      ' · ' + (Number(d.soni) > 0 ? qoldiqMatn(d.soni, d.dona) : 'qoldiq yo\'q') + (d.narx ? ' · ' + H.som(d.narx) : ''))),
+    z.mos.length > 3 ? ' va yana ' + (z.mos.length - 3) + ' ta' : ''));
+  }
+  if (z.ogoh.includes('topilmadi')) el.push(h('div', { class: 'oson-otgan' }, 'Oson\'da bu nom topilmadi — Oson\'dagi nomi boshqacha bo\'lishi mumkin. Dori yo\'q bo\'lsa — partiyani kompyuterda to\'xtating.'));
+  if (z.ogoh.includes('qoldiqsiz')) el.push(h('div', { class: 'oson-otgan' }, 'Oson\'da qoldiq yo\'q — berib bo\'lmaydi: boshqa partiyani faollashtiring yoki buni to\'xtating.'));
+  if (z.ogoh.includes('narxsiz')) el.push(h('div', { class: 'muted', style: 'font-size:13px' }, 'Narx yozilmagan — bir modda va dozada bir nechta faol partiya bo\'lsa, kompyuter qaysi birini berishni so\'raydi.'));
+  if (direktor) el.push(h('button', { class: 'link', onclick: () => partiyaNarxOyna(ctx, z) }, z.narx != null ? 'Narxni o\'zgartirish' : 'Narx yozish'));
+  return el;
+}
+// Guruh (modda + doza) oxirida: faol partiyalar o'rniga bizda bor, bir donasi qimmatroq dorilar.
+function qimmatroq(zs) {
+  const bor = new Map();
+  let ehtiyot = false;
+  zs.forEach((z) => { if (z.ehtiyot) ehtiyot = true; z.analoglar.forEach((a) => { if (!bor.has(a.g)) bor.set(a.g, a); }); });
+  if (ehtiyot && !bor.size) return [h('div', { class: 'muted', style: 'font-size:13px;margin-top:6px' }, 'Bu moddada brend almashtirish tavsiya etilmaydi — qimmatroq analog taklif qilinmaydi.')];
+  if (!bor.size) return [];
+  const rows = [...bor.values()].sort((a, b) => (b.dn || 0) - (a.dn || 0));
+  return [h('div', { class: 'nz-qimmat' }, h('b', {}, 'Bizda qimmatroq (shu modda, shakl, doza):'),
+    ...rows.map((a) => h('div', { class: 'line', style: 'padding:4px 0' }, h('span', {}, h('span', { 'data-asl': '' }, a.nom),
+      h('span', { class: 'muted' }, ' · ' + qoldiqMatn(a.soni, a.dona) + ' · ' + H.som(a.narx))),
+      h('b', { style: 'white-space:nowrap' }, H.som(a.dn) + '/dona' + (a.foiz != null ? ' (+' + a.foiz + '%)' : '')))),
+    rows.some((a) => a.foiz == null) ? h('div', { class: 'muted', style: 'font-size:13px' }, 'Partiya dorisi Oson\'da topilmadi — narxi bilan solishtirilmadi, bizdagi shu modda va dozadagi dorilar.') : null)];
+}
+function partiyaNarxOyna(ctx, z) {
+  sheet('Partiya narxi', (box, close) => {
+    // 1 dona (tabletka) narxi — Qimmat dori rejimi har xil qadoqli partiyalarni shu bo'yicha solishtiradi (tekshiruv 07.11).
+    const f = input('1 dona (tabletka) narxi, so\'m', { placeholder: z.taklif ? H.som(z.taklif) : '600', enterkeyhint: 'done' });
+    f.qiymat(z.narx != null ? String(z.narx) : z.taklif != null ? String(Math.round(z.taklif)) : '');
+    f.i.defaultValue = f.i.value;   // oldindan qo'yilgan qiymat — yopishda «yozganlaringiz o'chadi» deb so'ralmasin
+    let band = false;
+    // v === null — faqat «Narxni o'chirish»; bo'sh yoki noto'g'ri yozuv — xato (narx o'chib ketmasin).
+    const saqla = async (v) => {
+      if (band) return;
+      const n = v == null ? null : H.pul(v);
+      if (v != null && !(n > 0)) { f.xato('Narxni yozing — masalan: 600'); return; }
+      // Ortiqcha nol yoki quti narxi yozilsa (Oson'dagi 1 dona narxidan 3 baravar farq) — so'raladi.
+      if (n != null && z.taklif > 0 && (n > 3 * z.taklif || n < z.taklif / 3)
+        && !(await tasdiqlash(H.som(n) + ' — Oson\'dagi 1 dona narxidan (' + H.som(z.taklif) + ') ancha farq qiladi. Quti emas, 1 dona narxini yozing. Shu narx to\'g\'rimi?'))) return;
+      band = true;
+      try {
+        const r = await ctx.amalFon('partiyaNarx', z.id, n == null ? null : String(n));
+        if (r != null) { ctx.toast(n == null ? 'Narx o\'chirildi' : 'Saqlandi ✓ — kompyuterlar bir necha daqiqada oladi'); partVaqt = 0; close(); ctx.rerender(); }
+      } finally { band = false; }
+    };
+    box.append(h('b', { 'data-asl': '' }, z.savdoNomi || ''), h('div', { class: 'muted' }, (z.xpn || '') + ' · ' + (z.doza || '')),
+      z.taklif != null ? h('div', { class: 'muted', style: 'margin:8px 0' }, 'Oson bo\'yicha 1 dona: ' + H.som(z.taklif)) : null,
+      f.el, h('button', { class: 'p', onclick: () => saqla(f.i.value) }, 'Saqlash'),
+      z.narx != null ? h('button', { class: 'link', onclick: () => saqla(null) }, 'Narxni o\'chirish') : null,
+      h('div', { class: 'muted', style: 'font-size:13px;margin-top:8px' }, 'Qimmat dori rejimi: bir modda va dozada bir nechta faol partiya bo\'lsa — kompyuter 1 dona narxi balandini beradi. Hamma partiyaga 1 dona narxini yozing.'));
+    f.i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saqla(f.i.value); } });
+  }, { fokus: false });
+}
 function partiyaView(m, ctx) {
-  if (!partYuklanmoqda && (!PART || Date.now() - partVaqt > 60000)) {
+  // Audit 07.11: xatodan keyin 1 daqiqa kutiladi («Qayta urinish» — darhol); aks holda chizish → so'rov → xato → chizish to'xtovsiz.
+  if (!partYuklanmoqda && ((!PART && !partXato) || Date.now() - partVaqt > 60000)) {
     partYuklanmoqda = true;
-    ctx.oqi('partiyalar').then((r) => { PART = Array.isArray(r) ? r : []; partXato = null; }, (e) => { partXato = (e && e.message) || 'Ochilmadi'; })
+    Promise.all([
+      ctx.oqi('partiyalar').then((r) => { PART = Array.isArray(r) ? r : []; partXato = null; }, (e) => { partXato = (e && e.message) || 'Ochilmadi'; }),
+      ctx.server ? ctx.oqi('partiyaNazorat').then((r) => { NAZ = r && Array.isArray(r.partiyalar) ? r : null; nazXato = NAZ ? null : 'Server javobi tushunarsiz'; },
+        (e) => { nazXato = (e && e.message) || 'Olinmadi'; }) : null])
       .finally(() => { partYuklanmoqda = false; partVaqt = Date.now(); ctx.rerender(); });
   }
-  m.append(yordam('Partiyalar aptekadagi kompyuterda kiritiladi (kengaytma → "Partiyalar") va hamma kompyuterda bir xil bo\'ladi. Bu yerda — ko\'rish: qaysi dori qaysi seriya bilan yoziladi, muddati qachon tugaydi.'));
+  m.append(yordam('Partiyalar aptekadagi kompyuterda kiritiladi (kengaytma → "Partiyalar") va hamma kompyuterda bir xil bo\'ladi. Bu yerda — ko\'rish: qaysi dori qaysi seriya bilan yoziladi, muddati qachon tugaydi, Oson\'da bormi va bizda qimmatroq analogi bormi. Direktor partiya narxini shu yerda yozishi mumkin.'));
   const qayta = () => { partVaqt = 0; PART = PART || null; partXato = null; ctx.rerender(); };
   if (partXato) m.append(h('div', { class: 'msg warn', role: 'status' }, 'Partiyalar ochilmadi: ' + partXato + ' ', h('button', { class: 's', onclick: qayta }, 'Qayta urinish')));
   if (!PART) { m.append(h('div', { class: 'card muted' }, partXato ? 'Ochilmadi.' : 'Yuklanmoqda…')); return; }
@@ -442,9 +511,34 @@ function partiyaView(m, ctx) {
   m.append(h('div', { class: 'card hero' }, h('div', { class: 'line', style: 'border:0' }, h('span', { class: 'muted' }, 'Faol partiyalar'),
     h('b', { class: 'big' }, String(list.filter((x) => x.p.faol !== false && !(x.kun != null && x.kun < 0)).length))),
     h('div', { class: 'muted' }, (otgan.length ? otgan.length + ' tasining muddati o\'tgan (ishlatilmaydi) · ' : '') + (yaqin.length ? yaqin.length + ' tasi 30 kunda tugaydi' : 'Muddati yaqin partiya yo\'q'))));
+  const nz = new Map(((NAZ && NAZ.partiyalar) || []).map((z) => [z.id, z]));
+  const direktor = ctx.x && ctx.x.rol === 'direktor';
+  if (nazXato) m.append(h('div', { class: 'msg info' }, 'Oson qoldig\'i bilan solishtirib bo\'lmadi: ' + nazXato));
+  if (NAZ) {
+    const faol = NAZ.partiyalar.filter((z) => z.faol);
+    const yoq = faol.filter((z) => z.ogoh.includes('topilmadi') || z.ogoh.includes('qoldiqsiz')).length;
+    const narxsiz = faol.filter((z) => z.ogoh.includes('narxsiz')).length;
+    const yoziladi = faol.filter((z) => z.narx == null && z.taklif != null).length;
+    const qimmat = faol.filter((z) => z.analoglar.length && z.analoglar.some((a) => a.foiz != null)).length;
+    m.append(h('div', { class: 'card' }, kartaSarlavha('Oson qoldig\'i bilan'),
+      h('div', { class: yoq ? 'oson-otgan' : 'muted' }, yoq ? '⚠️ ' + yoq + ' ta faol partiya dorisi Oson\'da yo\'q yoki tugagan — pastda qizil yozuv bilan' : '✓ Faol partiyalar dorisi Oson\'da bor'),
+      narxsiz ? h('div', { class: 'muted' }, narxsiz + ' ta partiyada narx yo\'q, bir modda va dozada bir nechta faol partiya — Qimmat dori rejimi har safar so\'raydi') : null,
+      qimmat ? h('div', { class: 'muted' }, qimmat + ' ta partiya o\'rniga bizda bir donasi qimmatroq dori bor — pastda «Bizda qimmatroq»') : null,
+      direktor && yoziladi ? h('button', { class: 's', disabled: narxBand ? '' : null, onclick: async () => {
+        if (narxBand || !(await tasdiqlash(yoziladi + ' ta partiyaga Oson\'dagi 1 dona narxi yozilsinmi? Kompyuterlar bir necha daqiqada oladi.'))) return;
+        narxBand = true; ctx.rerender();
+        try {
+          const r = await ctx.amalFon('partiyaNarxOson');
+          // Audit 07.11: tarmoq qayta yuborsa server «takror» qaytaradi (son emas).
+          if (r && r.takror) ctx.toast('Avvalgi urinishda saqlangan ✓');
+          else if (typeof r === 'number') ctx.toast(r + ' ta partiyaga narx yozildi ✓');
+          if (r != null) partVaqt = 0;
+        } finally { narxBand = false; ctx.rerender(); }
+      } }, narxBand ? 'Yozilmoqda…' : 'Narxi yo\'qlarga Oson narxini yozish — 1 dona (' + yoziladi + ' ta)') : null));
+  }
   const holat = (x) => x.p.faol === false ? ['To\'xtatilgan', 'var(--muted)']
     : x.kun == null ? ['Sana noto\'g\'ri', 'var(--warn)'] : x.kun < 0 ? ['Muddati o\'tgan', 'var(--err, #B42318)']
-      : x.kun <= 30 ? [x.kun + ' kunda tugaydi', 'var(--warn)'] : ['Faol', 'var(--accent)'];
+      : x.kun <= 30 ? [x.kun === 0 ? 'Bugun tugaydi' : x.kun + ' kunda tugaydi', 'var(--warn)'] : ['Faol', 'var(--accent)'];
   const tartib = (x) => (x.p.faol === false ? 4 : x.kun != null && x.kun < 0 ? 0 : x.kun != null && x.kun <= 30 ? 1 : 2);
   // XPN + doza bo'yicha guruh: bitta moddaga bir nechta partiya bo'lsa (Trombopol va Kardiomagnil) — birga ko'rinadi.
   const guruh = new Map();
@@ -458,9 +552,11 @@ function partiyaView(m, ctx) {
       const [matn, rang] = holat(x);
       return h('div', { class: 'item', style: x.p.faol === false ? 'background:#F1F4F2' : '' },
         h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', {}, x.p.savdoNomi || '—'), h('span', { style: 'color:' + rang + ';font-weight:600;white-space:nowrap' }, matn)),
-        h('div', { class: 'muted' }, 'Seriya ' + (x.p.seriya || '—') + ' · ' + (x.p.ishlabChiqarilgan || '?') + ' – ' + (x.p.yaroqlilik || '?') + (x.p.narx ? ' · ' + x.p.narx + ' so\'m' : '')));
-    })));
+        h('div', { class: 'muted' }, 'Seriya ' + (x.p.seriya || '—') + ' · ' + (x.p.ishlabChiqarilgan || '?') + ' – ' + (x.p.yaroqlilik || '?') + (x.p.narx ? ' · narx (1 dona): ' + x.p.narx + ' so\'m' : '')),
+        ...partiyaOson(ctx, nz.get(x.p.id), direktor));
+    }), ...qimmatroq(xs.map((x) => nz.get(x.p.id)).filter((z) => z && z.faol))));
   });
+  if (NAZ) m.append(h('div', { class: 'muted' }, 'Oson\'dagi dori — partiya savdo nomining birinchi so\'zi va dozasi bo\'yicha topiladi. «Bizda qimmatroq» — shu modda, shakl va dozada bir donasi kamida 5% qimmat, qoldig\'i bor dori. Reimbursatsiyada berish uchun u DMED «Торговое название» ro\'yxatida chiqishi va kompyuterda partiya qilib kiritilishi kerak.'));
 }
 
 // Berilgan dorilar hisoboti (27.10): davr bo'yicha qaysi modda qancha berildi — jami va punktlar kesimida, Excel Telegram'ga.
@@ -485,7 +581,8 @@ function hisobotView(m, ctx) {
   m.append(pills([['bugun', 'Bugun'], ['hafta', '7 kun'], ['oy', 'Shu oy'], ['otgan', 'O\'tgan oy']], HIS.davr, (v) => { HIS.davr = v; ctx.rerender(); }, 'Davr'));
   m.append(h('div', { class: 'muted' }, sana(dan + 'T12:00:00+05:00') + (dan !== gacha ? ' — ' + sana(gacha + 'T12:00:00+05:00') : '')));
   if (HIS.xato) { m.append(h('div', { class: 'msg warn', role: 'status' }, 'Hisobot ochilmadi: ' + HIS.xato + ' ', h('button', { class: 's', onclick: () => { HIS.kalit = ''; ctx.rerender(); } }, 'Qayta urinish'))); return; }
-  if (!HIS.list) { m.append(h('div', { class: 'card muted' }, 'Yuklanmoqda…')); return; }
+  // Audit 07.11: davr almashtirilganda eski davr so'rovi hali kelmagan bo'lsa — eski ro'yxat yangi davr ostida ko'rinmasin.
+  if (!HIS.list || HIS.kalit !== kalit) { m.append(h('div', { class: 'card muted' }, 'Yuklanmoqda…')); return; }
   if (!HIS.list.length) { m.append(h('div', { class: 'card muted' }, 'Bu davrda berilgan dori yo\'q.')); return; }
   // Server har punkt + XPN matni bo'yicha beradi — rus va o'zbek nomi (H.xpnGuruh) bu yerda bitta qatorga qo'shiladi (03.11).
   const qosh = (map, r) => {
@@ -502,7 +599,8 @@ function hisobotView(m, ctx) {
   punktlar.forEach((map, nom) => { const rows = [...map.values()].sort((a, b) => b.soni - a.soni);
     m.append(ochiladi(nom, rows.map((r) => h('div', { class: 'line' }, h('span', {}, r.nom), h('b', { style: 'white-space:nowrap' }, r.soni + ' dona'))),
       { k: 'hisobot-' + nom, cls: 'karta list', izoh: rows.reduce((a, r) => a + r.soni, 0) + ' dona' })); });
-  m.append(h('button', { class: 'p', onclick: () => ctx.amal('dorilarExcel', dan, gacha).then((r) => r && ctx.toast('Excel fayl Telegram\'ga yuborildi ✓')) }, 'Excel — Telegram\'ga yuborish'));
+  // 07.11 tun: Telegram 8.0+ — to'g'ridan telefonga (bemor ma'lumoti yo'q hisobot); eski Telegram — avvalgidek bot orqali.
+  m.append(...yuklashTugmalari(ctx, { tur: 'dorilar_excel', args: [dan, gacha], botga: () => ctx.amal('dorilarExcel', dan, gacha) }));
 }
 
 function orashView(m, ctx, tp) {

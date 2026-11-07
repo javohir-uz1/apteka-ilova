@@ -27,6 +27,8 @@ export function ochiladi(sarlavha, ichki, { k = null, izoh = null, ochiq = false
   d.append(h('div', { class: 'ochil-ich' }, ...[].concat(ichki)));
   return d;
 }
+// Bo'limni oldindan ochiq qilib qo'yish (07.11, yangi ko'rinish: «Xodimlar» qatoridan Sozlamalar → Xodimlar ochiq keladi).
+export function ochiqQoy(k) { if (k) ochiqlar.add(k); }
 // Qisqa yo'riqnoma: ekranda bitta qator, bosilsa to'liq matn.
 export const yordam = (matn, sarlavha = 'Qanday ishlaydi?') => h('details', { class: 'yordam' }, h('summary', {}, sarlavha),
   h('p', {}, matn));
@@ -104,6 +106,7 @@ const oynalar = [];
 let panelOrqaga = null;
 const tgOl = () => { const w = typeof window !== 'undefined' ? window : null; const t = w && w.Telegram && w.Telegram.WebApp; return t && t.initData ? t : null; };
 function orqagaYangila() {
+  asosiyQolla();   // 07.11 tun: Telegram asosiy tugmasi faqat o'z oynasi eng ustida bo'lsa ko'rinadi
   const tg = tgOl();
   if (!tg) return;
   try {
@@ -116,6 +119,8 @@ function orqagaYangila() {
 export function orqagaQoy(fn) { panelOrqaga = typeof fn === 'function' ? fn : null; orqagaYangila(); }
 export function orqagaBos() {
   const o = oynalar[oynalar.length - 1];
+  // 07.11: ko'p qadamli oyna (qarz yozish) — «orqaga» avval oldingi qadamga (o.orqaga() true qaytarsa — oyna yopilmaydi).
+  if (o && o.orqaga) { try { if (o.orqaga()) return true; } catch (e) { /* oyna baribir yopiladi */ } }
   if (o) { (o.sorabYop || o.close)(); return true; }
   if (panelOrqaga) { panelOrqaga(); return true; }
   return false;
@@ -292,6 +297,7 @@ export function korsat(el) {
 // build(box, close) oyna ichini to'ldiradi; funksiya qaytarsa — u oyna yopilganda chaqiriladi (masalan, rasm URL'ini bo'shatish).
 // o.fokus = false — ochilganda yozish maydoniga fokus berilmaydi (klaviatura o'zi chiqmasin; masalan rasm oynasi).
 // o.toliq = true — to'liq ekranli oyna: balandligi klaviatura ochiqligida ham ko'rinadigan qismga teng.
+// o.orqaga — Telegram «orqaga» bosilganda avval shu chaqiriladi; true qaytarsa oyna yopilmaydi (ko'p qadamli oyna, 07.11).
 export function sheet(title, build, o2 = {}) {
   // Yozish maydoni fokusda turganda oyna ochilsa: klaviatura yopiladi va oyna yopilganda o'sha maydonga qaytilmaydi
   // (qaytsa, klaviatura yana chiqib, sahifa sakraydi — audit 26.10).
@@ -304,7 +310,7 @@ export function sheet(title, build, o2 = {}) {
   const bg = h('div', { class: 'sheet-bg' + (o2.toliq ? ' toliq' : '') });
   vvQoy([bg]);
   let tozala = null;
-  const o = { box: null, close: null };
+  const o = { box: null, close: null, orqaga: typeof o2.orqaga === 'function' ? o2.orqaga : null };
   const close = () => {
     if (!bg.isConnected) return;
     bg.remove();
@@ -319,8 +325,11 @@ export function sheet(title, build, o2 = {}) {
     } else fokusQaytar(opener, iz);
     if (!oynalar.length && hammasiYopildi) { try { hammasiYopildi(); } catch (e) { /* oynani yopishga xalal bermasin */ } }
   };
-  const box = h('div', { class: 'sheet' + (o2.toliq ? ' toliq' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': id },
-    h('div', { class: 'head' }, h('h2', { id }, title), h('button', { class: 'x', type: 'button', 'aria-label': 'Yopish', onclick: close }, '×')));
+  // 07.11 tun: tepada tutqich — sarlavhani pastga surib (80 px dan ko'p yoki tez siltab) yopish; to'liq ekranli oynada yo'q.
+  const tortish = !o2.toliq && document.documentElement.classList.contains('yangi-qobiq');   // audit 07.11: eski ko'rinish o'zgarmasin
+  const head = h('div', { class: 'head' + (tortish ? ' tortiladi' : '') }, !tortish ? null : h('span', { class: 'sheet-tutqich', 'aria-hidden': 'true' }),
+    h('h2', { id }, title), h('button', { class: 'x', type: 'button', 'aria-label': 'Yopish', onclick: close }, '×'));
+  const box = h('div', { class: 'sheet' + (o2.toliq ? ' toliq' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': id }, head);
   // Oyna ichiga shartli element qo'shilganda (x ? h(...) : null) DOM "null" matnini yozib qo'ymasin.
   const qosh = box.append.bind(box);
   box.append = (...k) => qosh(...k.filter((e) => e != null && e !== false));
@@ -336,6 +345,8 @@ export function sheet(title, build, o2 = {}) {
   let fondaBoshlandi = false;
   bg.addEventListener('pointerdown', (e) => { fondaBoshlandi = e.target === bg && !klaviaturaYopildimi(); });
   bg.addEventListener('click', (e) => { if (e.target === bg && fondaBoshlandi) o.sorabYop(); fondaBoshlandi = false; });
+  // Pastga surib yopish — fon bosilgandagi yo'l bilan bir xil: yozilgan bo'lsa so'raladi (oyna joyiga qaytadi), aks holda pastga ketadi.
+  if (tortish) surishUlash(box, head, () => { if (yozilgan()) { o.sorabYop(); return false; } return true; }, close);
   if (!oynalar.length) document.addEventListener('keydown', oynaTugmasi);
   oynalar.push(o);
   // Qayta audit 06.11: build xato bersa — oyna ro'yxatda «ko'rinmas» qolib, Telegram «orqaga» va Esc butunlay ishlamay qolardi.
@@ -352,6 +363,263 @@ export function sheet(title, build, o2 = {}) {
   const first = o2.fokus === false ? box.querySelector('.x') : box.querySelector('input:not([type="hidden"]):not([readonly]), textarea, button.pill, button.p');
   if (first && korinadi(first)) first.focus({ preventScroll: true });
   return close;
+}
+
+// ===================== 07.11 tun: harakat va Telegram tugmalari (GitHub hisobotidagi g'oyalar, o'z kodimiz) =====================
+// Qoidalar (CLAUDE.md): faqat transform/opacity; «kamroq harakat» sozlamasida — harakat yo'q; brauzer qo'llamasa — jim (oddiy holat).
+export function harakatMumkin() {
+  try {
+    return !(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  } catch (e) { return true; }
+}
+const animMumkin = (el) => !!el && typeof el.animate === 'function' && harakatMumkin();
+// Element.animate — tugagach (yoki 1 s ichida tugamasa) hech qanday iz qolmaydi (fill yo'q); xato bo'lsa — jim.
+function anim(el, kadrlar, ms, keyin) {
+  let bitdi = false;
+  const tugadi = () => { if (bitdi) return; bitdi = true; if (keyin) { try { keyin(); } catch (e) { /* jim */ } } };
+  try {
+    const a = el.animate(kadrlar, { duration: ms, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+    a.onfinish = tugadi; a.oncancel = tugadi;
+  } catch (e) { tugadi(); return; }
+  setTimeout(tugadi, ms + 700);
+}
+
+// ---- Oynani pastga surib yopish (pointer events) ----
+// Faqat tepadagi joydan (tutqich va sarlavha) — oyna ichidagi ro'yxat odatdagidek aylanadi. Barmoq ortidan faqat transform.
+// 80 px dan ko'p tortilsa yoki tez siltansa — yopiladi; aks holda joyiga qaytadi. «Kamroq harakat»da ham barmoqqa ergashadi
+// (bevosita boshqaruv), lekin qaytish va ketish — darhol.
+export const surishYopadimi = (dy, tezlik) => dy > 80 || (dy > 24 && tezlik > 0.6);   // px va px/ms
+function surishUlash(box, joy, ruxsat, close) {
+  let p = null;
+  const vaqtOl = (e) => (e && e.timeStamp) || Date.now();
+  const qaytar = (dy) => {
+    box.style.transform = '';
+    if (dy > 0 && animMumkin(box)) anim(box, [{ transform: 'translateY(' + dy + 'px)' }, { transform: 'none' }], 180);
+  };
+  joy.addEventListener('pointerdown', (e) => {
+    if ((e.button != null && e.button > 0) || (e.target && e.target.closest && e.target.closest('button, a, input, textarea, select'))) return;
+    p = { id: e.pointerId, y0: e.clientY, dy: 0, iz: [{ y: e.clientY, t: vaqtOl(e) }] };
+    box.style.animation = 'none';   // audit 07.11: ochilish animatsiyasi (fill both) transform'ni ushlab qolmasin — oyna barmoqqa ergashsin
+    try { if (joy.setPointerCapture && e.pointerId != null) joy.setPointerCapture(e.pointerId); } catch (er) { /* eski brauzer */ }
+  });
+  joy.addEventListener('pointermove', (e) => {
+    if (!p || e.pointerId !== p.id) return;
+    p.dy = Math.max(0, e.clientY - p.y0);
+    const t = vaqtOl(e);
+    p.iz.push({ y: e.clientY, t });
+    while (p.iz.length > 2 && t - p.iz[0].t > 100) p.iz.shift();
+    box.style.transform = p.dy ? 'translateY(' + p.dy + 'px)' : '';
+  });
+  const tugat = (e, bekor) => {
+    if (!p || (e && e.pointerId !== p.id)) return;
+    const q = p;
+    p = null;
+    const bosh = q.iz[0], ox = q.iz[q.iz.length - 1];
+    const tezlik = ox.t > bosh.t ? (ox.y - bosh.y) / (ox.t - bosh.t) : 0;
+    if (bekor || !surishYopadimi(q.dy, tezlik)) { qaytar(q.dy); return; }
+    // Yozilgan bo'lsa — so'raladi (ruxsat false qaytaradi), oyna joyiga qaytadi.
+    if (!ruxsat()) { qaytar(q.dy); return; }
+    if (!animMumkin(box)) { box.style.transform = ''; close(); return; }
+    box.style.transform = '';
+    anim(box, [{ transform: 'translateY(' + q.dy + 'px)', opacity: 1 }, { transform: 'translateY(100%)', opacity: 0.6 }], 160, close);
+  };
+  joy.addEventListener('pointerup', (e) => tugat(e, false));
+  joy.addEventListener('pointercancel', (e) => tugat(e, true));
+  joy.addEventListener('lostpointercapture', (e) => tugat(e, true));
+}
+
+// ---- Telegram asosiy tugmasi (MainButton / BottomButton) ----
+// To'liq ekranli oqimdagi BITTA asosiy amal (qarz yozish ustasi, savdo kiritish) ekran pastida, klaviatura ustida turadi.
+// asosiyTugma({ matn, bosildi, faol, band, tugma, oyna }) → tozala() (oyna yopilganda chaqiriladi; tozala.yangila({...}),
+// tozala.korinadimi()). tugma — sahifadagi o'sha tugma: Telegram tugmasi ko'ringandagina yashiriladi (eski Telegram, brauzer —
+// sahifadagi tugma qoladi). oyna — oyna (sheet box): Telegram tugmasi faqat shu oyna eng ustida bo'lsa ko'rinadi.
+// Bir nechta bo'lsa — oxirgisi (ustma-ust oynalar). Hammasi tozalanganda — offClick + hide.
+const asosiylar = [];
+let mbUlangan = null, mbBizda = false;
+const MB_RANG = '#0E6E64', MB_OCHIQ = '#9DB8AE';   // --accent; o'chiq holat — xira (ko'rinib turadi, bosilmaydi)
+function mbOl() {
+  const tg = tgOl();
+  const b = tg && tg.MainButton;
+  if (!b || typeof b.onClick !== 'function' || typeof b.show !== 'function') return null;
+  if (tg.isVersionAtLeast && !tg.isVersionAtLeast('6.0')) return null;
+  return b;
+}
+function mbBosildi() {
+  const e = asosiylar[asosiylar.length - 1];
+  if (!e || !e.korinadi || !e.faol || e.band) return;
+  try { e.bosildi(); } catch (er) { console.error('asosiy tugma', er); }
+}
+function asosiyQolla() {
+  const b = mbOl();
+  const e = asosiylar[asosiylar.length - 1];
+  const ust = oynalar[oynalar.length - 1];
+  asosiylar.forEach((x) => { x.korinadi = false; });
+  const kor = !!(b && e && (e.oyna ? !!ust && ust.box === e.oyna : !oynalar.length));
+  if (e) e.korinadi = kor;
+  asosiylar.forEach((x) => { if (x.tugma) x.tugma.hidden = x.korinadi; });
+  if (!b) return;
+  try {
+    if (kor) {
+      if (!mbUlangan) { b.onClick(mbBosildi); mbUlangan = mbBosildi; }
+      const matn = document.documentElement.classList.contains(KIRILL) ? kirill(e.matn) : e.matn;
+      const ishlaydi = e.faol && !e.band;
+      if (typeof b.setParams === 'function') b.setParams({ text: matn, color: ishlaydi || e.band ? MB_RANG : MB_OCHIQ, text_color: '#FFFFFF', is_active: ishlaydi, is_visible: true });
+      else { if (b.setText) b.setText(matn); if (ishlaydi) { if (b.enable) b.enable(); } else if (b.disable) b.disable(); }
+      if (e.band) { if (b.showProgress) b.showProgress(false); } else if (b.hideProgress) b.hideProgress();
+      b.show();
+      mbBizda = true;
+    } else if (mbBizda || mbUlangan) {   // har chizishda Telegram'ga keraksiz chaqiruv yubormaslik
+      if (b.hideProgress) b.hideProgress();
+      b.hide();
+      mbBizda = false;
+      if (mbUlangan && !asosiylar.length) { if (b.offClick) b.offClick(mbUlangan); mbUlangan = null; }
+    }
+  } catch (er) {   // eski/g'alati Telegram — sahifadagi tugma qaytadi (ikkalasi ham yashirin qolmasin)
+    asosiylar.forEach((x) => { x.korinadi = false; if (x.tugma) x.tugma.hidden = false; });
+    mbBizda = false;
+  }
+}
+export function asosiyTugma(o = {}) {
+  const e = { matn: o.matn || 'Davom etish', bosildi: o.bosildi || (() => {}), faol: o.faol !== false, band: !!o.band, tugma: o.tugma || null, oyna: o.oyna || null, korinadi: false };
+  asosiylar.push(e);
+  asosiyQolla();
+  let tozalandi = false;
+  const tozala = () => {
+    if (tozalandi) return;
+    tozalandi = true;
+    const i = asosiylar.indexOf(e);
+    if (i >= 0) asosiylar.splice(i, 1);
+    if (e.tugma) e.tugma.hidden = false;
+    asosiyQolla();
+  };
+  // yangila({ matn, faol, band, tugma }) — faqat berilganlari o'zgaradi. Yangi sahifa tugmasi berilsa, eskisi o'z holiga qaytadi.
+  tozala.yangila = (u = {}) => {
+    if (tozalandi) return;
+    if (u.tugma !== undefined && u.tugma !== e.tugma) { if (e.tugma) e.tugma.hidden = false; e.tugma = u.tugma; }
+    if (u.matn != null) e.matn = u.matn;
+    if (u.faol != null) e.faol = !!u.faol;
+    if (u.band != null) e.band = !!u.band;
+    asosiyQolla();
+  };
+  tozala.korinadimi = () => !tozalandi && e.korinadi;
+  return tozala;
+}
+
+// ---- Ro'yxat harakati (auto-animate g'oyasi, FLIP) ----
+// Ekran ko'pincha butunlay qayta chiziladi — shuning uchun qatorlar kaliti (data-rk) bo'yicha oldingi joyi nom bo'yicha eslab
+// qolinadi (konteynerga nisbatan — sahifa aylantirilsa ham to'g'ri). Keyingi chizishda: joyi o'zgargan qator eski joyidan suriladi,
+// yangisi paydo bo'ladi, ketgani (eski element, bosilmaydi) xiralashib yo'qoladi. ~200 ms, faqat transform/opacity, hech
+// qanday iz qolmaydi. Sahifa almashganda (kirish harakati yoki View Transition), ro'yxat butunlay almashganda — harakat yo'q.
+const royxatlar = new Map();   // nom → Map(kalit → { el, x, y, w, h })
+const ROYXAT_KOP = 12;         // shundan ko'p qator qo'shilsa/ketsa — bu boshqa ro'yxat (filtr), harakatsiz
+const ROYXAT_MS = 200;
+// Sof hisob (test): oldingi va yangi joylar → { kochdi: [{ k, dx, dy }], yangi: [k], ketdi: [k] }.
+export function flipFarq(oldin, keyin) {
+  const ol = oldin instanceof Map ? oldin : new Map(Object.entries(oldin || {}));
+  const ke = keyin instanceof Map ? keyin : new Map(Object.entries(keyin || {}));
+  const kochdi = [], yangi = [], ketdi = [];
+  for (const [k, b] of ke) {
+    const a = ol.get(k);
+    if (!a) { yangi.push(k); continue; }
+    const dx = Math.round(a.x - b.x), dy = Math.round(a.y - b.y);
+    if (Math.abs(dx) >= 1 || Math.abs(dy) >= 1) kochdi.push({ k, dx, dy });
+  }
+  for (const k of ol.keys()) if (!ke.has(k)) ketdi.push(k);
+  return { kochdi, yangi, ketdi };
+}
+export function royxatHarakat(el, nom) {
+  if (!el || !nom) return el;
+  el.setAttribute('data-royxat', '');
+  const ish = () => {
+    if (!el.isConnected) return;   // shu orada yana qayta chizildi — keyingi nusxa o'zi yozadi
+    const cr = el.getBoundingClientRect();
+    const joy = new Map();
+    for (const c of el.children) {
+      const k = c.getAttribute && c.getAttribute('data-rk');
+      if (k == null || joy.has(k) || joy.size >= 150) continue;
+      const r = c.getBoundingClientRect();
+      joy.set(k, { el: c, x: r.left - cr.left, y: r.top - cr.top, w: r.width, h: r.height });
+    }
+    const old = royxatlar.get(nom);
+    royxatlar.set(nom, joy);
+    // Eski ko'rinish («Eski ko'rinish» yoqilgan) — avvalgidek, harakatsiz (<html class="yangi-qobiq"> faqat yangi panelda).
+    if (!old || otishda || el.closest('.kirish') || !animMumkin(el) || !document.documentElement.classList.contains('yangi-qobiq')) return;
+    const f = flipFarq(old, joy);
+    if (f.yangi.length + f.ketdi.length > ROYXAT_KOP) return;
+    f.kochdi.forEach(({ k, dx, dy }) => anim(joy.get(k).el, [{ transform: 'translate(' + dx + 'px,' + dy + 'px)' }, { transform: 'none' }], ROYXAT_MS));
+    // Birinchi marta ko'rinayotgan ro'yxatga emas (old bo'sh bo'lsa — hammasi yangi, harakatsiz).
+    if (old.size) f.yangi.forEach((k) => anim(joy.get(k).el, [{ opacity: 0, transform: 'scale(.98)' }, { opacity: 1, transform: 'none' }], ROYXAT_MS));
+    f.ketdi.forEach((k) => {
+      const g = old.get(k);
+      if (!g || !g.el || g.el.isConnected || !g.w) return;
+      const s = g.el.style;
+      s.position = 'absolute'; s.left = g.x + 'px'; s.top = g.y + 'px'; s.width = g.w + 'px'; s.height = g.h + 'px';
+      s.margin = '0'; s.pointerEvents = 'none'; s.boxSizing = 'border-box';
+      g.el.setAttribute('aria-hidden', 'true'); g.el.inert = true; g.el.removeAttribute('data-rk');
+      el.append(g.el);
+      anim(g.el, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.97)' }], ROYXAT_MS, () => g.el.remove());
+    });
+  };
+  // Chizish tugagach, rasm chizilishidan oldin (bir marta o'lchanadi; sahifa aylantirish joyi tiklangandan keyin).
+  if (typeof queueMicrotask === 'function') queueMicrotask(ish); else Promise.resolve().then(ish);
+  return el;
+}
+
+// ---- Raqam aylanishi (number-flow g'oyasi) ----
+// Hero summa (Seyfda hozir, bugungi savdo) chizishlar orasida o'zgarsa — eski qiymatdan yangisiga ~400 ms sanaladi
+// (requestAnimationFrame). Oxirgi matn doim aniq: H.som(summa). Raqam qismi alohida span (data-asl — kirillga o'tkazilmaydi,
+// faqat raqam), « so'm» — oddiy matn (kirill yozuvida «сўм» bo'ladi). Oldingi qiymat — kalit bo'yicha (modul xotirasida).
+const sonlar = new Map();
+const ROLL_MS = 400;
+export const rollQiymat = (eski, yangi, p) => { const q = Math.min(1, Math.max(0, p)); return Math.round(eski + (yangi - eski) * (1 - Math.pow(1 - q, 3))); };
+const raqam = (n) => H.som(n).replace(/ so'm$/, '');
+export function pulSon(kalit, summa, attrs) {
+  const n = Math.round(Number(summa) || 0);
+  const s = h('span', { class: 'son-r', 'data-asl': '' }, raqam(n));
+  const el = h('b', attrs || {}, s, ' so\'m');
+  const eski = sonlar.get(kalit);
+  sonlar.set(kalit, n);
+  const raf = typeof window !== 'undefined' && window.requestAnimationFrame;
+  if (eski == null || eski === n || !raf || !harakatMumkin()) return el;
+  s.textContent = raqam(eski);
+  let t0 = null;
+  const qadam = (t) => {
+    if (t0 == null) t0 = t;
+    const p = (t - t0) / ROLL_MS;
+    if (p >= 1 || !s.isConnected) { s.textContent = raqam(n); return; }
+    s.textContent = raqam(rollQiymat(eski, n, p));
+    window.requestAnimationFrame(qadam);
+  };
+  // Birinchi kadr: element hali sahifaga qo'shilmagan bo'lishi mumkin — kutiladi (2 kadrdan keyin ham yo'q bo'lsa — aniq qiymat).
+  let kutish = 0;
+  const bosh = (t) => {
+    if (!s.isConnected && kutish++ < 2) { window.requestAnimationFrame(bosh); return; }
+    qadam(t);
+  };
+  try { window.requestAnimationFrame(bosh); } catch (e) { s.textContent = raqam(n); }
+  return el;
+}
+
+// ---- Sahifa almashishi (View Transitions) ----
+// Yangi ko'rinishda bo'lim/sahifa almashganda — butun ekran yumshoq almashadi (brauzer o'zi; CSS: ::view-transition-*).
+// Qo'llamasa, «kamroq harakat», oyna ochiq yoki ilova fonda bo'lsa — oddiy chizish. fn darhol emas, keyingi kadrda bajariladi —
+// chizishdan keyin DOM'ga darhol tegadigan joylar (masalan qidiruvga fokus, kamera) sinxron yo'lni ishlatsin.
+let otishda = false, otishId = 0;
+export const otishdami = () => otishda;
+export function sahifaOtish(fn) {
+  const d = typeof document !== 'undefined' ? document : null;
+  if (!d || typeof d.startViewTransition !== 'function' || otishda || oynalar.length || d.visibilityState === 'hidden' || !harakatMumkin()) { fn(); return; }
+  otishda = true;
+  const men = ++otishId;
+  const tugadi = () => { if (otishId === men) otishda = false; };
+  let bajarildi = false;
+  const ish = () => { if (bajarildi) return; bajarildi = true; fn(); };
+  try {
+    const vt = d.startViewTransition(ish);
+    if (vt && vt.finished) vt.finished.then(tugadi, tugadi); else tugadi();
+    // Ehtiyot: brauzer chaqirmay qolsa ham sahifa almashadi.
+    setTimeout(() => { ish(); tugadi(); }, 1500);
+  } catch (e) { tugadi(); ish(); }
 }
 
 // ---- Maydon ----

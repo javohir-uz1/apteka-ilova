@@ -2,7 +2,9 @@
 // So'zlar (audit 24.10): "Seyf" — direktor qabul qilgan pul (ichki nomi 'kassa'); "Kassa" — faqat smena qutisi.
 // Formalar (audit 25.10 §7): xato maydon tagida chiqadi — avval shu yerda tekshiriladi, server xatosi ham eng mos maydonga qo'yiladi.
 import * as H from './hisob.mjs';
-import { ekranTugmasi, guruhlar, guruhXato, h, input, ishQator, kartaSarlavha, kunNomi, nav, nusxaOl, ochiladi, orqagaQoy, oyKey, pills, sana, sheet, tasdiqlash, tezTugmalar, vaqt, xatoJoyla, yordam, yozuvTugma } from './ui.mjs';
+import { asosiyTugma, ekranTugmasi, guruhlar, guruhXato, h, input, ishQator, kartaSarlavha, kunNomi, nav, nusxaOl, ochiladi, ochiqQoy, orqagaQoy, oyKey, pills, pulSon, royxatHarakat, sahifaOtish, sana, sheet, tasdiqlash, tezTugmalar, vaqt, xatoJoyla, yordam, yozuvTugma } from './ui.mjs';
+import { bolimlar, bolimNav, dumaloqlar, eskiKorinishmi, korinishOyna, korinishQolla, kvadrat, orqagaTugma, qator, sonKartalar, sozlamaTugmasi } from './qobiq.mjs';
+import { ikon } from './ikon.mjs';
 import { oddiyRejimmi, rejimQoy, renderOddiy } from './oddiy.mjs';
 import { yozuvKirillmi, yozuvQoy } from './kirill.mjs';
 import { doira, RANGLAR } from './diagramma.mjs';
@@ -14,12 +16,28 @@ import { sanashXabari } from './xabar.mjs';
 import { oyinBanner, oyinView } from './oyin.mjs';
 import { davomatBugun, davomatView } from './davomat.mjs';
 import { defFirmaKarta, defNarxQator, firmaOchiq, firmaPrayslarView } from './firma.mjs';
-import { osonKarta } from './oson-qoldiq.mjs';
+import { osonKarta, osonQidiruv, osonQidiruvQoy, osonRejimQoy, osonSonlar } from './oson-qoldiq.mjs';
+import { globalQidiruvOyna } from './qidiruv.mjs';
+import { tanishuvAvto, tanishuvOch } from './tanishuv.mjs';
 import { mijozBelgi } from './mijoz.mjs';
 import { buyurtmaView, ertalabKarta, kochirishView, pulKirish, pulView } from './pul.mjs';
 import { inventarOrqaga, inventarView } from './inventar.mjs';
+import { chiqarishView } from './chiqarish.mjs';
+import { kassaView, narxFarqSoni, narxView } from './nazorat.mjs';
+import { funksiyalarView, ochiqSoni } from './funksiya.mjs';
+import { auditView } from './audit.mjs';
+
+// Sahifalar nomi (sarlavha va global qidiruv — 07.11 tun, `globalQidir`).
+export const SAHIFA_NOM = { bosh: 'Direktor paneli', daftar: 'Kunlik daftar', smena: 'Savdo', tamin: 'Ta\'minotchilar', more: 'Bo\'limlar',
+  qarz: 'Mijozlar qarzi', oylik: 'Oyliklar', stat: 'Statistika', oqim: 'Kirim va chiqim', xulosa: 'Kechki xulosa', sozlama: 'Sozlamalar', xabar: 'Bot xabarlari',
+  uy: 'Uy puli', defektura: 'Defektura', prays: 'Prays-list', shtrix: 'Shtrix-kodlar', retsept: 'Retseptlar', punktlar: 'Punktlar', oyin: 'Bilimdon o\'yini', davomat: 'Davomat', firmalar: 'Firma prayslari', qoldiq: 'Oson qoldig\'i', pul: 'Pul nazorati', buyurtma: 'Aqlli buyurtma', kochirish: 'Ko\'chirish', inventar: 'Inventar', narx: 'Narx farqi', kassa: 'Kassa ↔ Oson',
+  hamyon: 'Hamyonlar', funksiyalar: 'Funksiyalar', chiqarish: 'Hisobdan chiqarilganlar', audit: 'O\'zgarishlar tarixi' };
 
 let tab = 'bosh';
+// Yangi ko'rinish (07.11, variant A): pastki menyuda 4 bo'lim; ichki sahifalar — eski ekranlar (tab/sub), menyusiz, «orqaga» bilan.
+// Bosh joy — tab 'bosh' va sub yo'q: yTab bo'limi chiziladi. yol — qaysi sahifalardan kelindi (orqaga — shu tartibda).
+let yTab = 'bugun';
+let yol = [];
 let sub = null;      // Bo'limlar ichidagi sahifa yoki ta'minotchi id
 let qaytish = null;  // ‹ qayerga: Smenalar/Ta'minot (Bo'limlar ichida) qaysi bo'limdan ochilgani (audit 29.10)
 let qTab = 'ochiq';
@@ -30,6 +48,7 @@ let statFilial = 'hammasi';
 let oqimDavr = 'oy';  // Kirim va chiqim: bugun | hafta | oy | otgan
 let daftarSoni = 30;   // Daftarda nechta yozuv ko'rinadi ("Yana ko'rsatish" ko'paytiradi)
 let daftarKun = null;  // Daftarda ko'rilayotgan kun ('YYYY-MM-DD'; null — bugun)
+let ochXodim = null;   // 07.11 tun: global qidiruvdan tanlangan xodim — Sozlamalar chizilgach uning oynasi ochiladi
 
 const HAM = { kassa: 'Seyf', uy: 'Uy', bank: 'Bank' };
 const NAQD = [['kassa', 'Seyf'], ['uy', 'Uy']];
@@ -70,12 +89,30 @@ const matnBormi = (f, min = 1) => String(f.i.value).trim().length >= min;
 
 export function renderDirektor(root, ctx) {
   const { S, x } = ctx;
+  // 07.11: yangi ko'rinish standart; «Eski ko'rinish» (shu telefonda) — avvalgi panel o'zgarishsiz.
+  const yangi = !eskiKorinishmi();
+  // Ko'rinish oynasi: Telegram ⋮ → Sozlamalar (SettingsButton) va Xodimlar → «Ko'rinish». Almashganda — bosh sahifaga.
+  const korinishOch = (sozlamalar) => korinishOyna({ rerender: ctx.rerender, almashdi: () => { tab = 'bosh'; sub = null; yol = []; qaytish = null; yTab = 'bugun'; }, sozlamalar,
+    tanishuv: oddiyRejimmi(x.id) ? null : () => tanishuvOch('direktor') });
   // Oddiy rejim (shu telefonda tanlangan): 4 ta katta tugma. Qaytish — pastdagi "To'liq rejimga o'tish".
   // 29.10: savdoni direktor kiritadi — oddiy rejimda ham (to'liq rejimdagi oyna).
-  if (oddiyRejimmi(x.id)) return renderOddiy(root, { ...ctx, ekranTugmasi, savdoKirit: (o) => savdoSheet(ctx, o), kechaSavdo: (fl, kun) => kechaSavdoSheet(ctx, fl, kun) });
+  if (oddiyRejimmi(x.id)) {
+    sozlamaTugmasi(() => korinishOch(null));
+    korinishQolla(false);
+    return renderOddiy(root, { ...ctx, ekranTugmasi, savdoKirit: (o) => savdoSheet(ctx, o), kechaSavdo: (fl, kun) => kechaSavdoSheet(ctx, fl, kun) });
+  }
+  korinishQolla(yangi);
   const fil = (id) => (S.filiallar.find((f) => f.id === id) || {}).nom || id;
   const ism = (id) => (S.xodimlar.find((z) => z.id === id) || {}).ism || '?';
   const go = (t, s) => {
+    // Yangi ko'rinish: har o'tish — yo'lga (orqaga shu tartibda qaytadi); 'bosh' — bo'limning bosh sahifasi (yo'l tozalanadi).
+    if (yangi) {
+      if (t === 'bosh' && !s) yol = [];
+      else if (tab !== t || sub !== (s || null)) yol.push({ tab, sub });
+      tab = t; sub = s || null;
+      sahifaOtish(() => ctx.rerender(true));   // 07.11 tun: View Transition (qo'llamasa — oddiy chizish)
+      return;
+    }
     // Smenalar va Ta'minot ro'yxati — qayerdan ochilgan bo'lsa ‹ o'sha yerga (Bosh, Bo'limlar); ichki sahifadan — o'z bo'limiga.
     if ((t === 'smena' || t === 'tamin') && !s && tab !== t) qaytish = sub ? 'more' : tab;
     else if (t !== 'smena' && t !== 'tamin') qaytish = null;
@@ -86,24 +123,50 @@ export function renderDirektor(root, ctx) {
   const uy = qoldiq(S, 'uy');
   const bugun = H.kunKey(Date.now());
 
-  const TITLES = { bosh: 'Direktor paneli', daftar: 'Kunlik daftar', smena: 'Savdo', tamin: 'Ta\'minotchilar', more: 'Bo\'limlar',
-    qarz: 'Mijozlar qarzi', oylik: 'Oyliklar', stat: 'Statistika', oqim: 'Kirim va chiqim', xulosa: 'Kechki xulosa', sozlama: 'Sozlamalar', xabar: 'Bot xabarlari',
-    uy: 'Uy puli', defektura: 'Defektura', prays: 'Prays-list', shtrix: 'Shtrix-kodlar', retsept: 'Retseptlar', punktlar: 'Punktlar', oyin: 'Bilimdon o\'yini', davomat: 'Davomat', firmalar: 'Firma prayslari', qoldiq: 'Oson qoldig\'i', pul: 'Pul nazorati', buyurtma: 'Aqlli buyurtma', kochirish: 'Ko\'chirish', inventar: 'Inventar' };
+  const TITLES = SAHIFA_NOM;
   const tObj = tab === 'tamin' && sub ? S.taminotchilar.find((t) => t.id === sub) : null;
-  const title = tObj ? tObj.nom : TITLES[sub] || TITLES[tab];
+  // Yangi ko'rinish: bosh joy (tab 'bosh', sub yo'q) — pastki menyudagi bo'lim; qolgani — ichki sahifa (menyusiz, orqaga bilan).
+  const ildiz = yangi && tab === 'bosh' && !sub;
+  const korinish = () => korinishOch(() => go('more', 'sozlama'));
+  sozlamaTugmasi(korinish);
+  const title = ildiz ? Y_NOM[yTab] : tObj ? tObj.nom : TITLES[sub] || TITLES[tab];
 
   if (ctx.logout) root.append(h('div', { class: 'demo' }, 'Sinov rejimi · ', h('button', { class: 's', onclick: ctx.logout }, 'boshqa xodim')));
+  // Yangi ko'rinish: orqaga — kelgan yo'l bo'yicha (retsept punkti / inventar ichida — avval o'sha ichki sahifa yopiladi).
+  const yOrqaga = () => {
+    if (tab === 'qoldiq' && sub === 'inventar' && inventarOrqaga()) { ctx.rerender(true); return; }
+    if (tab === 'retsept' && !sub && retseptIchida()) { retseptBosh(); ctx.rerender(true); return; }
+    const p = yol.pop();
+    tab = p ? p.tab : 'bosh'; sub = p ? p.sub : null;
+    sahifaOtish(() => ctx.rerender(true));
+  };
   // Orqaga: ichki sahifadan — o'z bo'limiga; Smenalar va Ta'minot (endi Bo'limlar ichida) — Bo'limlarga.
-  const orqaga = sub ? () => { if (tab === 'qoldiq' && sub === 'inventar' && inventarOrqaga()) { ctx.rerender(true); return; } const q = qaytish; if (tab === 'tamin' || !q) go(tab); else { tab = q; sub = null; qaytish = null; ctx.rerender(true); } }
+  const orqaga = yangi ? (ildiz ? null : yOrqaga) : sub ? () => { if (tab === 'qoldiq' && sub === 'inventar' && inventarOrqaga()) { ctx.rerender(true); return; } const q = qaytish; if (tab === 'tamin' || !q) go(tab); else { tab = q; sub = null; qaytish = null; ctx.rerender(true); } }
     : tab === 'smena' || tab === 'tamin' ? () => { const q = qaytish && qaytish !== tab ? qaytish : 'more'; qaytish = null; tab = q; sub = null; ctx.rerender(true); } : null;
   // Audit 06.11: Telegram «orqaga» (Android tugmasi) ham shu — ilova yopilmasin; asosiy bo'limlardan — Bosh'ga.
-  orqagaQoy(orqaga || (tab === 'retsept' && retseptIchida() ? () => { retseptBosh(); ctx.rerender(true); }   // qayta audit: punkt ichidan — Retseptlar
-    : tab !== 'bosh' ? () => go('bosh') : null));
-  const back = orqaga ? h('button', { class: 's', 'aria-label': 'Orqaga', style: 'width:44px;flex:none;padding:0;font-size:22px', onclick: orqaga }, '‹') : null;
-  root.append(h('header', { class: 'top' }, back || h('span', { class: 'avatar', 'aria-hidden': 'true' }, 'D'),
+  if (yangi) orqagaQoy(orqaga || (yTab !== 'bugun' ? () => { yTab = 'bugun'; sahifaOtish(() => ctx.rerender(true)); } : null));
+  else {
+    orqagaQoy(orqaga || (tab === 'retsept' && retseptIchida() ? () => { retseptBosh(); ctx.rerender(true); }   // qayta audit: punkt ichidan — Retseptlar
+      : tab !== 'bosh' ? () => go('bosh') : null));
+  }
+  // Retsept punkti ichida o'zining «‹ Retseptlar» tugmasi bor — ikkita qaytish chiqmasin (audit 05.11 qoidasi).
+  const back = !orqaga ? null : yangi ? (tab === 'retsept' && retseptIchida() ? null : orqagaTugma(orqaga))
+    : h('button', { class: 's', 'aria-label': 'Orqaga', style: 'width:44px;flex:none;padding:0;font-size:22px', onclick: orqaga }, '‹');
+  // 07.11 tun: yangi ko'rinishda sarlavhada 🔍 — bo'lim, xodim, ta'minotchi yoki dori nomi bilan qidirish (globalQidiruvOyna).
+  const qidirTugma = yangi ? h('button', { type: 'button', class: 'yh-qidir', 'aria-label': 'Qidirish: bo\'lim, xodim, ta\'minotchi, dori',
+    onclick: () => {
+      const bolim = (k) => { tab = 'bosh'; sub = null; yol = []; yTab = k; sahifaOtish(() => ctx.rerender(true)); };
+      globalQidiruvOyna(S, {
+        sahifalar: sahifaKatalog(ctx, go, bolim),
+        xodim: (z) => { ochXodim = z.id; ochiqQoy('soz-Xodimlar'); go('more', 'sozlama'); },
+        taminotchi: (t) => go('tamin', t.id),
+        dori: (soz) => { if (!ctx.server) { go('more', 'prays'); return; } osonQidiruvQoy(soz); bolim('ombor'); }
+      });
+    } }, ikon('qidir')) : null;
+  root.append(h('header', { class: 'top' + (yangi ? ' yh' : '') }, back || h('span', { class: 'avatar', 'aria-hidden': 'true' }, 'D'),
     h('div', { class: 't' }, h('h1', {}, title), h('span', {}, kunNomi() + ' · Direktor')),
-    yozuvTugma(ctx.rerender, x.id)));
-  const m = h('main', {});
+    qidirTugma, yozuvTugma(ctx.rerender, x.id)));
+  const m = h('main', { class: yangi ? (ildiz ? 'y-ildiz' : 'y-ichki') : null });
   root.append(m);
 
   // ---------- Umumiy bloklar ----------
@@ -134,158 +197,44 @@ export function renderDirektor(root, ctx) {
     h('div', {}, 'So\'ralgan: ', h('b', {}, H.som(q.summa)), ' (limit: bitta mijozga ' + H.som(S.sozlama.limitMijoz) + ')'),
     h('div', { class: 'row' }, h('button', { class: 'p s', onclick: () => ctx.amal('qarzRuxsat', q.id, true).then((ok) => ok && ctx.toast('Ruxsat berildi ✓')) }, 'Ruxsat berish'),
       h('button', { class: 's', onclick: () => tasdiqlash(q.ism + ' ga ' + H.som(q.summa) + ' qarz rad etilsinmi?').then((ha) => ha && ctx.amal('qarzRuxsat', q.id, false)) }, 'Rad etish'))));
-  const smenaTeg = (z) => {
-    if (z.bekor) return h('span', { class: 'tag' }, 'Bekor qilingan');
-    if (z.qolda) return h('span', { class: 'tag', style: 'background:var(--soft);color:var(--accent)' }, 'Siz kiritdingiz');
-    if (!z.yopildi) return h('span', { class: 'tag', style: 'background:var(--info-bg);color:var(--info)' }, 'Ochiq · ' + vaqt(z.ochildi) + (H.ochiqSoat(z) > H.UZOQ_SMENA_SOAT ? ' · uzoq' : ''));
-    const f = H.farq(z);
-    return h('span', { class: 'tag', style: f < 0 ? 'background:var(--warn-bg);color:var(--warn)' : f > 0 ? 'background:var(--info-bg);color:var(--info)' : 'background:var(--soft);color:var(--accent)' },
-      f === 0 ? 'Mos ✓' : (f < 0 ? 'Kamomad ' : 'Ortiqcha ') + H.som(Math.abs(f)));
-  };
-
-  // ---------- Bosh ----------
-  if (tab === 'bosh') {
-    // Ishga tushirish ro'yxati: bajarilgani ✓; hammasi bajarilgach karta yo'qoladi.
-    const qadamlar = [
-      [!!(S.sozlama.boshlangich.kassa || (UY_PULI && S.sozlama.boshlangich.uy)), UY_PULI ? 'Seyf va uydagi hozirgi pulni kiriting' : 'Seyfdagi hozirgi pulni kiriting', 'more', 'sozlama'],
-      [S.xodimlar.some((z) => z.rol === 'sotuvchi' && z.ulangan), 'Xodimlarni qo\'shing va har biriga taklif havolasini yuboring', 'more', 'sozlama'],
-      [S.taminotchilar.length > 0, 'Ta\'minotchilarni va ularga qarzimizni kiriting', 'tamin', null]];
-    if (qadamlar.some(([ok]) => !ok)) {
-      m.append(h('div', { class: 'card' }, h('h2', { class: 'big' }, 'Boshlash'),
-        h('div', { class: 'muted' }, 'Tizimni ishga tushirish uchun bir martalik ishlar:'),
-        ...qadamlar.map(([ok, matn, t, s], i) => h('button', { class: 'link', style: 'color:var(--ink);text-decoration:none;justify-content:flex-start;gap:8px;text-align:left', onclick: () => go(t, s) },
-          h('span', { class: 'qadam' }, h('b', {}, ok ? '✓' : String(i + 1)), h('span', { style: ok ? 'text-decoration:line-through' : 'text-decoration:underline' }, matn))))));
-    }
-    // Audit 28.10 №1: kengaytma kaliti olinmaguncha nakladnoy kaliti (kompyuterda faylda) bemorlar ro'yxatini ham ochadi.
-    const prk = S.prays || {};
-    if (prk.kalit && !prk.kengaytmaKalit) {
-      m.append(h('div', { class: 'msg warn', role: 'note' }, 'Xavfsizlik: DMED kengaytmasi uchun alohida kalit hali olinmagan. Bo\'limlar → Sozlamalar → '
-        + '«Aptekadagi kompyuter» → «Kengaytma kaliti olish», keyin aptekadagi kompyuterda kengaytmaning «Partiyalar» sahifasiga qo\'ying.'));
-    }
+  // ---------- Bosh (eski ko'rinish) ----------
+  // 07.11: bo'laklar modul darajasiga ajratildi (yangi ko'rinish ham ishlatadi) — tartib, hisob va matn o'zgarmagan.
+  if (tab === 'bosh' && !yangi) {
+    const bl = boshlashKarta(ctx, go);
+    if (bl) m.append(bl);
+    const ko = kalitOgoh(S);
+    if (ko) m.append(ko);
     // «Bilimdon» o'yini ketayotgan bo'lsa — kuzatishga qaytish kartasi.
     if (ctx.server) { const ob = oyinBanner(ctx.retseptCtx(), () => go('more', 'oyin')); if (ob) m.prepend(ob); }
     // Dizayn A (29.10, foydalanuvchi tanladi): seyf — katta raqam; ostida 4 ta tez tugma; «Bajarish kerak» — har ish bitta
     // qatorda, o'z tugmasi bilan; bugun kirdi/chiqdi — ikki plitka (bosilsa ro'yxati). Hisob o'zgarmagan (H.kunSeyf).
-    const sf = H.kunSeyf(S, bugun);
-    const rq = (n) => H.som(n).replace(' so\'m', '');
-    m.append(h('div', { class: 'card hero' }, h('h2', { class: 'muted', style: 'font-size:15px;font-weight:600' }, 'Seyfda hozir'),
-      h('b', { class: 'big' }, H.som(kassa)),
-      h('div', { class: 'seyf-formula' }, sf.kirdi.length || sf.chiqdi.length
-        ? rq(sf.boshi) + ' (kecha) + ' + rq(sf.kirdiJami) + ' − ' + rq(sf.chiqdiJami)
-        : 'Bugun seyfga pul kirmadi ham, chiqmadi ham'),
-      UY_PULI ? h('button', { class: 'hero-qator', onclick: () => go('more', 'uy') }, h('span', {}, 'Uy puli'), h('b', {}, H.som(uy) + ' ›')) : null));
-    const qabullar = S.smenalar.filter((z) => z.qabul && z.qabul.holat === 'kutilmoqda' && !z.bekor);
+    m.append(seyfHero(ctx, go, bugun));
     // 29.10: xodimlar smena ochmaydi va pul topshirmaydi — «Pul qabuli» o'rniga «Davomat» (eski kutayotgan qabul «Bajarish kerak»da).
     m.append(tezTugmalar([
       ['odam', 'Davomat', 'info', () => go('more', 'davomat')],
       ['qosh', 'Savdo', '', () => savdoSheet(ctx)],
       ['chiqim', 'Pul chiqdi', 'chiqim', () => (UY_PULI ? yozuvSheet(ctx, { soha: 'apteka' }) : pulChiqdiSheet(ctx))],
       ['tamin', 'Ta\'minot', '', () => go('tamin')]]));
-
     // Bajarish kerak: pul qabuli, savdo tasdig'i, qarz ruxsati, ta'minotchi yozuvi, buyurtma kutayotgan dori.
-    const ishlar = [
-      ...qabullar.map((z) => {
-        const f = H.farq(z);
-        return ishQator({ icon: 'kirim', rang: 'kirim', sarlavha: ism(z.xodimId) + ' pul topshirdi',
-          izoh: fil(z.filialId) + ' · ' + H.som(z.qabul.summa) + ' · ' + (f === 0 ? 'kassa mos ✓' : (f < 0 ? 'kamomad ' : 'ortiqcha ') + H.som(Math.abs(f)))
-            + (z.tasdiq ? '' : ' · savdo: naqd ' + H.som(z.naqd) + ', karta ' + H.som(z.karta) + ' — qabul qilsangiz, savdo ham tasdiqlanadi'),
-          tugma: ['Qabul', () => qabulSheet(ctx, z, ism(z.xodimId))] });
-      }),
-      ...S.smenalar.filter((z) => H.tasdiqKutadi(z) && !(z.qabul && z.qabul.holat === 'kutilmoqda')).map((z) => {
-        const nomi = fil(z.filialId) + ' · ' + ism(z.xodimId) + ' (' + (SMENA_NOMI[z.nom] || z.nom) + ')';
-        const jami = (z.naqd || 0) + (z.karta || 0);
-        const f = H.farq(z);
-        return ishQator({ icon: 'smena', rang: 'warn', sarlavha: nomi + ' savdosi', izoh: 'naqd ' + H.som(z.naqd) + ' · karta ' + H.som(z.karta) + ' · '
-          + sana(z.yopildi) + ' ' + vaqt(z.yopildi) + ' da yopilgan · ' + (f === 0 ? 'kassa mos ✓' : (f < 0 ? 'kamomad ' : 'ortiqcha ') + H.som(Math.abs(f))),
-          tugma: ['Tasdiqlash', () => tasdiqlash(nomi + ' savdosi: naqd ' + H.som(z.naqd) + ', karta ' + H.som(z.karta) + ' — jami ' + H.som(jami) + '. Savdoga yozilsinmi?')
-            .then((ha) => ha && ctx.amal('savdoTasdiq', z.id).then((ok) => ok && ctx.toast('Savdoga yozildi ✓')))] });
-      }),
-      ...S.qarzlar.filter((q) => q.holat === 'ruxsat').map((q) => ishQator({ icon: 'odam', rang: 'warn', sarlavha: ism(q.xodimId) + ' qarz bermoqchi',
-        izoh: q.ism + ' · ' + H.som(q.summa) + ' — ruxsatingiz kerak', tugma: ['Ko\'rish', () => go('more', 'qarz')], asosiy: false })),
-      ...S.taminotchilar.map((t) => [t, t.amallar.filter((a) => a.holat === 'ular' && !a.bekor).length]).filter(([, n]) => n)
-        .map(([t, n]) => ishQator({ icon: 'tamin', rang: 'warn', sarlavha: t.nom + ' yozuv yozdi', izoh: n + ' ta yozuv tasdiqlashingizni kutmoqda', onclick: () => go('tamin', t.id) })),
-      // 04.11: ta'minotchi «Noto'g'ri» degan yozuvlar — ko'rib, xato bo'lsa bekor qilib to'g'risini yozish.
-      ...S.taminotchilar.map((t) => [t, H.taEtirozlar(t)]).filter(([, l]) => l.length)
-        .map(([t, l]) => ishQator({ icon: 'tamin', rang: 'warn', sarlavha: t.nom + ' e\'tiroz bildirdi', izoh: (l.length > 1 ? l.length + ' ta yozuv · ' : '') + '«' + l[l.length - 1].etiroz + '»', onclick: () => go('tamin', t.id) }))];
-    const defYangi = H.defekturaGuruh(S.defektura || []).filter((g) => g.holat === 'yangi').length;
-    // 29.10: savdoni direktor kiritadi — kecha savdosi kiritilmagan filial eslatiladi (oxirgi 30 kunda savdosi bo'lgan filiallar).
-    // 30.10: filial yopiq bo'lgan bo'lsa — «Savdo bo'lmadi» (kechaSavdoSheet), eslatma yo'qoladi.
-    const kecha = H.kunQosh(bugun, -1);
-    for (const fl of H.kechaSavdosiz(S, bugun)) {
-      ishlar.push(ishQator({ icon: 'smena', rang: 'warn', sarlavha: 'Kecha ' + fl.nom + ' savdosi kiritilmagan', izoh: 'Bosing — savdoni kiriting yoki «Savdo bo\'lmadi»',
-        onclick: () => kechaSavdoSheet(ctx, fl, kecha) }));
-    }
-    const dv = davomatBugun(ctx.retseptCtx());
-    // 29.10: eski ilovada ochilgan smena qolgan bo'lsa — uni direktor yopadi (aks holda o'sha filialga savdo kiritib bo'lmaydi).
-    S.smenalar.filter((z) => !z.yopildi && !z.qolda).forEach((z) => ishlar.unshift(ishQator({ icon: 'smena', rang: 'warn',
-      sarlavha: fil(z.filialId) + ' · ' + ism(z.xodimId) + ' smenasi ochiq qolgan', izoh: 'Endi smena kerak emas — yoping, savdoni keyin kiritasiz',
-      tugma: ['Yopish', () => ochiqSmenaYop(ctx, z, fil(z.filialId) + ' · ' + ism(z.xodimId))] })));
-    if (dv && dv.belgilanmagan) ishlar.unshift(ishQator({ icon: 'odam', rang: 'info', sarlavha: 'Davomat', izoh: dv.belgilanmagan + ' ta xodim bugun belgilanmagan', onclick: () => go('more', 'davomat') }));
-    if (defYangi) ishlar.push(ishQator({ icon: 'defektura', rang: 'info', sarlavha: 'Defektura', izoh: defYangi + ' ta dori buyurtma kutmoqda', onclick: () => { DEF_TAB.v = 'kerak'; go('more', 'defektura'); } }));
+    const ishlar = boshIshlar(ctx, go, bugun).map((i) => ishQator(i));
     m.append(h('div', { class: 'bolim-bosh' }, h('h2', {}, 'Bajarish kerak'), h('span', { class: 'muted' }, ishlar.length ? ishlar.length + ' ta' : '')));
     m.append(ishlar.length ? h('div', { class: 'card ishlar' }, ...ishlar) : h('div', { class: 'card muted' }, '✓ Hozircha bajariladigan ish yo\'q'));
-
-    // Bugun kirdi / chiqdi — ikki plitka; bosilsa — shu kungi har pul alohida (avvalgi kartalardagi ro'yxat).
-    const pq = (q) => h('div', { class: 'pq' + (q.tur === 'xarajat' ? ' xarajat' : '') },
-      h('span', {}, q.tur === 'xarajat' ? [h('b', {}, 'Xarajat'), ' · ' + q.nom] : q.nom, q.tur === 'kochirish' ? h('span', { class: 'yorliq' }, 'ko\'chirish') : null),
-      h('b', {}, rq(q.summa)));
-    const sv = H.kunSavdo(S.smenalar, bugun);
-    const kut = S.smenalar.filter((z) => H.tasdiqKutadi(z) && H.savdoKuni(z) === bugun).reduce((a, z) => a + (z.naqd || 0) + (z.karta || 0), 0);
-    const chiqdi =[...sf.chiqdi.filter((q) => q.tur === 'xarajat'), ...sf.chiqdi.filter((q) => q.tur !== 'xarajat')];
-    const kirdiOyna = () => sheet('▲ Bugun seyfga kirdi', (box, close) => box.append(h('section', { class: 'card pul-karta kirim', 'aria-label': 'Bugun seyfga kirdi' },
-      h('div', { class: 'pul-bosh' }, h('h2', {}, 'Jami'), h('b', {}, '+' + rq(sf.kirdiJami))),
-      ...(sf.kirdi.length ? sf.kirdi.map(pq) : [h('div', { class: 'muted' }, 'Bugun seyfga pul kirmadi')]),
-      sv.karta ? h('div', { class: 'pul-izoh' }, 'Karta savdo ' + H.som(sv.karta) + ' — bankka tushdi (seyfga emas)') : null),
-    h('button', { class: 'link', onclick: () => { close(); go('daftar'); } }, 'Daftarda ochish ›')), { fokus: false });
-    const chiqdiOyna = () => sheet('▼ Bugun seyfdan chiqdi', (box, close) => box.append(h('section', { class: 'card pul-karta chiqim', 'aria-label': 'Bugun seyfdan chiqdi' },
-      h('div', { class: 'pul-bosh' }, h('h2', {}, 'Jami'), h('b', {}, '−' + rq(sf.chiqdiJami))),
-      ...(chiqdi.length ? chiqdi.map(pq) : [h('div', { class: 'muted' }, 'Bugun seyfdan pul chiqmadi')]),
-      sf.smenaXarajat.length ? h('div', { class: 'pul-ichki' },
-        h('div', { class: 'pul-izoh' }, 'Smena kassasidan xarajat — seyfga tegmaydi, smena pulidan ayrilgan:'),
-        ...sf.smenaXarajat.map((q) => pq({ ...q, tur: 'xarajat' }))) : null),
-    h('button', { class: 'link', onclick: () => { close(); go('more', 'oqim'); } }, 'Kirim va chiqim — diagramma ›')), { fokus: false });
-    m.append(h('div', { class: 'grid2' },
-      h('button', { type: 'button', class: 'kp-tile kirim', 'aria-label': 'Bugun kirdi ' + rq(sf.kirdiJami) + ' so\'m — ro\'yxat', onclick: kirdiOyna }, h('span', {}, '▲ Bugun kirdi'), h('b', {}, rq(sf.kirdiJami))),
-      h('button', { type: 'button', class: 'kp-tile chiqim', 'aria-label': 'Bugun chiqdi ' + rq(sf.chiqdiJami) + ' so\'m — ro\'yxat', onclick: chiqdiOyna }, h('span', {}, '▼ Bugun chiqdi'), h('b', {}, rq(sf.chiqdiJami)))));
-    // Ta'minotchilar — bitta karta (04.11, foydalanuvchi: "bosh ekranda karta turadi, bossa kirishi kerak"): qarzimiz va kutayotgan ishlar.
-    const taQarz = S.taminotchilar.reduce((a, t) => a + H.bizBoyicha(t), 0);
-    const taTasdiq = S.taminotchilar.reduce((a, t) => a + t.amallar.filter((z) => z.holat === 'ular' && !z.bekor).length, 0);
-    const taEt = S.taminotchilar.reduce((a, t) => a + H.taEtirozlar(t).length, 0);
-    const taIsh = [taTasdiq ? taTasdiq + ' ta yozuv tasdiqlang' : '', taEt ? taEt + ' ta e\'tiroz' : ''].filter(Boolean).join(' · ');
-    m.append(h('button', { type: 'button', class: 'card ta-karta' + (taIsh ? ' diqqat' : ''), 'aria-label': 'Ta\'minotchilar — qarzimiz ' + H.som(taQarz) + (taIsh ? ', ' + taIsh : ''), onclick: () => go('tamin') },
-      h('span', { class: 'ta-k-nom' }, h('b', {}, 'Ta\'minotchilar'), h('span', { class: 'muted' }, S.taminotchilar.length ? S.taminotchilar.length + ' ta · qarzimiz' : 'Hali qo\'shilmagan')),
-      h('span', { class: 'ta-k-son' }, S.taminotchilar.length ? h('b', {}, H.som(taQarz)) : null, h('span', { 'aria-hidden': 'true' }, '›')),
-      taIsh ? h('span', { class: 'ta-k-ish' }, taIsh) : null));
-    // Bugungi savdo — o'z kartasida: jami, naqd (seyfga) va karta (bankka) yonma-yon, har filial — bosilsa shu filial savdolari.
-    m.append(h('section', { class: 'card savdo-karta' },
-      h('div', { class: 'bugun-bosh' }, kartaSarlavha('Bugungi savdo'), h('b', { class: 'bugun-jami' }, H.som(sv.jami))),
-      h('div', { class: 'naqd-karta' },
-        h('div', { class: 'nk naqd' }, h('span', {}, 'Naqd'), h('b', {}, H.som(sv.naqd)), h('small', {}, '→ seyfga')),
-        h('div', { class: 'nk karta' }, h('span', {}, 'Karta'), h('b', {}, H.som(sv.karta)), h('small', {}, '→ bankka'))),
-      kut ? h('div', { class: 'msg warn' }, 'Yana ' + H.som(kut) + ' savdo tasdiqlashingizni kutmoqda') : null,
-      h('div', { class: 'filial-royxat' }, h('div', { class: 'filial-sarlavha' }, 'Filiallar bo\'yicha'),
-        ...S.filiallar.map((f) => {
-          const v = sv.filiallar[f.id] || { naqd: 0, karta: 0 };
-          // Bosilsa — shu filialning shu kungi savdolari (har smena alohida, tuzatish/bekor qilish shu yerda; 27.10).
-          return h('button', { class: 'filial-qator', type: 'button', 'aria-label': f.nom + ' — bugungi savdolari', onclick: () => filialSavdoSheet(ctx, f.id, bugun) },
-            h('div', { class: 'fq-nom' }, h('span', {}, f.nom), h('small', {}, 'naqd ' + H.som(v.naqd) + ' · karta ' + H.som(v.karta))),
-            h('b', {}, H.som(v.naqd + v.karta) + ' ›'));
-        })),
-      h('div', { class: 'row' }, h('button', { class: 's', onclick: () => savdoSheet(ctx) }, '+ Savdo kiritish'),
-        h('button', { class: 's', onclick: () => go('more', 'stat') }, 'Hisobot ›'))));
-    const bugungi = S.smenalar.filter((z) => !z.yopildi || H.savdoKuni(z) === bugun);
-    // 29.10: xodimlar smena ochmaydi — bu karta faqat bugungi savdo yozuvi (yoki eski ochiq smena) bo'lsa ko'rinadi.
-    if (bugungi.length) {
-      const sc = h('div', { class: 'card list' }, kartaSarlavha('Bugungi savdo yozuvlari'));
-      bugungi.forEach((z) => sc.append(h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', {}, fil(z.filialId) + ' · ' + ism(z.xodimId)), smenaTeg(z)))));
-      m.append(sc);
-    }
-    // Mijozlar qarzi — qisqa karta (ta'minotchilar — yuqorida alohida karta); oylik va statistika — Bo'limlarda.
-    const ochiqQ = S.qarzlar.filter((q) => q.holat === 'ochiq'), otgan = ochiqQ.filter((q) => H.muddatiOtgan(q));
-    m.append(h('button', { class: 'card' + (otgan.length ? ' diqqat' : ''), style: 'height:auto;align-items:flex-start;gap:4px', onclick: () => go('more', 'qarz') },
-      h('span', { class: 'muted' }, 'Mijozlar qarzi'), h('b', { style: 'font-size:18px;font-variant-numeric:tabular-nums' }, H.som(ochiqQ.reduce((a, q) => a + H.qarzQoldiq(q), 0))),
-      h('span', { class: 'muted', style: otgan.length ? 'color:var(--warn);font-weight:600' : '' }, otgan.length ? otgan.length + ' tasi muddati o\'tgan' : 'muddati o\'tgan yo\'q')));
+    m.append(seyfPlitkalar(ctx, go, bugun));
+    m.append(taKarta(ctx, go));
+    m.append(savdoKarta(ctx, go, bugun));
+    const by = bugungiYozuvlar(ctx, bugun);
+    if (by) m.append(by);
+    m.append(qarzKarta(ctx, go));
   }
+
+  // ---------- Yangi ko'rinish: pastki menyudagi 4 bo'lim (07.11, variant A) ----------
+  if (ildiz) {
+    if (yTab === 'bugun') bugunView(m, ctx, go, bugun);
+    if (yTab === 'pul') pulBolim(m, ctx, go, bugun);
+    if (yTab === 'ombor') omborBolim(m, ctx, go, fil);
+    if (yTab === 'xodimlar') xodimlarBolim(m, ctx, go, korinish);
+  }
+  if (sub === 'hamyon') hamyonView(m, ctx, go, bugun);
 
   // ---------- Daftar ----------
   if (tab === 'daftar') {
@@ -494,7 +443,9 @@ export function renderDirektor(root, ctx) {
     // Guruhlangan ro'yxat: har guruhda 3 tadan ko'p emas; diqqat talab qilgani sariq izoh bilan.
     const q = (k, l, n, diqqat) => ({ l, n, diqqat, onclick: () => go('more', k) });
     m.append(...guruhlar([
-      { nom: 'Xodimlar', qatorlar: [{ l: 'Davomat', n: 'Keldi / kelmadi — har kuni', onclick: () => go('more', 'davomat') }] },
+      { nom: 'Xodimlar', qatorlar: [{ l: 'Davomat', n: 'Keldi / kelmadi — har kuni', onclick: () => go('more', 'davomat') },
+        { l: 'Funksiyalar', n: ochiqSoni(S) ? ochiqSoni(S) + ' ta o\'chirilgan' : 'Xodim va mijoz imkoniyatlari', onclick: () => go('more', 'funksiyalar') },
+        { l: 'O\'zgarishlar tarixi', n: 'Kim, qachon, nimani o\'zgartirdi', onclick: () => go('more', 'audit') }] },
       { nom: 'Pul', qatorlar: [{ l: 'Savdo', n: 'Har kunlik savdoni kiritish, tarix', onclick: () => go('smena') },
         { l: 'Ta\'minotchilar', n: H.som(S.taminotchilar.reduce((a, t) => a + H.bizBoyicha(t), 0)) + ' qarzimiz', onclick: () => go('tamin') },
         UY_PULI ? q('uy', 'Uy puli', H.som(uy)) : null, q('qarz', 'Mijozlar qarzi', otgan ? otgan + ' tasi muddati o\'tgan' : H.som(ochiqQ.reduce((a, z) => a + H.qarzQoldiq(z), 0)), otgan > 0),
@@ -505,6 +456,7 @@ export function renderDirektor(root, ctx) {
         { l: 'Buyurtma berilganlar', n: defBuyurtma ? defBuyurtma + ' ta dori kelishi kutilmoqda' : 'Hozir yo\'q', onclick: () => { DEF_TAB.v = 'buyurtma'; go('more', 'defektura'); } },
         q('prays', 'Prays-list', S.prays && S.prays.soni ? S.prays.soni + ' ta dori' : 'Narxlarni qidirish'),
         ctx.server ? q('firmalar', 'Firma prayslari', 'Qaysi firmada arzon — defektura uchun') : null,
+        ctx.server ? { l: 'Hisobdan chiqarilganlar', n: 'Muddati o\'tgan, singan, firmaga qaytarilgan', onclick: () => go('qoldiq', 'chiqarish') } : null,
         q('shtrix', 'Shtrix-kodlar', (S.shtrixlar || []).length ? (S.shtrixlar || []).length + ' ta · shprits, sistema…' : 'Shprits, sistema — xodimlar skanerga tutadi')] },
       // Reimbursatsiya alohida guruh: punktlarni qo'shish/ulash va ular yuborgan retseptlar.
       { nom: 'Reimbursatsiya', qatorlar: [q('punktlar', 'Punktlar', 'Qo\'shish, botga ulash havolasi'), { l: 'Retseptlar', n: 'Punktlar yuborgan ro\'yxatlar, qadoqlash', onclick: () => { retseptBosh(); go('retsept'); } }] },
@@ -513,7 +465,9 @@ export function renderDirektor(root, ctx) {
       // «Bilimdon» o'yini (29.10): direktor ochadi va kuzatadi, xodimlar o'z panelida javob beradi.
       { nom: 'O\'yin', qatorlar: [{ l: '🎮 Bilimdon', n: 'Jonli test o\'yini, reyting', onclick: () => go('more', 'oyin') }] },
       { nom: 'Boshqa', qatorlar: [q('sozlama', 'Sozlamalar', 'Filiallar, xodimlar, limitlar'),
-        { l: 'Oddiy rejim', n: '4 ta katta tugma, kam narsa', onclick: () => { rejimQoy(x.id, true); ctx.rerender(true); } }] }
+        { l: 'Oddiy rejim', n: '4 ta katta tugma, kam narsa', onclick: () => { rejimQoy(x.id, true); ctx.rerender(true); } },
+        // 07.11: eski ko'rinishdan yangisiga qaytish (Telegram ⋮ → Sozlamalar ham shu oynani ochadi).
+        { l: 'Ko\'rinish', n: 'Yangi ko\'rinishga qaytish, harf o\'lchami', onclick: korinish }] }
     ], { plitka: true }));
   }
 
@@ -600,6 +554,13 @@ export function renderDirektor(root, ctx) {
     if (ctx.server) m.append(ertalabKarta({ ...ctx.retseptCtx(), rerender: ctx.rerender }));
   }
 
+  // 07.11: xodim va mijoz imkoniyatlarini yoqish/o'chirish (funksiya.mjs); o'zgarishlar jurnali (audit.mjs, faqat serverda).
+  if (sub === 'funksiyalar') funksiyalarView(m, { S, amal: ctx.amal, server: ctx.server });
+  if (sub === 'audit') {
+    if (ctx.server) auditView(m, { oqi: ctx.retseptCtx().oqi, rerender: ctx.rerender });
+    else m.append(h('div', { class: 'card muted' }, 'O\'zgarishlar tarixi faqat Telegram ilovasida (serverda) ko\'rinadi.'));
+  }
+
   if (sub === 'xabar') {
     m.append(h('div', { class: 'muted' }, 'Bot sizga Telegram\'da yuborgan xabarlar shu yerda ham saqlanadi.'));
     const xb = h('div', { class: 'card list' });
@@ -626,6 +587,10 @@ export function renderDirektor(root, ctx) {
   // 07.11: filiallar orasida ko'chirish va inventarizatsiya (faqat serverda).
   if (tab === 'qoldiq' && sub === 'kochirish') kochirishView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender }, fil);
   if (tab === 'qoldiq' && sub === 'inventar') inventarView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender }, fil);
+  if (tab === 'qoldiq' && sub === 'narx') narxView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender }, fil);
+  if (tab === 'qoldiq' && sub === 'kassa') kassaView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender });
+  // 07.11 tun: hisobdan chiqarilganlar va firmaga qaytarilganlar (20261107260000_hisobdan_chiqarish).
+  if (tab === 'qoldiq' && sub === 'chiqarish') chiqarishView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender }, fil);
   if (sub === 'punktlar') punktlarView(m, ctx.retseptCtx());
   if (sub === 'defektura') defekturaDirektor(m, ctx, fil, () => go('more', 'firmalar'));
   if (sub === 'firmalar') firmaPrayslarView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender, firma: ctx.firma });
@@ -636,8 +601,453 @@ export function renderDirektor(root, ctx) {
   if (sub === 'oyin') oyinView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender });
   if (sub === 'davomat') davomatView(m, ctx.retseptCtx(), S);
 
+  // Yangi ko'rinish (07.11): menyu faqat bo'limlarning bosh sahifasida; ichki sahifada — yo'q (Telegram «orqaga» va ‹).
+  if (yangi) {
+    if (ildiz) root.append(bolimNav(Y_MENYU, yTab, (k) => { yTab = k; yol = []; sahifaOtish(() => ctx.rerender(true)); }));
+    // 07.11 tun: birinchi ochilishda — 3 ta qisqa tanishtiruv ekrani (shu Telegram akkaunti uchun bir marta; Xodimlar → «Qanday ishlatiladi?»).
+    tanishuvAvto('direktor');
+    return;
+  }
   // Dizayn A (29.10): pastda 4 bo'lim (02.11 dan + «Qoldiq» — Oson qoldig'i). Smenalar va Ta'minot — Bo'limlar ichida (va Bosh'dagi tez tugmalarda).
   root.append(nav([['bosh', 'Bosh'], ['daftar', 'Daftar'], ['retsept', 'Retsept'], ['qoldiq', 'Qoldiq'], ['more', 'Bo\'limlar']], tab === 'smena' || tab === 'tamin' ? (qaytish === 'bosh' ? 'bosh' : 'more') : tab, (k) => { if (k === 'retsept') retseptBosh(); go(k); }));
+}
+
+// ===================== Bosh sahifa bo'laklari (eski va yangi ko'rinish uchun umumiy) =====================
+// 07.11: renderDirektor ichidan ajratildi — hisob, matn va tartib o'zgarmagan (eski ko'rinish aynan avvalgidek).
+const rq = (n) => H.som(n).replace(' so\'m', '');
+const filNomi = (S, id) => (S.filiallar.find((f) => f.id === id) || {}).nom || id;
+const xodimIsmi = (S, id) => (S.xodimlar.find((z) => z.id === id) || {}).ism || '?';
+
+function smenaTeg(z) {
+  if (z.bekor) return h('span', { class: 'tag' }, 'Bekor qilingan');
+  if (z.qolda) return h('span', { class: 'tag', style: 'background:var(--soft);color:var(--accent)' }, 'Siz kiritdingiz');
+  if (!z.yopildi) return h('span', { class: 'tag', style: 'background:var(--info-bg);color:var(--info)' }, 'Ochiq · ' + vaqt(z.ochildi) + (H.ochiqSoat(z) > H.UZOQ_SMENA_SOAT ? ' · uzoq' : ''));
+  const f = H.farq(z);
+  return h('span', { class: 'tag', style: f < 0 ? 'background:var(--warn-bg);color:var(--warn)' : f > 0 ? 'background:var(--info-bg);color:var(--info)' : 'background:var(--soft);color:var(--accent)' },
+    f === 0 ? 'Mos ✓' : (f < 0 ? 'Kamomad ' : 'Ortiqcha ') + H.som(Math.abs(f)));
+}
+
+// Ishga tushirish ro'yxati: bajarilgani ✓; hammasi bajarilgach karta yo'qoladi (null).
+function boshlashKarta(ctx, go) {
+  const { S } = ctx;
+  const qadamlar = [
+    [!!(S.sozlama.boshlangich.kassa || (UY_PULI && S.sozlama.boshlangich.uy)), UY_PULI ? 'Seyf va uydagi hozirgi pulni kiriting' : 'Seyfdagi hozirgi pulni kiriting', 'more', 'sozlama'],
+    [S.xodimlar.some((z) => z.rol === 'sotuvchi' && z.ulangan), 'Xodimlarni qo\'shing va har biriga taklif havolasini yuboring', 'more', 'sozlama'],
+    [S.taminotchilar.length > 0, 'Ta\'minotchilarni va ularga qarzimizni kiriting', 'tamin', null]];
+  if (!qadamlar.some(([ok]) => !ok)) return null;
+  return h('div', { class: 'card' }, h('h2', { class: 'big' }, 'Boshlash'),
+    h('div', { class: 'muted' }, 'Tizimni ishga tushirish uchun bir martalik ishlar:'),
+    ...qadamlar.map(([ok, matn, t, s], i) => h('button', { class: 'link', style: 'color:var(--ink);text-decoration:none;justify-content:flex-start;gap:8px;text-align:left', onclick: () => go(t, s) },
+      h('span', { class: 'qadam' }, h('b', {}, ok ? '✓' : String(i + 1)), h('span', { style: ok ? 'text-decoration:line-through' : 'text-decoration:underline' }, matn)))));
+}
+
+// Audit 28.10 №1: kengaytma kaliti olinmaguncha nakladnoy kaliti (kompyuterda faylda) bemorlar ro'yxatini ham ochadi.
+const kalitOlinmagan = (S) => { const p = S.prays || {}; return !!(p.kalit && !p.kengaytmaKalit); };
+function kalitOgoh(S) {
+  if (!kalitOlinmagan(S)) return null;
+  return h('div', { class: 'msg warn', role: 'note' }, 'Xavfsizlik: DMED kengaytmasi uchun alohida kalit hali olinmagan. Bo\'limlar → Sozlamalar → '
+    + '«Aptekadagi kompyuter» → «Kengaytma kaliti olish», keyin aptekadagi kompyuterda kengaytmaning «Partiyalar» sahifasiga qo\'ying.');
+}
+
+// «Seyfda hozir» — katta raqam va bugungi hisob qatori (H.kunSeyf).
+// roll (07.11 tun, faqat yangi ko'rinish): summa o'zgarsa eski qiymatdan yangisiga sanaladi (ui.pulSon; oxirgi matn — H.som).
+function seyfHero(ctx, go, bugun, roll) {
+  const { S } = ctx;
+  const sf = H.kunSeyf(S, bugun);
+  return h('div', { class: 'card hero' }, h('h2', { class: 'muted', style: 'font-size:15px;font-weight:600' }, 'Seyfda hozir'),
+    roll ? pulSon('seyf', qoldiq(S, 'kassa'), { class: 'big' }) : h('b', { class: 'big' }, H.som(qoldiq(S, 'kassa'))),
+    h('div', { class: 'seyf-formula' }, sf.kirdi.length || sf.chiqdi.length
+      ? rq(sf.boshi) + ' (kecha) + ' + rq(sf.kirdiJami) + ' − ' + rq(sf.chiqdiJami)
+      : 'Bugun seyfga pul kirmadi ham, chiqmadi ham'),
+    UY_PULI ? h('button', { class: 'hero-qator', onclick: () => go('more', 'uy') }, h('span', {}, 'Uy puli'), h('b', {}, H.som(qoldiq(S, 'uy')) + ' ›')) : null);
+}
+
+// «Bajarish kerak» ishlari — ma'lumot (ishQator qabul qiladi): tur — yangi ko'rinishda guruhlash uchun, son — qatordagi son.
+// Tartib avvalgidek: davomat va ochiq smenalar tepada, keyin pul qabuli, savdo tasdig'i, qarz ruxsati, ta'minotchi, kechagi savdo, defektura.
+function boshIshlar(ctx, go, bugun) {
+  const { S } = ctx;
+  const fil = (id) => filNomi(S, id), ism = (id) => xodimIsmi(S, id);
+  const qabullar = S.smenalar.filter((z) => z.qabul && z.qabul.holat === 'kutilmoqda' && !z.bekor);
+  const ishlar = [
+    ...qabullar.map((z) => {
+      const f = H.farq(z);
+      return { tur: 'qabul', icon: 'kirim', rang: 'kirim', sarlavha: ism(z.xodimId) + ' pul topshirdi',
+        izoh: fil(z.filialId) + ' · ' + H.som(z.qabul.summa) + ' · ' + (f === 0 ? 'kassa mos ✓' : (f < 0 ? 'kamomad ' : 'ortiqcha ') + H.som(Math.abs(f)))
+          + (z.tasdiq ? '' : ' · savdo: naqd ' + H.som(z.naqd) + ', karta ' + H.som(z.karta) + ' — qabul qilsangiz, savdo ham tasdiqlanadi'),
+        tugma: ['Qabul', () => qabulSheet(ctx, z, ism(z.xodimId))] };
+    }),
+    ...S.smenalar.filter((z) => H.tasdiqKutadi(z) && !(z.qabul && z.qabul.holat === 'kutilmoqda')).map((z) => {
+      const nomi = fil(z.filialId) + ' · ' + ism(z.xodimId) + ' (' + (SMENA_NOMI[z.nom] || z.nom) + ')';
+      const jami = (z.naqd || 0) + (z.karta || 0);
+      const f = H.farq(z);
+      return { tur: 'tasdiq', icon: 'smena', rang: 'warn', sarlavha: nomi + ' savdosi', izoh: 'naqd ' + H.som(z.naqd) + ' · karta ' + H.som(z.karta) + ' · '
+        + sana(z.yopildi) + ' ' + vaqt(z.yopildi) + ' da yopilgan · ' + (f === 0 ? 'kassa mos ✓' : (f < 0 ? 'kamomad ' : 'ortiqcha ') + H.som(Math.abs(f))),
+      tugma: ['Tasdiqlash', () => tasdiqlash(nomi + ' savdosi: naqd ' + H.som(z.naqd) + ', karta ' + H.som(z.karta) + ' — jami ' + H.som(jami) + '. Savdoga yozilsinmi?')
+        .then((ha) => ha && ctx.amal('savdoTasdiq', z.id).then((ok) => ok && ctx.toast('Savdoga yozildi ✓')))] };
+    }),
+    ...S.qarzlar.filter((q) => q.holat === 'ruxsat').map((q) => ({ tur: 'ruxsat', icon: 'odam', rang: 'warn', sarlavha: ism(q.xodimId) + ' qarz bermoqchi',
+      izoh: q.ism + ' · ' + H.som(q.summa) + ' — ruxsatingiz kerak', tugma: ['Ko\'rish', () => go('more', 'qarz')], asosiy: false })),
+    ...S.taminotchilar.map((t) => [t, t.amallar.filter((a) => a.holat === 'ular' && !a.bekor).length]).filter(([, n]) => n)
+      .map(([t, n]) => ({ tur: 'taYozdi', icon: 'tamin', rang: 'warn', sarlavha: t.nom + ' yozuv yozdi', izoh: n + ' ta yozuv tasdiqlashingizni kutmoqda', son: n, onclick: () => go('tamin', t.id) })),
+    // 04.11: ta'minotchi «Noto'g'ri» degan yozuvlar — ko'rib, xato bo'lsa bekor qilib to'g'risini yozish.
+    ...S.taminotchilar.map((t) => [t, H.taEtirozlar(t)]).filter(([, l]) => l.length)
+      .map(([t, l]) => ({ tur: 'taEtiroz', icon: 'tamin', rang: 'warn', sarlavha: t.nom + ' e\'tiroz bildirdi', izoh: (l.length > 1 ? l.length + ' ta yozuv · ' : '') + '«' + l[l.length - 1].etiroz + '»', onclick: () => go('tamin', t.id) }))];
+  const defYangi = H.defekturaGuruh(S.defektura || []).filter((g) => g.holat === 'yangi').length;
+  // 29.10: savdoni direktor kiritadi — kecha savdosi kiritilmagan filial eslatiladi (oxirgi 30 kunda savdosi bo'lgan filiallar).
+  // 30.10: filial yopiq bo'lgan bo'lsa — «Savdo bo'lmadi» (kechaSavdoSheet), eslatma yo'qoladi.
+  const kecha = H.kunQosh(bugun, -1);
+  for (const fl of H.kechaSavdosiz(S, bugun)) {
+    ishlar.push({ tur: 'kecha', icon: 'smena', rang: 'warn', sarlavha: 'Kecha ' + fl.nom + ' savdosi kiritilmagan', izoh: 'Bosing — savdoni kiriting yoki «Savdo bo\'lmadi»',
+      onclick: () => kechaSavdoSheet(ctx, fl, kecha) });
+  }
+  const dv = davomatBugun(ctx.retseptCtx());
+  // 29.10: eski ilovada ochilgan smena qolgan bo'lsa — uni direktor yopadi (aks holda o'sha filialga savdo kiritib bo'lmaydi).
+  S.smenalar.filter((z) => !z.yopildi && !z.qolda).forEach((z) => ishlar.unshift({ tur: 'smenaOchiq', icon: 'smena', rang: 'warn',
+    sarlavha: fil(z.filialId) + ' · ' + ism(z.xodimId) + ' smenasi ochiq qolgan', izoh: 'Endi smena kerak emas — yoping, savdoni keyin kiritasiz',
+    tugma: ['Yopish', () => ochiqSmenaYop(ctx, z, fil(z.filialId) + ' · ' + ism(z.xodimId))] }));
+  if (dv && dv.belgilanmagan) ishlar.unshift({ tur: 'davomat', icon: 'odam', rang: 'info', sarlavha: 'Davomat', izoh: dv.belgilanmagan + ' ta xodim bugun belgilanmagan', son: dv.belgilanmagan, onclick: () => go('more', 'davomat') });
+  if (defYangi) ishlar.push({ tur: 'defektura', icon: 'defektura', rang: 'info', sarlavha: 'Defektura', izoh: defYangi + ' ta dori buyurtma kutmoqda', onclick: () => { DEF_TAB.v = 'kerak'; go('more', 'defektura'); } });
+  return ishlar;
+}
+
+// Bugun kirdi / chiqdi — ikki plitka; bosilsa — shu kungi har pul alohida (oynada).
+function seyfPlitkalar(ctx, go, bugun) {
+  const { S } = ctx;
+  const sf = H.kunSeyf(S, bugun);
+  const pq = (q) => h('div', { class: 'pq' + (q.tur === 'xarajat' ? ' xarajat' : '') },
+    h('span', {}, q.tur === 'xarajat' ? [h('b', {}, 'Xarajat'), ' · ' + q.nom] : q.nom, q.tur === 'kochirish' ? h('span', { class: 'yorliq' }, 'ko\'chirish') : null),
+    h('b', {}, rq(q.summa)));
+  const sv = H.kunSavdo(S.smenalar, bugun);
+  const chiqdi = [...sf.chiqdi.filter((q) => q.tur === 'xarajat'), ...sf.chiqdi.filter((q) => q.tur !== 'xarajat')];
+  const kirdiOyna = () => sheet('▲ Bugun seyfga kirdi', (box, close) => box.append(h('section', { class: 'card pul-karta kirim', 'aria-label': 'Bugun seyfga kirdi' },
+    h('div', { class: 'pul-bosh' }, h('h2', {}, 'Jami'), h('b', {}, '+' + rq(sf.kirdiJami))),
+    ...(sf.kirdi.length ? sf.kirdi.map(pq) : [h('div', { class: 'muted' }, 'Bugun seyfga pul kirmadi')]),
+    sv.karta ? h('div', { class: 'pul-izoh' }, 'Karta savdo ' + H.som(sv.karta) + ' — bankka tushdi (seyfga emas)') : null),
+  h('button', { class: 'link', onclick: () => { close(); go('daftar'); } }, 'Daftarda ochish ›')), { fokus: false });
+  const chiqdiOyna = () => sheet('▼ Bugun seyfdan chiqdi', (box, close) => box.append(h('section', { class: 'card pul-karta chiqim', 'aria-label': 'Bugun seyfdan chiqdi' },
+    h('div', { class: 'pul-bosh' }, h('h2', {}, 'Jami'), h('b', {}, '−' + rq(sf.chiqdiJami))),
+    ...(chiqdi.length ? chiqdi.map(pq) : [h('div', { class: 'muted' }, 'Bugun seyfdan pul chiqmadi')]),
+    sf.smenaXarajat.length ? h('div', { class: 'pul-ichki' },
+      h('div', { class: 'pul-izoh' }, 'Smena kassasidan xarajat — seyfga tegmaydi, smena pulidan ayrilgan:'),
+      ...sf.smenaXarajat.map((q) => pq({ ...q, tur: 'xarajat' }))) : null),
+  h('button', { class: 'link', onclick: () => { close(); go('more', 'oqim'); } }, 'Kirim va chiqim — diagramma ›')), { fokus: false });
+  return h('div', { class: 'grid2' },
+    h('button', { type: 'button', class: 'kp-tile kirim', 'aria-label': 'Bugun kirdi ' + rq(sf.kirdiJami) + ' so\'m — ro\'yxat', onclick: kirdiOyna }, h('span', {}, '▲ Bugun kirdi'), h('b', {}, rq(sf.kirdiJami))),
+    h('button', { type: 'button', class: 'kp-tile chiqim', 'aria-label': 'Bugun chiqdi ' + rq(sf.chiqdiJami) + ' so\'m — ro\'yxat', onclick: chiqdiOyna }, h('span', {}, '▼ Bugun chiqdi'), h('b', {}, rq(sf.chiqdiJami))));
+}
+
+// Ta'minotchilar — bitta karta (04.11, foydalanuvchi: "bosh ekranda karta turadi, bossa kirishi kerak"): qarzimiz va kutayotgan ishlar.
+const taIshlar = (S) => {
+  const taTasdiq = S.taminotchilar.reduce((a, t) => a + t.amallar.filter((z) => z.holat === 'ular' && !z.bekor).length, 0);
+  const taEt = S.taminotchilar.reduce((a, t) => a + H.taEtirozlar(t).length, 0);
+  return [taTasdiq ? taTasdiq + ' ta yozuv tasdiqlang' : '', taEt ? taEt + ' ta e\'tiroz' : ''].filter(Boolean).join(' · ');
+};
+function taKarta(ctx, go) {
+  const { S } = ctx;
+  const taQarz = S.taminotchilar.reduce((a, t) => a + H.bizBoyicha(t), 0);
+  const taIsh = taIshlar(S);
+  return h('button', { type: 'button', class: 'card ta-karta' + (taIsh ? ' diqqat' : ''), 'aria-label': 'Ta\'minotchilar — qarzimiz ' + H.som(taQarz) + (taIsh ? ', ' + taIsh : ''), onclick: () => go('tamin') },
+    h('span', { class: 'ta-k-nom' }, h('b', {}, 'Ta\'minotchilar'), h('span', { class: 'muted' }, S.taminotchilar.length ? S.taminotchilar.length + ' ta · qarzimiz' : 'Hali qo\'shilmagan')),
+    h('span', { class: 'ta-k-son' }, S.taminotchilar.length ? h('b', {}, H.som(taQarz)) : null, h('span', { 'aria-hidden': 'true' }, '›')),
+    taIsh ? h('span', { class: 'ta-k-ish' }, taIsh) : null);
+}
+
+// Bugungi savdo — o'z kartasida: jami, naqd (seyfga) va karta (bankka) yonma-yon, har filial — bosilsa shu filial savdolari.
+function savdoKarta(ctx, go, bugun) {
+  const { S } = ctx;
+  const sv = H.kunSavdo(S.smenalar, bugun);
+  const kut = S.smenalar.filter((z) => H.tasdiqKutadi(z) && H.savdoKuni(z) === bugun).reduce((a, z) => a + (z.naqd || 0) + (z.karta || 0), 0);
+  return h('section', { class: 'card savdo-karta' },
+    h('div', { class: 'bugun-bosh' }, kartaSarlavha('Bugungi savdo'), h('b', { class: 'bugun-jami' }, H.som(sv.jami))),
+    h('div', { class: 'naqd-karta' },
+      h('div', { class: 'nk naqd' }, h('span', {}, 'Naqd'), h('b', {}, H.som(sv.naqd)), h('small', {}, '→ seyfga')),
+      h('div', { class: 'nk karta' }, h('span', {}, 'Karta'), h('b', {}, H.som(sv.karta)), h('small', {}, '→ bankka'))),
+    kut ? h('div', { class: 'msg warn' }, 'Yana ' + H.som(kut) + ' savdo tasdiqlashingizni kutmoqda') : null,
+    h('div', { class: 'filial-royxat' }, h('div', { class: 'filial-sarlavha' }, 'Filiallar bo\'yicha'),
+      ...S.filiallar.map((f) => {
+        const v = sv.filiallar[f.id] || { naqd: 0, karta: 0 };
+        // Bosilsa — shu filialning shu kungi savdolari (har smena alohida, tuzatish/bekor qilish shu yerda; 27.10).
+        return h('button', { class: 'filial-qator', type: 'button', 'aria-label': f.nom + ' — bugungi savdolari', onclick: () => filialSavdoSheet(ctx, f.id, bugun) },
+          h('div', { class: 'fq-nom' }, h('span', {}, f.nom), h('small', {}, 'naqd ' + H.som(v.naqd) + ' · karta ' + H.som(v.karta))),
+          h('b', {}, H.som(v.naqd + v.karta) + ' ›'));
+      })),
+    h('div', { class: 'row' }, h('button', { class: 's', onclick: () => savdoSheet(ctx) }, '+ Savdo kiritish'),
+      h('button', { class: 's', onclick: () => go('more', 'stat') }, 'Hisobot ›')));
+}
+
+// Bugungi savdo yozuvlari (yoki eski ochiq smena) — bo'lmasa null.
+function bugungiYozuvlar(ctx, bugun) {
+  const { S } = ctx;
+  const bugungi = S.smenalar.filter((z) => !z.yopildi || H.savdoKuni(z) === bugun);
+  if (!bugungi.length) return null;
+  const sc = h('div', { class: 'card list' }, kartaSarlavha('Bugungi savdo yozuvlari'));
+  bugungi.forEach((z) => sc.append(h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', {}, filNomi(S, z.filialId) + ' · ' + xodimIsmi(S, z.xodimId)), smenaTeg(z)))));
+  return sc;
+}
+
+// Mijozlar qarzi — qisqa karta.
+function qarzKarta(ctx, go) {
+  const { S } = ctx;
+  const ochiqQ = S.qarzlar.filter((q) => q.holat === 'ochiq'), otgan = ochiqQ.filter((q) => H.muddatiOtgan(q));
+  return h('button', { class: 'card' + (otgan.length ? ' diqqat' : ''), style: 'height:auto;align-items:flex-start;gap:4px', onclick: () => go('more', 'qarz') },
+    h('span', { class: 'muted' }, 'Mijozlar qarzi'), h('b', { style: 'font-size:18px;font-variant-numeric:tabular-nums' }, H.som(ochiqQ.reduce((a, q) => a + H.qarzQoldiq(q), 0))),
+    h('span', { class: 'muted', style: otgan.length ? 'color:var(--warn);font-weight:600' : '' }, otgan.length ? otgan.length + ' tasi muddati o\'tgan' : 'muddati o\'tgan yo\'q'));
+}
+
+// ===================== Yangi ko'rinish (07.11, variant A) =====================
+// Foydalanuvchi: "panelda narsa ko'p, ishlatish qiyin — oddiy va keksa odam ham ishlata olsin"; dadasi (direktor) faqat
+// Defektura bilan ishlaydi — «Bugun» sahifasida Defektura birinchi. Pastda 4 bo'lim; ichki sahifalar — avvalgi ekranlar.
+const Y_NOM = { bugun: 'Bugun', pul: 'Pul', ombor: 'Ombor', xodimlar: 'Xodimlar' };
+const Y_MENYU = [['bugun', 'Bugun', 'bugun'], ['pul', 'Pul', 'pul'], ['ombor', 'Ombor', 'ombor'], ['xodimlar', 'Xodimlar', 'xodimlar']];
+
+// Global qidiruv katalogi (07.11 tun, qidiruv.mjs): pastki menyu bo'limlari va hamma ichki sahifa (nomi — SAHIFA_NOM),
+// izoh — qaysi bo'limda, soz — boshqa so'zlar bilan ham topilsin («nasiya» → Mijozlar qarzi). Serverdagi sahifalar — faqat serverda.
+// [kalit, qayerga ([tab, sub] | bo'lim), ikonka, izoh, sinonimlar, faqat serverda]
+const KATALOG = [
+  ['bugun', 'b', 'bugun', 'Defektura, bugungi savdo, diqqat qiling', 'bosh sahifa'],
+  ['pul', 'b', 'pul', 'Daftar, savdo, hamyonlar, qarzlar, hisobot', 'pul'],
+  ['ombor', 'b', 'ombor', 'Qoldiq, buyurtma, narxlar, retseptlar', 'dori sklad'],
+  ['xodimlar', 'b', 'xodimlar', 'Davomat, xodimlar, xabarlar, sozlamalar', 'hodim'],
+  ['daftar', ['daftar'], 'daftar', 'Pul', 'kirim chiqim xarajat yozuv'],
+  ['smena', ['smena'], 'savdo', 'Pul · savdo va smenalar', 'savdo kiritish smena'],
+  ['tamin', ['tamin'], 'tamin', 'Pul · qarzlar', 'yetkazib beruvchi firma xarid'],
+  ['qarz', ['more', 'qarz'], 'mijoz', 'Pul · qarzlar', 'nasiya mijoz'],
+  ['oylik', ['more', 'oylik'], 'oylik', 'Pul · qarzlar', 'avans maosh ish haqi'],
+  ['hamyon', ['more', 'hamyon'], 'hamyon', 'Pul', 'seyf bank kassa'],
+  ['oqim', ['more', 'oqim'], 'diagramma', 'Pul · hisobot', 'diagramma'],
+  ['stat', ['more', 'stat'], 'stat', 'Pul · hisobot', 'hisobot oyma oy'],
+  ['pul', ['qoldiq', 'pul'], 'nazorat', 'Pul · hisobot', 'muzlagan kam foyda muddat', true],
+  ['kassa', ['qoldiq', 'kassa'], 'kassa', 'Pul · hisobot', 'oson sotuv solishtirish', true],
+  ['defektura', ['more', 'defektura'], 'defektura', 'Ombor', 'kam qolgan buyurtma kerak'],
+  ['qoldiq', ['qoldiq'], 'ombor', 'Ombor', 'tugadi kam qoldi tugayapti', true],
+  ['buyurtma', ['qoldiq', 'buyurtma'], 'aqlli', 'Ombor', 'nima olish kerak', true],
+  ['kochirish', ['qoldiq', 'kochirish'], 'kochirish', 'Ombor', 'filiallar orasida', true],
+  ['inventar', ['qoldiq', 'inventar'], 'inventar', 'Ombor', 'inventarizatsiya sanash', true],
+  ['narx', ['qoldiq', 'narx'], 'narx', 'Ombor · nazorat', 'yorliq', true],
+  ['firmalar', ['more', 'firmalar'], 'firma', 'Ombor · nazorat', 'prays agent arzon', true],
+  ['prays', ['more', 'prays'], 'prays', 'Ombor · nazorat', 'narxlar'],
+  ['shtrix', ['more', 'shtrix'], 'shtrix', 'Ombor · nazorat', 'shprits sistema barkod'],
+  ['retsept', ['retsept'], 'retsept', 'Ombor · reimbursatsiya', 'punkt dmed qadoqlash partiya oson'],
+  ['punktlar', ['more', 'punktlar'], 'punkt', 'Ombor · reimbursatsiya', 'punkt havola'],
+  ['davomat', ['more', 'davomat'], 'davomat', 'Xodimlar', 'keldi kelmadi'],
+  ['oyin', ['more', 'oyin'], 'oyin', 'Xodimlar', 'bilimdon test oyin'],
+  ['funksiyalar', ['more', 'funksiyalar'], 'sozlama', 'Xodimlar', 'yoqish ochirish imkoniyat'],
+  ['audit', ['more', 'audit'], 'daftar', 'Xodimlar', 'tarix jurnal kim ozgartirdi'],
+  ['xulosa', ['more', 'xulosa'], 'xulosa', 'Xodimlar · xabarlar', 'ertalabki hisobot kechki'],
+  ['xabar', ['more', 'xabar'], 'xabar', 'Xodimlar · xabarlar', 'bot telegram'],
+  ['sozlama', ['more', 'sozlama'], 'sozlama', 'Xodimlar · ilova', 'filial limit kalit zaxira'],
+  ['uy', ['more', 'uy'], 'bugun', 'Pul', 'uy puli']];
+export function sahifaKatalog(ctx, go, bolim) {
+  return KATALOG.filter(([k, , , , , sv]) => (!sv || ctx.server) && (k !== 'uy' || UY_PULI)).map(([k, yol, ik, izoh, soz]) => ({
+    k, ikon: ik, izoh, soz,
+    nom: yol === 'b' ? Y_NOM[k] : SAHIFA_NOM[yol[1] || yol[0]] || k,
+    och: yol === 'b' ? () => bolim(k) : () => { if (yol[0] === 'retsept') retseptBosh(); if (yol[1] === 'defektura') DEF_TAB.v = 'kerak'; go(yol[0], yol[1]); }
+  }));
+}
+
+// «Diqqat qiling» guruhlari: [ikonka, rang, bir nechta bo'lsa sarlavha].
+const DIQQAT = {
+  davomat: ['davomat', 'kok', 'Davomat belgilanmagan'],
+  smenaOchiq: ['soat', 'sariq', 'Ochiq qolgan smenalar'],
+  qabul: ['hamyon', 'yashil', 'Pul qabul qilish'],
+  tasdiq: ['savdo', 'sariq', 'Savdoni tasdiqlash'],
+  ruxsat: ['mijoz', 'sariq', 'Qarzga ruxsat so\'ralmoqda'],
+  taYozdi: ['tamin', 'sariq', 'Ta\'minotchilar yozuv yozdi'],
+  taEtiroz: ['tamin', 'qizil', 'Ta\'minotchilar e\'tiroz bildirdi'],
+  kecha: ['savdo', 'sariq', 'Kiritilmagan savdolar'],
+  qarzOtgan: ['qarz', 'qizil', 'Muddati o\'tgan qarzlar'],
+  kalit: ['ogoh', 'qizil', 'Kengaytma kaliti olinmagan']
+};
+// Bir xil turdagi ishlar — bitta qator (son bilan); bittasi bo'lsa — o'sha ishning o'zi (bosilsa darhol), ko'p bo'lsa — oynada ro'yxat.
+export function diqqatQatorlari(ctx, go, bugun) {
+  const { S } = ctx;
+  const ishlar = boshIshlar(ctx, go, bugun).filter((i) => i.tur !== 'defektura');   // Defektura — sahifaning o'zida, birinchi
+  const otgan = S.qarzlar.filter((q) => q.holat === 'ochiq' && H.muddatiOtgan(q));
+  if (otgan.length) {
+    ishlar.push({ tur: 'qarzOtgan', icon: 'qarz', rang: 'warn', sarlavha: 'Muddati o\'tgan qarzlar', son: otgan.length,
+      izoh: otgan.length + ' ta mijoz · ' + H.som(otgan.reduce((a, q) => a + H.qarzQoldiq(q), 0)), onclick: () => go('more', 'qarz') });
+  }
+  if (kalitOlinmagan(S)) {
+    ishlar.push({ tur: 'kalit', icon: 'xato', rang: 'warn', sarlavha: 'Kengaytma kaliti olinmagan', izoh: 'Xavfsizlik: Sozlamalar → «Aptekadagi kompyuter» → «Kengaytma kaliti olish»',
+      onclick: () => { ochiqQoy('soz-Aptekadagi kompyuter'); go('more', 'sozlama'); } });
+  }
+  const gs = new Map();
+  ishlar.forEach((i) => { if (!gs.has(i.tur)) gs.set(i.tur, []); gs.get(i.tur).push(i); });
+  return [...gs.entries()].map(([tur, l]) => {
+    const [ik, rang, nom] = DIQQAT[tur] || ['ogoh', 'sariq', l[0].sarlavha];
+    if (l.length === 1) {
+      const i = l[0];
+      return { ikon: ik, rang, l: i.sarlavha, izoh: i.izoh, son: i.son, diqqat: rang === 'qizil', onclick: i.onclick || (i.tugma && i.tugma[1]) };
+    }
+    return { ikon: ik, rang, l: nom, izoh: 'Bosing — bittalab ko\'rib chiqasiz', son: l.length, diqqat: rang === 'qizil', onclick: () => ishlarOyna(nom, l) };
+  });
+}
+// Bir turdagi ishlar ro'yxati (oynada): har ish — eski «Bajarish kerak» qatori (tugmasi bilan); bosilsa oyna yopilib, ish ochiladi.
+function ishlarOyna(nom, l) {
+  sheet(nom, (box, close) => {
+    box.append(h('div', { class: 'card ishlar' }, ...l.map((i) => ishQator({ ...i,
+      onclick: i.onclick ? () => { close(); i.onclick(); } : undefined,
+      tugma: i.tugma ? [i.tugma[0], () => { close(); i.tugma[1](); }] : undefined }))));
+  }, { fokus: false });
+}
+
+// Defektura bloki (Bugun sahifasining boshi): sonlar, oxirgi «kerak» dorilar, ikki katta tugma.
+const DEF_KORINADI = 4;   // «kerak» dorilardan eng yangilari (spec: 3–5)
+function defekturaBlok(ctx, go) {
+  const { S } = ctx;
+  const g = H.defekturaGuruh(S.defektura || []);
+  const kerak = g.filter((d) => d.holat === 'yangi'), berilgan = g.filter((d) => d.holat === 'buyurtma');
+  const och = (v) => { DEF_TAB.v = v; go('more', 'defektura'); };
+  const k = h('section', { class: 'card yd', 'aria-labelledby': 'yd-sarlavha' },
+    h('div', { class: 'yd-bosh' }, kvadrat('defektura', 'sariq'),
+      h('span', { class: 'yd-bosh-m' }, h('h2', { id: 'yd-sarlavha' }, 'Defektura'),
+        h('span', { class: 'yd-son' }, h('span', {}, 'Kerak: ', h('b', {}, String(kerak.length))), ' · ',
+          h('span', {}, 'Buyurtma berilgan: ', h('b', {}, String(berilgan.length)))))));
+  if (!kerak.length) k.append(h('div', { class: 'yd-bosh-holat' }, ikon('check'), h('span', {}, berilgan.length ? 'Hammasiga buyurtma berilgan' : 'Hozir kerak dori yo\'q')));
+  else {
+    k.append(royxatHarakat(h('div', { class: 'yd-r' }, ...kerak.slice(0, DEF_KORINADI).map((d) => h('button', { type: 'button', class: 'yd-q', 'data-rk': d.nom, onclick: () => och('kerak') },
+      h('span', { class: 'yd-q-m' }, h('b', { 'data-asl': '' }, d.nom),
+        h('span', { class: 'muted' }, d.filiallar.map((id) => filNomi(S, id)).join(', ') + (d.soni > 1 ? ' · ' + d.soni + ' marta' : '') + ' · ' + sana(d.ts))),
+      ikon('oldinga')))), 'yd'));
+    if (kerak.length > DEF_KORINADI) k.append(h('div', { class: 'muted yd-yana' }, 'Yana ' + (kerak.length - DEF_KORINADI) + ' ta — «Defekturani ochish»'));
+  }
+  k.append(h('div', { class: 'yd-tugmalar' },
+    h('button', { type: 'button', class: 'p katta', onclick: () => och('kerak') }, 'Defekturani ochish'),
+    h('button', { type: 'button', class: 'katta', onclick: () => (ctx.server ? go('qoldiq', 'buyurtma') : ctx.toast('Aqlli buyurtma faqat Telegram ilovasida (serverda) ishlaydi', 'xato')) },
+      ikon('aqlli'), 'Aqlli buyurtma')));
+  return k;
+}
+
+// Bugungi savdo — katta raqam; bosilsa — filiallar bo'yicha (eski «Bugungi savdo» kartasi) va bugungi yozuvlar.
+function savdoHero(ctx, go, bugun) {
+  const { S } = ctx;
+  const sv = H.kunSavdo(S.smenalar, bugun);
+  const kut = S.smenalar.filter((z) => H.tasdiqKutadi(z) && H.savdoKuni(z) === bugun).reduce((a, z) => a + (z.naqd || 0) + (z.karta || 0), 0);
+  const oyna = () => sheet('Bugungi savdo', (box, close) => {
+    box.append(savdoKarta(ctx, (t, s) => { close(); go(t, s); }, bugun));
+    const by = bugungiYozuvlar(ctx, bugun);
+    if (by) box.append(by);
+  }, { fokus: false });
+  return h('button', { type: 'button', class: 'card hero ysh', 'aria-label': 'Bugungi savdo ' + H.som(sv.jami) + ' — filiallar bo\'yicha', onclick: oyna },
+    h('span', { class: 'ysh-l' }, 'Bugungi savdo'),
+    pulSon('savdo:' + bugun, sv.jami, { class: 'big' }),
+    h('span', { class: 'ysh-q' }, 'Naqd ' + H.som(sv.naqd) + ' · karta ' + H.som(sv.karta)),
+    kut ? h('span', { class: 'ysh-kut' }, 'Yana ' + H.som(kut) + ' tasdiq kutmoqda') : null,
+    h('span', { class: 'ysh-b' }, 'Filiallar bo\'yicha', ikon('oldinga')));
+}
+
+// «Bugun» — tartib: Defektura → bugungi savdo → 4 ta dumaloq tugma → «Diqqat qiling».
+function bugunView(m, ctx, go, bugun) {
+  m.append(defekturaBlok(ctx, go));
+  m.append(savdoHero(ctx, go, bugun));
+  m.append(dumaloqlar([
+    ['savdo', 'Savdo', 'yashil', () => savdoSheet(ctx)],
+    ['xarajat', 'Xarajat', 'qizil', () => (UY_PULI ? yozuvSheet(ctx, { soha: 'apteka' }) : pulChiqdiSheet(ctx, 'xarajat'))],
+    ['qarz', 'Qarz', 'sariq', () => go('more', 'qarz')],
+    ['buyurtma', 'Buyurtma', 'kok', () => { DEF_TAB.v = 'buyurtma'; go('more', 'defektura'); }]]));
+  const dq = diqqatQatorlari(ctx, go, bugun);
+  m.append(h('section', { class: 'yb', 'aria-label': 'Diqqat qiling' }, h('h2', { class: 'yb-s' }, 'Diqqat qiling'),
+    dq.length ? h('div', { class: 'card yb-r' }, ...dq.map(qator))
+      : h('div', { class: 'card yb-bosh' }, ikon('check'), h('span', {}, 'Hammasi joyida — hozir bajariladigan ish yo\'q'))));
+  const bl = boshlashKarta(ctx, go);
+  if (bl) m.append(bl);
+  // «Bilimdon» o'yini ketayotgan bo'lsa — kuzatishga qaytish kartasi (Defekturadan keyin: Defektura doim birinchi).
+  if (ctx.server) { const ob = oyinBanner(ctx.retseptCtx(), () => go('more', 'oyin')); if (ob) m.insertBefore(ob, m.children[1] || null); }
+}
+
+// «Pul» — Telegram sozlamalari kabi guruhlar: har qatorda o'ngda asosiy raqam.
+function pulBolim(m, ctx, go, bugun) {
+  const { S } = ctx;
+  const sv = H.kunSavdo(S.smenalar, bugun);
+  const ochiqQ = S.qarzlar.filter((q) => q.holat === 'ochiq'), otgan = ochiqQ.filter((q) => H.muddatiOtgan(q)).length;
+  const taIsh = taIshlar(S);
+  m.append(...bolimlar([
+    { nom: 'Har kuni', qatorlar: [
+      { ikon: 'daftar', rang: 'yashil', l: 'Kunlik daftar', izoh: 'Kirim, chiqim, yozuvlar', onclick: () => go('daftar') },
+      { ikon: 'savdo', rang: 'yashil', l: 'Savdo va smenalar', izoh: 'Bugun ' + H.som(sv.jami), onclick: () => go('smena') },
+      { ikon: 'hamyon', rang: 'kok', l: 'Hamyonlar', izoh: 'Seyf, bank' + (UY_PULI ? ', uy' : '') + ' · bugun kirdi / chiqdi', qiymat: H.som(qoldiq(S, 'kassa')), onclick: () => go('more', 'hamyon') }] },
+    { nom: 'Qarzlar', qatorlar: [
+      { ikon: 'tamin', rang: 'sariq', l: 'Ta\'minotchilar', izoh: taIsh || (S.taminotchilar.length + ' ta · qarzimiz'), diqqat: !!taIsh,
+        qiymat: H.som(S.taminotchilar.reduce((a, t) => a + H.bizBoyicha(t), 0)), onclick: () => go('tamin') },
+      { ikon: 'mijoz', rang: 'sariq', l: 'Mijozlar qarzi', izoh: otgan ? otgan + ' tasi muddati o\'tgan' : 'Muddati o\'tgan yo\'q', diqqat: otgan > 0,
+        qiymat: H.som(ochiqQ.reduce((a, q) => a + H.qarzQoldiq(q), 0)), onclick: () => go('more', 'qarz') },
+      { ikon: 'oylik', rang: 'binafsha', l: 'Oyliklar', izoh: 'Avans, oy oxiri', onclick: () => go('more', 'oylik') }] },
+    { nom: 'Hisobot', qatorlar: [
+      { ikon: 'diagramma', rang: 'kok', l: 'Kirim va chiqim', izoh: 'Doira diagramma', onclick: () => go('more', 'oqim') },
+      { ikon: 'stat', rang: 'kok', l: 'Statistika', izoh: 'Oyma-oy, filiallar', onclick: () => go('more', 'stat') },
+      ctx.server ? { ikon: 'nazorat', rang: 'binafsha', l: 'Pul nazorati', izoh: 'Muddat, muzlagan pul, kam foyda', onclick: () => go('qoldiq', 'pul') } : null,
+      ctx.server ? { ikon: 'kassa', rang: 'binafsha', l: 'Kassa ↔ Oson', izoh: 'Kiritilgan savdo va Oson sotuvi', onclick: () => go('qoldiq', 'kassa') } : null] }]));
+}
+
+// Hamyonlar (ichki sahifa): seyf, bugun kirdi / chiqdi, amallar (eski Bosh sahifadagi pul bloklari).
+function hamyonView(m, ctx, go, bugun) {
+  const { S } = ctx;
+  m.append(seyfHero(ctx, go, bugun, true), seyfPlitkalar(ctx, go, bugun));
+  m.append(...bolimlar([{ nom: 'Amallar', qatorlar: [
+    { ikon: 'xarajat', rang: 'qizil', l: 'Seyfdan pul chiqdi', izoh: 'Bankka, uyga, ta\'minotchi, oylik, xarajat', onclick: () => (UY_PULI ? yozuvSheet(ctx, { soha: 'apteka' }) : pulChiqdiSheet(ctx)) },
+    { ikon: 'savdo', rang: 'yashil', l: 'Kirim (savdodan tashqari)', izoh: 'Vozvrat, sherik qo\'shgan pul', onclick: () => yozuvSheet(ctx, { soha: 'apteka', tur: 'kirim' }) },
+    { ikon: 'hamyon', rang: 'kok', l: 'Seyfdagi pulni sanash', izoh: 'Haqiqiy summani yozasiz — farqni dastur yozadi', onclick: () => sanashSheet(ctx, 'kassa') },
+    UY_PULI ? { ikon: 'bugun', rang: 'kul', l: 'Uy puli', qiymat: H.som(qoldiq(S, 'uy')), onclick: () => go('more', 'uy') } : null,
+    { ikon: 'bank', rang: 'kul', l: 'Bank', izoh: 'Karta savdo va topshirilgan pul — Kunlik daftarda', onclick: () => go('daftar') }] }]));
+}
+
+// «Ombor» — qidiruv (Oson: qaysi filialda bor) va skaner, uchta son kartasi, guruhlar.
+function omborBolim(m, ctx, go, fil) {
+  const { S } = ctx;
+  const rc = ctx.retseptCtx();
+  const chiz = () => ctx.rerender();
+  if (ctx.server) m.append(h('section', { class: 'card yo-qidir', 'aria-label': 'Dori qidirish' }, osonQidiruv(rc, fil, { ichida: true, ixcham: true })));
+  else m.append(praysQidiruv(ctx));
+  if (ctx.server) {
+    const s = osonSonlar({ ...rc, server: true }, chiz) || {};
+    const nf = narxFarqSoni({ ...rc, server: true, rerender: ctx.rerender }, chiz);
+    m.append(sonKartalar([
+      { son: s.tugayapti, l: 'Tugayapti', rang: 'qizil', onclick: () => { osonRejimQoy('tugadi'); go('qoldiq'); } },
+      { son: s.muddat, l: 'Muddati yaqin', rang: 'sariq', onclick: () => { osonRejimQoy('muddat'); go('qoldiq'); } },
+      { son: nf, l: 'Narx farqi', rang: 'kok', onclick: () => go('qoldiq', 'narx') }]));
+  }
+  const def = H.defekturaGuruh(S.defektura || []).filter((d) => d.holat === 'yangi').length;
+  const sv = ctx.server;
+  m.append(...bolimlar([
+    { nom: 'Har kungi ish', qatorlar: [
+      sv ? { ikon: 'ombor', rang: 'yashil', l: 'Oson qoldig\'i', izoh: 'Tugadi, kam qoldi, ko\'chirsa — hamma filial', onclick: () => go('qoldiq') } : null,
+      sv ? { ikon: 'aqlli', rang: 'binafsha', l: 'Aqlli buyurtma', izoh: 'Nima va qancha olish kerak', onclick: () => go('qoldiq', 'buyurtma') } : null,
+      { ikon: 'defektura', rang: 'sariq', l: 'Defektura', izoh: def ? def + ' ta dori kerak' : 'Kam qolgan dorilar', diqqat: def > 0, onclick: () => { DEF_TAB.v = 'kerak'; go('more', 'defektura'); } },
+      sv ? { ikon: 'kochirish', rang: 'kok', l: 'Ko\'chirish', izoh: 'Filiallar orasida — muddat, ortiqcha', onclick: () => go('qoldiq', 'kochirish') } : null,
+      sv ? { ikon: 'inventar', rang: 'kok', l: 'Inventarizatsiya', izoh: 'Telefon bilan sanash', onclick: () => go('qoldiq', 'inventar') } : null] },
+    { nom: 'Nazorat', qatorlar: [
+      sv ? { ikon: 'narx', rang: 'sariq', l: 'Narx farqi', izoh: 'Filiallarda har xil narx, yorliqlar', onclick: () => go('qoldiq', 'narx') } : null,
+      sv ? { ikon: 'inventar', rang: 'qizil', l: 'Hisobdan chiqarilganlar', izoh: 'Muddati o\'tgan, singan, firmaga qaytarilgan — sabab bilan', onclick: () => go('qoldiq', 'chiqarish') } : null,
+      sv ? { ikon: 'firma', rang: 'kok', l: 'Firma prayslari', izoh: 'Qaysi firmada arzon', onclick: () => go('more', 'firmalar') } : null,
+      { ikon: 'prays', rang: 'yashil', l: 'Prays-list', izoh: S.prays && S.prays.soni ? S.prays.soni + ' ta dori' : 'Narxlarni qidirish', onclick: () => go('more', 'prays') },
+      { ikon: 'shtrix', rang: 'kul', l: 'Shtrix-kodlar', izoh: (S.shtrixlar || []).length ? (S.shtrixlar || []).length + ' ta · shprits, sistema…' : 'Shprits, sistema — xodimlar skanerga tutadi', onclick: () => go('more', 'shtrix') }] },
+    { nom: 'Reimbursatsiya', qatorlar: [
+      { ikon: 'retsept', rang: 'yashil', l: 'Retseptlar va partiyalar', izoh: 'Punkt ro\'yxatlari, qadoqlash, Oson', onclick: () => { retseptBosh(); go('retsept'); } },
+      { ikon: 'punkt', rang: 'kok', l: 'Punktlar', izoh: 'Qo\'shish, botga ulash havolasi', onclick: () => go('more', 'punktlar') }] }]));
+}
+
+// «Xodimlar» — davomat, ro'yxat, o'yin, xabarlar, sozlamalar va ko'rinish.
+function xodimlarBolim(m, ctx, go, korinish) {
+  const { S, x } = ctx;
+  const dv = davomatBugun(ctx.retseptCtx());
+  const faol = S.xodimlar.filter((z) => z.faol !== false);
+  m.append(...bolimlar([
+    { nom: 'Xodimlar', qatorlar: [
+      { ikon: 'davomat', rang: 'yashil', l: 'Davomat', izoh: dv && dv.belgilanmagan ? dv.belgilanmagan + ' ta xodim bugun belgilanmagan' : 'Keldi / kelmadi — har kuni',
+        diqqat: !!(dv && dv.belgilanmagan), onclick: () => go('more', 'davomat') },
+      { ikon: 'xodimlar', rang: 'kok', l: 'Xodimlar ro\'yxati', izoh: faol.length + ' ta · havola, oylik, filial', onclick: () => { ochiqQoy('soz-Xodimlar'); go('more', 'sozlama'); } },
+      { ikon: 'oyin', rang: 'binafsha', l: 'Bilimdon', izoh: 'Jonli test o\'yini, reyting', onclick: () => go('more', 'oyin') },
+      { ikon: 'sozlama', rang: 'sariq', l: 'Funksiyalar', izoh: ochiqSoni(S) ? ochiqSoni(S) + ' ta o\'chirilgan · xodim va mijoz' : 'Xodim va mijoz (bot) imkoniyatlarini yoqish / o\'chirish',
+        onclick: () => go('more', 'funksiyalar') },
+      { ikon: 'daftar', rang: 'kul', l: 'O\'zgarishlar tarixi', izoh: 'Kim, qachon, nimani o\'zgartirdi', onclick: () => go('more', 'audit') }] },
+    { nom: 'Xabarlar', qatorlar: [
+      { ikon: 'xulosa', rang: 'kok', l: 'Kechki xulosa va ertalabki hisobot', izoh: S.sozlama.xulosaVaqti + ' da Telegram\'ga', onclick: () => go('more', 'xulosa') },
+      { ikon: 'xabar', rang: 'yashil', l: 'Bot xabarlari', qiymat: String((S.xabarlar || []).length), onclick: () => go('more', 'xabar') }] },
+    { nom: 'Ilova', qatorlar: [
+      { ikon: 'sozlama', rang: 'kul', l: 'Sozlamalar', izoh: 'Filiallar, limitlar, kalitlar, zaxira', onclick: () => go('more', 'sozlama') },
+      { ikon: 'korinish', rang: 'kul', l: 'Ko\'rinish', izoh: 'Eski ko\'rinish, harf o\'lchami', onclick: korinish },
+      { ikon: 'xabar', rang: 'yashil', l: 'Qanday ishlatiladi?', izoh: '3 ta qisqa ekran — asosiy joylar', onclick: () => tanishuvOch('direktor') },
+      { ikon: 'oddiy', rang: 'kul', l: 'Oddiy rejim', izoh: '4 ta katta tugma, kam narsa', onclick: () => { rejimQoy(x.id, true); ctx.rerender(true); } }] }]));
 }
 
 // Boshlang'ich pul o'zgarsa — daftarda yozuv bo'lsa butun balans siljiydi: shuning uchun tasdiq so'raladi
@@ -890,7 +1300,7 @@ function sozlamaView(m, ctx, x, fil) {
     qoshimchaMatn ? h('div', { style: 'color:var(--info);font-weight:600' }, qoshimchaMatn) : null,
     holat ? h('div', { class: 'muted', style: !z.ulangan && faol ? 'color:var(--warn);font-weight:600' : '' }, holat) : null];
     xl.append(tugmalar.length
-      ? h('button', { type: 'button', class: 'yozuv', style: faol ? '' : 'opacity:.7', onclick: () => sheet(z.ism, (box, close) => {
+      ? h('button', { type: 'button', class: 'yozuv', style: faol ? '' : 'opacity:.7', 'data-xodim': z.id, onclick: () => sheet(z.ism, (box, close) => {
         box.append(...[h('div', { class: 'muted' }, sarlavha), vaqtinchaMatn ? h('div', { style: 'color:var(--info);font-weight:600' }, vaqtinchaMatn) : null,
           qoshimchaMatn ? h('div', { style: 'color:var(--info);font-weight:600' }, qoshimchaMatn) : null,
           z.telefon ? h('div', { class: 'muted', 'data-asl': '' }, 'Telefon: ' + z.telefon) : null,
@@ -902,6 +1312,12 @@ function sozlamaView(m, ctx, x, fil) {
   });
   xl.append(h('button', { onclick: () => xodimSheet(ctx) }, '+ Xodim qo\'shish'));
   m.append(xl);
+  // 07.11 tun: global qidiruvda xodim tanlangan — Sozlamalar → Xodimlar ochilgach, o'sha xodimning oynasi (chizish tugagach).
+  if (ochXodim) {
+    const id = ochXodim;
+    ochXodim = null;
+    setTimeout(() => { const b = [...document.querySelectorAll('#app button[data-xodim]')].find((e) => e.dataset.xodim === id); if (b) { b.scrollIntoView({ block: 'center' }); b.click(); } }, 60);
+  }
 
   // Limitlar va xulosa vaqti
   const lm = input('Bitta mijozga ko\'pi bilan qancha qarz?', { value: String(S.sozlama.limitMijoz), k: 'limit-mijoz' }),
@@ -922,9 +1338,7 @@ function sozlamaView(m, ctx, x, fil) {
     } }, 'Saqlash')));
 
   // Zaxira nusxa: hamma ma'lumot Excel fayl bo'lib Telegram'ga (har yakshanba o'zi ham keladi)
-  m.append(h('div', { class: 'card' }, kartaSarlavha('Zaxira nusxa'),
-    h('div', { class: 'muted' }, 'Smenalar, daftar, qarzlar, ta\'minotchilar, oyliklar — bitta Excel faylda Telegram\'ingizga keladi. Har yakshanba kechki xulosadan keyin o\'zi ham yuboriladi.'),
-    h('button', { onclick: () => ctx.amal('zaxira').then((ok) => ok && ctx.toast('Zaxira Telegram\'ingizga yuborildi ✓')) }, 'Hozir yuborish')));
+  m.append(zaxiraKarta(ctx));
 
   // Aptekadagi kompyuter: ikki kalit (27.10) — nakladnoy dasturi (prays, botdan fakturalar) va DMED kengaytmasi (bemorlar navbati,
   // partiyalar). Kengaytma kaliti olinmaguncha kengaytma nakladnoy kaliti bilan ishlaydi (20261027170000_kalit_ikki.sql).
@@ -1126,6 +1540,11 @@ function savdoSheet(ctx, o = {}) {
     const naqd = input('Naqd savdo, so\'m — seyfga tushadi', { placeholder: '0' }), karta = input('Karta savdo (terminal), so\'m — bankka tushadi', { placeholder: '0' });
     const xulosa = h('div', { class: 'savdo-xulosa', 'aria-live': 'polite' });
     const saqla = h('button', { class: 'p', style: 'min-height:58px;font-size:17px' }, 'Saqlash');
+    // 07.11 tun: uzun forma — «Saqlash — N so'm» Telegram asosiy tugmasida ham (doim ko'rinadi, klaviatura ustida); eski Telegram
+    // va brauzerda — sahifadagi tugma. Oyna yopilganda tozalanadi (build qaytargan funksiya — sheet chaqiradi).
+    let band = false;
+    // Audit 07.11: eski ko'rinish va oddiy rejimda — avvalgidek sahifadagi katta tugma.
+    const asosiy = !eskiKorinishmi() && !oddiyRejimmi(ctx.x.id) ? asosiyTugma({ matn: 'Saqlash', tugma: saqla, oyna: box, bosildi: () => saqlaBos() }) : null;
     const kunOl = () => (f.kunTanlov === 'kecha' ? kecha : f.kunTanlov === 'boshqa' ? boshqa.i.value : bugun);
     const SMN = { kunduzgi: 'kunduzgi', tungi: 'tungi', kunlik: 'butun kun' };
     const upd = () => {
@@ -1141,6 +1560,7 @@ function savdoSheet(ctx, o = {}) {
         bor ? h('div', { class: 'msg warn' }, 'Bu kun, filial va smenaga savdo allaqachon yozilgan (' + H.som((bor.naqd || 0) + (bor.karta || 0))
           + '). Xato bo\'lsa — Bo\'limlar → Savdo\'da o\'sha yozuvni «Savdoni tuzatish» bilan to\'g\'rilang.') : null);
       saqla.textContent = n != null && k != null && (n || k) ? 'Saqlash — ' + H.som(n + k) : 'Saqlash';
+      if (asosiy) asosiy.yangila({ matn: saqla.textContent });
     };
     const chiz = () => {
       const SM = asosiymi(f.filialId) ? [['kunduzgi', 'Kunduzgi'], ['tungi', 'Tungi'], ['kunlik', 'Butun kun']] : [['kunlik', 'Kunlik']];
@@ -1159,7 +1579,8 @@ function savdoSheet(ctx, o = {}) {
     const kunG = pills([['bugun', 'Bugun'], ['kecha', 'Kecha'], ['boshqa', 'Boshqa kun']], f.kunTanlov, (v) => { f.kunTanlov = v; boshqa.el.hidden = v !== 'boshqa'; upd(); }, 'Kun');
     const kunX = guruhXato(kunG);
     [naqd, karta, boshqa].forEach((z) => z.i.addEventListener('input', upd));
-    saqla.addEventListener('click', () => {
+    const saqlaBos = () => {
+      if (band) return;
       const kun = kunOl();
       const nV = String(naqd.i.value).trim() || '0', kV = String(karta.i.value).trim() || '0';
       const bosh = H.pul(nV) === 0 && H.pul(kV) === 0 ? 'Naqd yoki karta savdo summasini yozing' : null;
@@ -1167,9 +1588,12 @@ function savdoSheet(ctx, o = {}) {
         [boshqa, f.kunTanlov === 'boshqa' && !/^\d{4}-\d{2}-\d{2}$/.test(kun) ? 'Sanani tanlang' : f.kunTanlov === 'boshqa' && kun > bugun ? 'Kelajakdagi kunga savdo yozib bo\'lmaydi' : null]])) return;
       const joyla = xatoJoyla([[naqd, /naqd|summa/i], [karta, /karta/i], [f.kunTanlov === 'boshqa' ? boshqa : kunX, /kun|sana|kelajak/i],
         [smenaX, /smena|allaqachon|ochiq/i], [xodimX, /xodim/i]]);
-      ctx.amalX(joyla, 'savdoKiritish', { filialId: f.filialId, smena: f.smena, xodimId: f.xodimId, kun, naqd: nV, karta: kV, hamyon: 'kassa' })
-        .then((ok) => ok && (close(), ctx.toast('Savdo yozildi ✓')));
-    });
+      band = true; if (asosiy) asosiy.yangila({ band: true });
+      const tugadi = () => { band = false; if (asosiy) asosiy.yangila({ band: false }); };
+      Promise.resolve(ctx.amalX(joyla, 'savdoKiritish', { filialId: f.filialId, smena: f.smena, xodimId: f.xodimId, kun, naqd: nV, karta: kV, hamyon: 'kassa' }))
+        .then((ok) => { tugadi(); if (ok) { close(); ctx.toast('Savdo yozildi ✓'); } }, tugadi);
+    };
+    saqla.addEventListener('click', saqlaBos);
     box.append(
       qadam(1, 'Qaysi kun?'), kunG, kunX.el, boshqa.el,
       qadam(2, 'Qaysi filial?'), pills(S.filiallar.map((z) => [z.id, z.nom]), f.filialId, (v) => { f.filialId = v; chiz(); }, 'Filial'),
@@ -1177,6 +1601,7 @@ function savdoSheet(ctx, o = {}) {
       qadam(4, 'Savdo summasi'), naqd.el, karta.el,
       xulosa, saqla);
     chiz();
+    return asosiy;
   });
 }
 
@@ -1556,7 +1981,7 @@ function qabulSheet(ctx, z, xodimIsm) {
 // Defektura qatori (direktor): nom, holat, filiallar, sana; narx — faqat Defekturada, firma narxlari ochiq bo'lsa.
 function defQator(ctx, fil, d, narx) {
   const [l, c] = DEF_HOLAT[d.holat];
-  return h('div', { class: 'item' },
+  return h('div', { class: 'item', 'data-rk': d.nom },   // data-rk — ro'yxat harakati kaliti (ui.royxatHarakat)
     h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '' }, d.nom), h('span', { style: 'color:' + c + ';white-space:nowrap;font-weight:600' }, l)),
     h('div', { class: 'muted' }, d.filiallar.map(fil).join(', ') + (d.soni > 1 ? ' · ' + d.soni + ' marta yozilgan' : '') + ' · '
       + (d.holat === 'buyurtma' && d.holatTs ? 'buyurtma ' + sana(d.holatTs) : sana(d.ts)) + (d.izohlar.length ? ' · ' + d.izohlar.join('; ') : '')),
@@ -1597,6 +2022,7 @@ function defekturaDirektor(m, ctx, fil, ochFirmalar) {
     if (!berilgan.length) list.append(h('div', { class: 'muted' }, 'Hozir buyurtma berilgan dori yo\'q. «Kerak» bo\'limida «Buyurtma berdim» bosilgan dorilar shu yerga o\'tadi.'));
     berilgan.forEach((d) => list.append(defQator(ctx, fil, d, false)));
     m.append(list);
+    royxatHarakat(list, 'def:buyurtma');
     return;
   }
   m.append(h('div', { class: 'muted' }, 'Xodimlar kam qolgan dorini yozadi. «Buyurtma berdim» bosilsa — dori «Buyurtmada» bo\'limiga o\'tadi. Oson\'ga kirim qilinsa, faktura yoki xaridda kelsa — o\'zi «Keldi» bo\'limiga o\'tadi.'));
@@ -1609,6 +2035,8 @@ function defekturaDirektor(m, ctx, fil, ochFirmalar) {
   if (!kerak.length) list.append(h('div', { class: 'muted' }, berilgan.length ? 'Hammasiga buyurtma berilgan ✓' : 'Hozircha hech narsa yozilmagan'));
   kerak.forEach((d) => list.append(defQator(ctx, fil, d, true)));
   m.append(list);
+  // 07.11 tun: «Buyurtma berdim» / «Kerak emas» — qator yumshoq yo'qoladi, qolganlari joyiga suriladi (faqat yangi ko'rinishda).
+  royxatHarakat(list, 'def:kerak');
   if (keldi.length) m.append(h('button', { type: 'button', class: 'link', onclick: () => { DEF_TAB.v = 'keldi'; ctx.rerender(); } }, 'Keldi bo\'limi: ' + keldi.length + ' ta dori ›'));
 }
 
@@ -1705,4 +2133,39 @@ function tolovSheet(ctx, t) {
       } }, 'Saqlash'));
     upd();
   });
+}
+
+// Zaxira nusxa (07.11, 20261107230000_audit_jurnal): «Zaxira fayli menga kelsin» — tanlagan direktorga har kecha jim fayl
+// (hech kim tanlamagan bo'lsa — avvalgidek har yakshanba hamma direktorga). Holat serverdan (zaxira_holat), 1 daqiqa eslab qolinadi.
+const ZX = { j: null, vaqt: 0, yuk: null, xato: null };
+function zaxiraKarta(ctx) {
+  const c = h('div', { class: 'card' }, kartaSarlavha('Zaxira nusxa'));
+  const yukla = (majbur) => {
+    if (!ctx.server || ZX.yuk || (!majbur && Date.now() - ZX.vaqt < 60000)) return;
+    ZX.yuk = Promise.resolve().then(() => ctx.retseptCtx().oqi('zaxiraHolat'))
+      .then((j) => { ZX.j = j || {}; ZX.xato = null; }, (e) => { ZX.xato = (e && e.message) || 'Holat olinmadi'; })
+      .finally(() => { ZX.vaqt = Date.now(); ZX.yuk = null; ctx.rerender(); });
+  };
+  yukla(false);
+  const j = ZX.j || {};
+  const menga = j.menga === true;
+  const boshqa = Array.isArray(j.oluvchilar) ? j.oluvchilar.filter((n) => n && n !== (ctx.x || {}).ism) : [];
+  c.append(h('div', { class: 'muted' }, 'Smenalar, daftar, qarzlar, ta\'minotchilar, oyliklar — bitta Excel faylda Telegram\'ingizga keladi.'));
+  if (ctx.server) {
+    c.append(h('button', { type: 'button', class: 'yk-almash', role: 'switch', 'aria-checked': String(menga), disabled: !ZX.j,
+      onclick: async (e) => {
+        e.currentTarget.disabled = true;
+        const r = await ctx.amal('zaxiraMenga', !menga);
+        if (r && typeof r === 'object') { ZX.j = r; ZX.vaqt = Date.now(); } else if (r != null) { ZX.vaqt = 0; yukla(true); }
+        ctx.rerender();
+      } },
+    h('span', { class: 'yk-almash-m' }, h('b', {}, 'Zaxira fayli menga kelsin'),
+      h('span', { class: 'muted' }, !ZX.j ? (ZX.xato ? 'Holat olinmadi — keyinroq' : 'Yuklanmoqda…')
+        : menga ? 'Har kecha (03:00 dan keyin) jim xabar bilan sizga keladi' : 'Yoqsangiz — har kecha sizga keladi')),
+    h('span', { class: 'yk-tumbler', 'aria-hidden': 'true' }, h('i', {}))));
+    if (ZX.j && !menga && !boshqa.length) c.append(h('div', { class: 'muted' }, 'Hech kim tanlamagan — har yakshanba kechki xulosadan keyin hamma direktorga yuboriladi.'));
+    if (boshqa.length) c.append(h('div', { class: 'muted' }, 'Yana oladi: ', h('span', { 'data-asl': '' }, boshqa.join(', '))));
+  }
+  c.append(h('button', { onclick: () => ctx.amal('zaxira').then((ok) => ok && ctx.toast('Zaxira Telegram\'ingizga yuborildi ✓')) }, 'Hozir yuborish'));
+  return c;
 }

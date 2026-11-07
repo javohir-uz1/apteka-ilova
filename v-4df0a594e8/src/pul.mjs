@@ -5,8 +5,12 @@
 // (Oson kirim narxi, kengaytma 0.9.13); kirim narxi bo'lmasa — sotuv narxida (belgilanadi).
 // Aqlli buyurtma: kunlik sotuv (Oson qoldig'i kamayishi, 30 kun) → necha kunga yetadi, qancha quti kerak; eng arzon firma
 // (firma prayslari, telefonda moslanadi) bo'yicha guruhlanadi — har firma ro'yxatini nusxalab agentga yuborasiz.
+// 07.11 kech (20261107200000_ombor_aqlli): Aqlli buyurtma 2 — tugagan kunlar hisobga olinmaydi, defekturada kutayotganlar,
+// uzuq-uzuq sotuv (Syntetos–Boylan, SBA), ABC zaxira kunlari, firma odatda necha kunda olib kelishi (belgilar va «Qanday
+// hisoblanadi?»); Pul nazorati → Muddat xavfi: muddat siyosati (ogohlantirish / javondan olish kunlari) va «Javondan oling».
+// Eski server javobi (yangi maydonlarsiz) — avvalgidek chiziladi.
 import * as H from './hisob.mjs';
-import { h, kartaSarlavha, nusxaOl, pills, sana, vaqt } from './ui.mjs';
+import { h, kartaSarlavha, nusxaOl, pills, sana, sheet, vaqt, yordam } from './ui.mjs';
 import { qoldiqMatn } from './oson-qoldiq.mjs';
 import { firmalarOl, narxlar } from './firma.mjs';
 
@@ -49,7 +53,12 @@ export function pulKirish(och) {
     t('buyurtma', '🛒', 'Aqlli buyurtma', 'Nima va qancha olish kerak'),
     // 07.11: filiallar orasida ko'chirish tavsiyasi va telefon bilan inventarizatsiya.
     t('kochirish', '🔁', 'Ko\'chirish', 'Filiallar orasida — muddat, ortiqcha'),
-    t('inventar', '📋', 'Inventarizatsiya', 'Telefon bilan sanash, Oson bilan solishtirish'));
+    t('inventar', '📋', 'Inventarizatsiya', 'Telefon bilan sanash, Oson bilan solishtirish'),
+    // 07.11: filiallarda narx farqi va yorliqlar; kiritilgan savdo va Oson sotuvi.
+    t('narx', '🏷', 'Narx farqi', 'Filiallarda har xil narx, yorliqlar'),
+    t('kassa', '💵', 'Kassa ↔ Oson', 'Kiritilgan savdo va Oson sotuvi'),
+    // 07.11 tun: hisobdan chiqarilgan va firmaga qaytarilgan dorilar (sabab bilan).
+    t('chiqarish', '🗑', 'Hisobdan chiqarilganlar', 'Muddati o\'tgan, singan, qaytarilgan'));
 }
 
 // Audit 06.11: xatodan keyin ham 1 daqiqa kutiladi («Qayta urinish» — majbur); aks holda har chizishda yangi so'rov ketib,
@@ -92,8 +101,11 @@ export function pulView(m, ctx, fil) {
   const list = h('div', { class: 'card list' });
   const jami = rows.reduce((s, x) => s + (Number(x.summa) || 0), 0);
   const tansiz = rows.some((x) => x.tan === false);
+  // Muddat siyosati (07.11 kech): server kunlarni bersa — kunlar bilan va «Javondan oling».
+  const mKun = P.bolim === 'muddat' && j.muddat.kun != null ? j.muddat.kun : null;
+  if (mKun != null) m.append(muddatSiyosatEl(ctx, chiz, j.muddat, rows));
   const sarlavha = {
-    muddat: 'Muddati o\'tgan yoki ' + j.muddat.oy + ' oyda tugaydi',
+    muddat: 'Muddati o\'tgan yoki ' + (mKun != null ? mKun + ' kun ichida tugaydi' : j.muddat.oy + ' oyda tugaydi'),
     sekin: j.sekin.kun + '+ kun yangi partiya kelmagan, kuzatuvda sotilmagan',
     foyda: 'Foydasi ' + j.foyda.chegara + '% dan kam yoki zarar'
   }[P.bolim];
@@ -102,7 +114,7 @@ export function pulView(m, ctx, fil) {
   if (P.bolim !== 'foyda' && rows.length) list.append(h('div', { class: 'muted' }, rows.length + ' xil dori' + (tansiz ? ' · ba\'zilari sotuv narxida (*)' : ' · tannarxda')
     + (b.soni > b.qatorlar.length ? ' · eng kattalari ' + b.qatorlar.length + ' tasi (jami ' + b.soni + ' xil)' : '')));
   if (!rows.length) list.append(h('div', { class: 'muted' }, {
-    muddat: '✓ ' + j.muddat.oy + ' oy ichida muddati tugaydigan dori yo\'q',
+    muddat: '✓ ' + (mKun != null ? mKun + ' kun' : j.muddat.oy + ' oy') + ' ichida muddati tugaydigan dori yo\'q',
     sekin: j.kuzatuv && Date.now() - j.kuzatuv < 7 * 864e5
       ? 'Sotuv ' + sana(j.kuzatuv) + ' dan kuzatilmoqda — muzlagan pul ' + sana(j.kuzatuv + 7 * 864e5) + ' dan ko\'rinadi (kamida 7 kun kuzatuv kerak).'
       : '✓ Muzlagan pul topilmadi',
@@ -126,7 +138,8 @@ function qator(x, fil) {
   if (P.bolim === 'muddat') {
     return h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, x.nom), summa(x.summa, x.tan)),
       izohEl([asl(filNom(fil, x)), (x.otgan ? 'muddati o\'tgan: ' : 'muddati: ') + kunMatn(x.muddat),
-        x.msoni != null ? qoldiqMatn(x.msoni, x.dona) : null], x.otgan ? 'oson-otgan' : 'muted'));
+        x.msoni != null ? qoldiqMatn(x.msoni, x.dona) : null], x.otgan ? 'oson-otgan' : 'muted'),
+      x.javon ? h('div', { class: 'belgilar' }, h('span', { class: 'belgi javon' }, 'Javondan oling')) : null);
   }
   if (P.bolim === 'sekin') {
     const sot = x.sotildi ? 'oxirgi sotuv ' + sana(x.sotildi) : 'kuzatuvda sotilmadi (' + sana(x.kuzatildi) + ' dan)';
@@ -138,6 +151,47 @@ function qator(x, fil) {
     h('b', { class: zarar ? 'pul-zarar' : 'pul-kam' }, (x.foiz > 0 ? '+' : '') + String(x.foiz).replace('.', ',') + '%')),
     izohEl([asl(filNom(fil, x)), 'kirim ' + H.som(Math.round(x.kirim)) + ' → sotuv ' + H.som(Math.round(x.sotuv)), x.firma ? asl(x.firma) : null,
       zarar ? 'zarariga sotilyapti' : null], zarar ? 'oson-otgan' : 'muted'));
+}
+
+// ---------- Muddat siyosati (07.11 kech) ----------
+// Direktor: «Ogohlantirish» — muddati shuncha kun ichida tugaydiganlar Muddat xavfida va ertalabki hisobotda; «Javondan olish» —
+// shuncha kun qolganda dori sotilmaydi (javondan olinadi, firmaga qaytariladi yoki hisobdan chiqariladi).
+const OGOH_KUN = [30, 60, 90, 120, 180], JAVON_KUN = [0, 7, 14, 30, 45, 60];
+function muddatSiyosatEl(ctx, chiz, mud, rows) {
+  const javon = rows.filter((x) => x.javon);
+  const el = h('div', { class: 'card muddat-siyosat' },
+    h('div', { class: 'line', style: 'border:0;padding:0' },
+      h('span', {}, 'Ogohlantirish: ', h('b', {}, mud.ogoh + ' kun'), ' · javondan olish: ', h('b', {}, mud.javonKun + ' kun')),
+      ctx.amal ? h('button', { type: 'button', class: 's', onclick: () => siyosatSheet(ctx, chiz, mud) }, 'O\'zgartirish') : null));
+  if (javon.length) {
+    const s = javon.reduce((a, x) => a + (Number(x.summa) || 0), 0);
+    el.append(h('div', { class: 'msg warn', role: 'note' }, '⏳ Javondan oling: ' + javon.length + ' xil dori (' + qisqa(s) + ') — muddati '
+      + (mud.javonKun > 0 ? mud.javonKun + ' kun ichida tugaydi yoki o\'tgan' : 'o\'tgan') + '. Sotmang: firmaga qaytaring yoki hisobdan chiqaring.'));
+  }
+  return el;
+}
+function siyosatSheet(ctx, chiz, mud) {
+  const qiymat = (arr, v) => (arr.includes(v) ? arr : [...arr, v].sort((a, b) => a - b)).map((x) => [x, x + ' kun']);
+  sheet('Muddat siyosati', (box, close) => {
+    let ogoh = mud.ogoh, javon = mud.javonKun;
+    const xato = h('div', { class: 'msg xato', role: 'alert', style: 'display:none' });
+    const saqla = h('button', { class: 'p', onclick: () => {
+      if (!(javon < ogoh)) { xato.textContent = 'Javondan olish kunlari ogohlantirishdan kam bo\'lsin'; xato.style.display = ''; return; }
+      saqla.disabled = true;
+      Promise.resolve(ctx.amal('muddatSiyosat', ogoh, javon)).then((r) => {
+        if (r == null) return;   // saqlanmadi — sababi xabarda, oyna ochiq qoladi
+        close();
+        ctx.toast('Muddat siyosati saqlandi ✓');
+        yukla(ctx, chiz, true);
+      }, () => {}).finally(() => { saqla.disabled = false; });
+    } }, 'Saqlash');
+    box.append(
+      h('div', { class: 'muted' }, 'Ogohlantirish — muddati shuncha kun ichida tugaydigan dorilar «Muddat xavfi»da va ertalabki hisobotda ko\'rinadi: oldin soting yoki savdosi ko\'p filialga ko\'chiring.'),
+      h('b', {}, 'Ogohlantirish'), pills(qiymat(OGOH_KUN, ogoh), ogoh, (v) => { ogoh = v; xato.style.display = 'none'; }, 'Ogohlantirish kunlari'),
+      h('div', { class: 'muted' }, 'Javondan olish — muddati tugashiga shuncha kun qolgan dori sotilmaydi: javondan olinadi, firmaga qaytariladi yoki hisobdan chiqariladi. Xodimlar Bosh sahifada «Javondan oling» ro\'yxatini ko\'radi.'),
+      h('b', {}, 'Javondan olish'), pills(qiymat(JAVON_KUN, javon), javon, (v) => { javon = v; xato.style.display = 'none'; }, 'Javondan olish kunlari'),
+      xato, saqla);
+  }, { fokus: false });
 }
 
 // ---------- Aqlli buyurtma ----------
@@ -199,6 +253,16 @@ export function buyurtmaView(m, ctx, fil) {
       ? 'Sotuv tezligi hisoblanmoqda: Oson qoldig\'i ' + (j.kuzatuv ? sana(j.kuzatuv) : 'endi') + ' dan kuzatilmoqda. Tavsiyalar 3 kundan keyin chiqadi, aniqroq — 2 haftada.'
       : 'Sotuv ' + Math.floor(kuzKun) + ' kundan beri kuzatilmoqda — tavsiyalar taxminiy, 2 haftada aniqlashadi.'));
   }
+  if (j.versiya >= 2) {
+    m.append(yordam('Kunlik sotuv — oxirgi 30 kun, lekin dori tugab turgan kunlar hisobga olinmaydi (javonda yo\'q kuni sotuv bo\'lmagani — talab yo\'q degani emas). '
+      + 'Har kuni emas, uzuq-uzuq sotiladigan dori («uzuq-uzuq», «notekis», «bo\'lak») — Syntetos–Boylan usuli: o\'rtacha 5% kamroq olinadi (ortiqcha zaxira yig\'ilmasin). '
+      + 'A / B / C — 30 kunlik tushum: A — tushumning 80% ini beradigan dorilar (+3 kun zaxira), B — keyingi 15% (+1 kun), C — qolgani (qo\'shimchasiz). '
+      + 'Defekturada so\'ralgan va kutayotgan mijozlar — qo\'shimcha quti. Firma «Buyurtma berdim» dan Oson\'da «Keldi» gacha odatda necha kunda olib kelgani '
+      + 'kamida 3 marta ko\'rilgan bo\'lsa — yuqoridagi yetkazish kunlari o\'rniga shu olinadi. '
+      + 'Kutilgan qoldiq = Oson\'dagi qoldiq + yo\'ldagi (defekturada «Buyurtma berdim», hali kelmagan — har yozuv kamida 1 quti) − mijozlar bron qilgan qutilar: '
+      + 'buyurtma berilgan dori qayta tavsiya qilinmaydi, bron qilingani sotilgan deb olinadi.', 'Qanday hisoblanadi?'));
+    if (Array.isArray(j.firmalar) && j.firmalar.length) m.append(firmalarKarta(j.firmalar));
+  }
   if (B.filial && !j.qatorlar.some((x) => (x.f || x.fn) === B.filial)) B.filial = '';
   const fp = filialPills(j.qatorlar, fil, B.filial, (v) => { B.filial = v; B.ochiq = {}; chiz(); });
   if (fp) m.append(fp);
@@ -237,7 +301,45 @@ function bQator(x, fil) {
   return h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, x.nom), h('b', { class: 'pul-kerak' }, x.kerak + ' quti')),
     izohEl([asl(filNom(fil, x)), x.tugadi ? 'tugagan' : 'qoldiq ' + qoldiqMatn(x.qoldiq, x.dona), 'kuniga ' + kunlik + ' quti',
       x.yetadi != null ? String(x.yetadi).replace('.', ',') + ' kunga yetadi' : null, x.def ? 'defekturada bor' : null], kam || x.tugadi ? 'oson-otgan' : 'muted'),
+    kutilganEl(x),
+    buyBelgilar(x),
     x.eng ? h('div', { class: 'firma-nomi', 'data-asl': '' }, x.eng.firma + ': ' + x.eng.nom + ' — ' + H.som(x.eng.yuz) + (x.eng.aniq ? '' : ' (taxminiy)')) : null);
+}
+
+// Kutilgan qoldiq (07.11 tun, server 20261107260000): «Bor 3 · yo'lda 10 · bron 1 → kutilgan 12» — yo'lda (defekturada «Buyurtma
+// berdim», hali kelmagan) yoki bron bo'lsa. Soni — quti (kasr — ochilgan quti). Eski server (maydonlar yo'q) — hech narsa.
+const qutiM = (n) => String(Math.round(Number(n) * 100) / 100).replace('.', ',').replace('-', '−');
+export function kutilganMatn(x) {
+  if (!x || x.kutilgan == null || !(Number(x.yolda) > 0 || Number(x.bron) > 0)) return null;
+  return ['Bor ' + qutiM(x.qoldiq), Number(x.yolda) > 0 ? 'yo\'lda ' + qutiM(x.yolda) : null, Number(x.bron) > 0 ? 'bron ' + qutiM(x.bron) : null]
+    .filter(Boolean).join(' · ') + ' → kutilgan ' + qutiM(x.kutilgan);
+}
+function kutilganEl(x) {
+  const t = kutilganMatn(x);
+  return t ? h('div', { class: 'buy-kutilgan', title: 'Yo\'lda — «Buyurtma berdim» qilingan, hali kelmagan (har yozuv kamida 1 quti); bron — mijozlar bron qilgan qutilar' }, t) : null;
+}
+
+// Aqlli buyurtma 2 belgilari (server 20261107200000): ABC, sotuv turi, tugagan kunlar, kutayotgan mijozlar, firma yetkazish vaqti.
+// Eski javobda (maydonlar yo'q) — hech narsa.
+const TUR_NOMI = { uzuq: 'uzuq-uzuq sotiladi', notekis: 'sotuvi notekis', bolak: 'kamdan-kam, har xil hajmda' };
+const sonM = (n) => String(Math.round(Number(n) * 10) / 10).replace('.', ',');
+export function buyBelgilar(x) {
+  const b = [];
+  if (x.abc) b.push(h('span', { class: 'buy-b abc-' + x.abc, title: 'ABC — 30 kunlik tushum ulushi' }, x.abc + (x.xavf ? ' · +' + x.xavf + ' kun zaxira' : '')));
+  if (TUR_NOMI[x.tur]) b.push(h('span', { class: 'buy-b' }, TUR_NOMI[x.tur]));
+  if (Number(x.yoqKun) >= 1) b.push(h('span', { class: 'buy-b ogoh' }, sonM(x.yoqKun) + ' kun tugagan edi — hisobga olinmadi'));
+  if (x.talab > 0) b.push(h('span', { class: 'buy-b ogoh' }, '+' + x.talab + ' quti: defekturada kutishmoqda'));
+  if (x.firmaN >= 3 && x.firmaKun != null) {
+    b.push(h('span', { class: 'buy-b' }, h('span', { 'data-asl': '' }, x.firma || 'Firma'), ' odatda ' + sonM(x.firmaKun) + ' kunda olib keladi'));
+  }
+  return b.length ? h('div', { class: 'buy-belgilar' }, ...b) : null;
+}
+function firmalarKarta(firmalar) {
+  const k = h('div', { class: 'card list' }, kartaSarlavha('Firmalar qancha kunda olib keladi'),
+    h('div', { class: 'muted' }, '«Buyurtma berdim» → Oson\'da «Keldi» (oxirgi 180 kun). 3 va undan ko\'p yetkazishda — buyurtma kunlari shu bo\'yicha.'));
+  firmalar.forEach((f) => k.append(h('div', { class: 'line' }, h('span', { 'data-asl': '' }, f.firma),
+    h('span', {}, f.n >= 3 ? h('b', {}, 'odatda ' + sonM(f.kun) + ' kunda') : 'hali ' + f.n + ' marta ko\'rildi', ' · ' + f.n + ' marta'))));
+  return k;
 }
 
 // ---------- Filiallar orasida ko'chirish (07.11; foydalanuvchi: "2. Qo'shamiz") ----------
