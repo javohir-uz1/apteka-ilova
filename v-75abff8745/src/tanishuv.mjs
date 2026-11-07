@@ -76,7 +76,7 @@ export function tanishuvAvto(rol) {
   if (!id || tanishuvKorildimi(id)) return false;
   avtoBoldi = true;
   setTimeout(() => {
-    if (document.querySelector('.sheet-bg')) { avtoBoldi = false; return; }   // boshqa oyna ochiq — keyingi chizishda
+    if (document.querySelector('.sheet-bg:not(.yopilmoqda)')) { avtoBoldi = false; return; }   // boshqa oyna ochiq — keyingi chizishda
     tanishuvOch(rol, { id });
   }, 500);
   return true;

@@ -4,7 +4,12 @@
 //   ("filiallar Osnovnoy'dan dori so'ragani kabi"). Har so'rovda: f — kim uchun (so'ragan filial), m — kimdan (manba).
 //   Manba filial xodimi / direktor: «Tayyorladim» (qancha berildi) yoki «Yo'q»; so'ragan filial: «Olib ketdik», «Bekor» (tasdiq bilan).
 //   Faqat serverda (dori_sorov_royxat — OQISH, yoz/holat — YENGIL). Bosh sahifa ochiq turganda har daqiqada yangilanadi.
+//   07.11 kech (20261107310000_sorov_boglash): har filial o'zi uchun istalgan boshqa filialdan; so'rash oynasida har filialdagi qoldiq;
+//   Ko'chirish takliflari, Oson qoldig'i (dori oynasi) va «Qaysi filialda bor?» qidiruvidan bir bosishda so'rov (sorashOch);
+//   direktorga keldi-ketdi va «Oson'da ko'chirildi» (harakatOyna); Bosh sahifada karta ajralib turadi.
 import { h, input, kartaSarlavha, nusxaOl, pills, sheet, tasdiqlash, vaqt, sana } from './ui.mjs';
+import { qoldiqMatn } from './oson-qoldiq.mjs';
+import { qidiruvKalit } from './kalit.mjs';
 
 const YANGILASH = 60000;
 const OCHIQ = new Set(['yangi', 'tayyor']);
@@ -40,7 +45,8 @@ function yukla(ctx, chiz, majbur = false) {
     .catch((e) => { S.xato = (e && e.message) || 'Ro\'yxat olinmadi'; return 'xato'; })
     .then((ozgardi) => {
       S.vaqt = Date.now(); S.yuklanmoqda = null;
-      if (ozgardi === true && chiz) chiz();
+      // Birinchi yuklanish xato bo'lsa ham karta qayta chiziladi («Yuklanmoqda…»da qolib ketmasin; audit 07.11 kech).
+      if ((ozgardi === true || (ozgardi === 'xato' && !S.j && !S.xatoChizildi)) && chiz) { if (ozgardi === 'xato') S.xatoChizildi = true; chiz(); }
       if (ozgardi && S.oyna) S.oyna();
     });
   return S.yuklanmoqda;
@@ -164,36 +170,53 @@ const menSoragan = (ctx, l) => {
   return l.filter((s) => meniki().has(s.f) && !ty.has(s.id));
 };
 
-// Karta va oyna sarlavhasi: kim ekaniga qarab.
-function nomi(ctx) {
-  if (direktormi(ctx)) return '📦 Filiallararo dori so\'rovlari';
-  // osn — Osnovnoy xodimi; filialXodimi — Osnovnoy'dan boshqa filial uchun ham so'raydi (ikki joyda ishlaydigan xodim).
-  const osn = !!(S.j && S.j.osn), filialXodimi = sorashFiliallar().some((f) => f.nom !== (S.j && S.j.asosiy));
-  if (osn && filialXodimi) return '📦 Dori so\'rovlari';
-  return osn ? '📦 Filiallardan dori olish' : '📦 Osnovnoy\'dan dori olish';
+// Karta va oyna sarlavhasi. 07.11 kech: har filial o'zi uchun istalgan boshqa filialdan so'raydi — xodimda nom bir xil.
+function nomi() {
+  return '📦 Filiallararo dori so\'rovlari';
 }
 
-// So'rash oynasi: kim uchun (bir nechta bo'lsa), kimdan (Osnovnoy — filiallardan tanlaydi), dori nomi (Oson takliflari — tanlangan
-// filialdagi qoldig'i bilan), miqdor, izoh. Yuborilgach forma tozalanadi — keyingi dorini darhol yozish mumkin.
-export function sorashOyna(ctx, chiz) {
+// So'rash oynasi: kim uchun (faqat o'z filiali; bir nechta bo'lsa tanlanadi), kimdan (boshqa filiallar — har birida shu dorining
+// qoldig'i bilan; eng ko'p qolgani o'zi tanlanadi), dori nomi (Oson takliflari), miqdor, izoh. pre — boshqa bo'limdan ochilganda
+// oldindan to'ldiriladi: { nom, filial, manba, soni, izoh, qoldiq: [{ f, soni, dona }] }. Yuborilgach forma tozalanadi.
+export function sorashOyna(ctx, chiz, pre = {}) {
   const fl = sorashFiliallar();
   if (!fl.length) { ctx.toast('So\'rash uchun filial yo\'q', 'xato'); return; }
   sheet('📦 Dori so\'rash', (box, close) => {
-    const f = { filial: fl.length === 1 ? fl[0].id : (fl.find((z) => ctx.x && z.id === ctx.x.filialId) || {}).id || '', manba: '', birlik: 'quti' };
+    const birinchi = (pre.filial && fl.find((z) => z.id === pre.filial)) || (fl.length === 1 ? fl[0] : fl.find((z) => ctx.x && z.id === ctx.x.filialId));
+    const f = { filial: birinchi ? birinchi.id : '', manba: '', birlik: 'quti', qoldiq: new Map(), qolda: false };
+    const qoldiqQoy = (arr) => {
+      f.qoldiq = new Map();
+      (Array.isArray(arr) ? arr : []).forEach((z) => { if (!z || !z.f) return; const e = f.qoldiq.get(z.f) || { soni: 0, dona: z.dona }; e.soni += Number(z.soni) || 0; f.qoldiq.set(z.f, e); });
+    };
+    qoldiqQoy(pre.qoldiq);
     const manbalar = () => { const z = fl.find((x) => x.id === f.filial); return z && Array.isArray(z.manbalar) ? z.manbalar : null; };
+    const qMatn = (id) => { const e = f.qoldiq.get(id); return !e ? '' : e.soni > 0 ? qoldiqMatn(e.soni, e.dona) : 'yo\'q'; };
+    // Kimdan: foydalanuvchi o'zi tanlamagan bo'lsa — qoldig'i eng ko'p filial (Oson bo'yicha), bitta bo'lsa — o'sha.
+    const ozi = () => {
+      const ml = manbalar();
+      if (!ml) return;
+      if (pre.manba && ml.some((m) => m.id === pre.manba) && !f.qolda && !f.manba) { f.manba = pre.manba; f.qolda = true; return; }   // boshqa bo'limdan tanlangan — o'zgarmaydi
+      if (f.manba && ml.some((m) => m.id === f.manba) && f.qolda) return;
+      if (ml.length === 1) { f.manba = ml[0].id; return; }
+      const eng = ml.map((m) => [m.id, (f.qoldiq.get(m.id) || {}).soni || 0]).sort((a, b) => b[1] - a[1])[0];
+      if (!f.qolda) f.manba = eng && eng[1] > 0 ? eng[0] : (ml.some((m) => m.id === f.manba) ? f.manba : '');
+    };
     const yuborilgan = h('div', { class: 'list' });
     const manbaJoy = h('div', { style: 'display:flex;flex-direction:column;gap:6px' });
     const manbaChiz = () => {
+      ozi();
       const ml = manbalar();
-      if (ml && !ml.some((m) => m.id === f.manba)) f.manba = ml.length === 1 ? ml[0].id : '';
       manbaJoy.replaceChildren();
-      if (ml && ml.length > 1) manbaJoy.append(h('span', { class: 'muted' }, 'Qaysi filialdan so\'raysiz'), pills(ml.map((m) => [m.id, m.nom]), f.manba, (v) => { f.manba = v; qidir(); }, 'Kimdan'));
-      else if (ml && ml.length === 1) manbaJoy.append(h('div', { class: 'muted' }, 'Kimdan: ', h('b', {}, ml[0].nom)));
+      if (ml && ml.length > 1) {
+        manbaJoy.append(h('span', { class: 'muted' }, 'Qaysi filialdan so\'raysiz' + (f.qoldiq.size ? ' (Oson qoldig\'i)' : '')),
+          pills(ml.map((m) => [m.id, m.nom + (qMatn(m.id) ? ' · ' + qMatn(m.id) : '')]), f.manba, (v) => { f.manba = v; f.qolda = true; qidir(); }, 'Kimdan'));
+      } else if (ml && ml.length === 1) manbaJoy.append(h('div', { class: 'muted' }, 'Kimdan: ', h('b', {}, ml[0].nom), qMatn(ml[0].id) ? ' · ' + qMatn(ml[0].id) : ''));
     };
     if (fl.length > 1) {
-      box.append(h('span', { class: 'muted' }, 'Kim uchun'), pills(fl.map((z) => [z.id, z.nom]), f.filial, (v) => { f.filial = v; manbaChiz(); qidir(); }, 'Filial'));
+      box.append(h('span', { class: 'muted' }, 'Kim uchun'), pills(fl.map((z) => [z.id, z.nom]), f.filial, (v) => { f.filial = v; f.qolda = false; manbaChiz(); qidir(); }, 'Filial'));
     }
     const nom = input('Dori nomi', { inputmode: 'text', placeholder: 'Masalan: Анальгин', autocomplete: 'off' });
+    if (pre.nom) nom.qiymat(String(pre.nom));
     const taklif = h('div', { class: 'list sorov-taklif' });
     let qidT = 0, qidN = 0;
     const qidir = () => {
@@ -206,23 +229,32 @@ export function sorashOyna(ctx, chiz) {
         try { r = await ctx.oqi('osonQidir', soz); } catch (e) { r = []; }
         if (n !== qidN || !Array.isArray(r)) return;
         taklif.textContent = '';
-        const mId = f.manba || ((ctx.S && ctx.S.filiallar) || []).find((z) => z.asosiy)?.id;
-        const mNom = ((manbalar() || []).find((m) => m.id === mId) || {}).nom || (S.j && S.j.asosiy) || 'Osnovnoy';
         r.slice(0, 6).forEach((d) => {
           const fs = Array.isArray(d.filiallar) ? d.filiallar : [];
-          const bor = fs.filter((z) => z.f === mId).reduce((a, z) => a + (Number(z.soni) || 0), 0);
+          const ml = manbalar() || [];
+          // Har «kimdan» filialidagi qoldiq — qisqa («4-filial 12 quti · 1-Filial yo'q»).
+          const qisq = ml.map((m) => { const s = fs.filter((z) => z.f === m.id).reduce((a, z) => a + (Number(z.soni) || 0), 0);
+            const dn = (fs.find((z) => z.f === m.id) || {}).dona; return m.nom + ' ' + (s > 0 ? qoldiqMatn(s, dn) : 'yo\'q'); }).join(' · ');
           taklif.append(h('button', { type: 'button', class: 'item', style: 'text-align:left;width:100%', onclick: () => {
-            nom.qiymat(d.nom); taklif.textContent = ''; qidN++; son.i.focus();
+            nom.qiymat(d.nom); taklif.textContent = ''; qidN++;
+            qoldiqQoy(fs); manbaChiz();
+            son.i.focus();
           } }, h('b', { 'data-asl': '' }, d.nom),
-          h('div', { class: 'muted', style: 'font-size:13px' }, f.manba || manbalar()?.length === 1 || !manbalar()
-            ? (bor > 0 ? mNom + '\'da bor' : mNom + '\'da yo\'q (Oson bo\'yicha)') : 'Avval «Kimdan»ni tanlang', d.ishlab ? [' · ', asl(d.ishlab)] : null)));
+          h('div', { class: 'muted', style: 'font-size:13px' }, qisq || 'Oson qoldig\'i yo\'q', d.ishlab ? [' · ', asl(d.ishlab)] : null)));
         });
       }, 350);
     };
-    nom.i.addEventListener('input', qidir);
-    const son = input('Miqdori', { inputmode: 'numeric', value: '1', pul: false });
+    // Yangi nom yozilsa — oldingi dorining qoldig'i va o'zi tanlangan «kimdan» o'chadi (audit 07.11 kech).
+    nom.i.addEventListener('input', () => {
+      f.qoldiq = new Map();
+      if (!f.qolda) f.manba = '';
+      manbaChiz();
+      qidir();
+    });
+    const son = input('Miqdori', { inputmode: 'numeric', value: String(pre.soni && pre.soni >= 1 ? Math.min(9999, Math.round(pre.soni)) : 1), pul: false });
     const birlik = pills([['quti', 'Quti'], ['dona', 'Dona']], f.birlik, (v) => { f.birlik = v; }, 'Birlik');
     const iz = input('Izoh (ixtiyoriy)', { inputmode: 'text', placeholder: 'Masalan: mijoz kutyapti' });
+    if (pre.izoh) iz.qiymat(String(pre.izoh));
     const yubor = h('button', { type: 'button', class: 'p', onclick: async () => {
       const nm = nom.i.value.trim();
       const v = String(son.i.value).replace(/\s/g, '');
@@ -238,6 +270,7 @@ export function sorashOyna(ctx, chiz) {
           const kimdan = r.manba || (S.j && S.j.asosiy) || 'Osnovnoy';
           yuborilgan.prepend(h('div', { class: 'item' }, '✓ ', asl(r.nom), ' — ' + r.soni + ' ' + r.birlik + ' · ' + kimdan + '\'dan so\'raldi'));
           nom.qiymat(''); son.qiymat('1'); iz.qiymat(''); taklif.textContent = '';
+          f.qoldiq = new Map(); f.qolda = false; pre = {}; manbaChiz();
           ctx.toast('So\'raldi ✓ — ' + kimdan + 'ga xabar ketdi');
           yukla(ctx, chiz, true);
           nom.i.focus();
@@ -253,6 +286,108 @@ export function sorashOyna(ctx, chiz) {
         close();
       } }, 'Yopish'));
   });
+}
+
+// Boshqa bo'limlardan (Ko'chirish, Oson qoldig'i, «Qaysi filialda bor?»): ro'yxat hali olinmagan bo'lsa — avval olinadi.
+let ochilmoqda = false;
+export async function sorashOch(ctx, pre = {}, chiz = () => {}) {
+  if (ochilmoqda) return;   // ikki marta bosilsa — ikkita oyna ochilmasin
+  ochilmoqda = true;
+  try {
+    if (!S.j) { ctx.toast('Ochilmoqda…'); await yukla(ctx, chiz, true); }
+    if (!S.j) { ctx.toast(S.xato || 'So\'rovlar ro\'yxati olinmadi', 'xato'); return; }
+    sorashOyna(ctx, chiz, pre);
+  } finally { ochilmoqda = false; }
+}
+export const sorovYukla = (ctx, chiz, majbur = false) => yukla(ctx, chiz, majbur);
+export const sorovYuklanganmi = () => !!S.j;
+// Bu filial shu foydalanuvchinikimi (so'rash tugmalari faqat o'z filiali uchun): direktor — hammasi.
+export function ozFilialmi(ctx, f) {
+  if (direktormi(ctx)) return true;
+  if (S.j && Array.isArray(S.j.meniki)) return S.j.meniki.includes(f);
+  return !!ctx.x && (ctx.x.filialId === f || ctx.x.qoshimchaFilial === f);
+}
+// Ko'chirish taklifi uchun: shu yo'nalishda (kim uchun f, kimdan m) shu nomli so'rov bormi — ochig'i birinchi.
+export function sorovHolati(nom, f, m) {
+  // Server takrorni talaffuz kaliti bilan tekshiradi (dori_sorovlar.kalit) — bu yerda ham shunday (kirill/lotin, katta-kichik harf).
+  const k = qidiruvKalit(nom);
+  const l = royxat().filter((s) => s.f === f && (s.m || null) === (m || null) && qidiruvKalit(s.nom) === k);
+  return l.find((s) => OCHIQ.has(s.holat)) || l[0] || null;
+}
+
+// Direktor: keldi-ketdi — olib ketilgan dorilar yo'nalish bo'yicha («1-Filial → Osnovnoy»), Oson'da ko'chirilmaganlari tepada;
+// har qatorda «Ko'chirildi ✓» (bosilsa — belgilanadi / olib tashlanadi), yo'nalishga «Hammasi ko'chirildi» va nusxa (Oson uchun).
+const HR = { kun: 7, j: null, xato: null, n: 0 };
+export function harakatOyna(ctx, chizTash = () => {}) {
+  sheet('🔁 Filiallararo keldi-ketdi', (box) => {
+    const ich = h('div', { style: 'display:flex;flex-direction:column;gap:10px' });
+    box.append(ich);
+    let tirik = true, band = false;   // band — shu oynaniki (yopib qayta ochilsa — yangi oyna bloklanmaydi)
+    // Davr tez almashtirilsa — faqat oxirgi so'rov javobi chiziladi (audit 07.11 kech).
+    const ol = async () => {
+      const n = ++HR.n, kun = HR.kun;
+      HR.xato = null;
+      let j = null, xato = null;
+      try { j = await ctx.oqi('doriHarakat', kun); } catch (e) { xato = (e && e.message) || 'Olinmadi'; }
+      if (n !== HR.n) return;
+      HR.j = j; HR.xato = xato;
+      if (tirik) ciz();
+    };
+    const belgila = async (idlar, belgi, matn) => {
+      if (band) return;
+      if (matn && !(await tasdiqlash(matn))) return;
+      band = true; ciz();
+      try {
+        // Server bir so'rovda 300 tagacha oladi — 250 talik bo'laklar (ko'p yig'ilib qolgan yo'nalish ham bir bosishda).
+        let n = 0, ok = true;
+        for (let i = 0; i < idlar.length; i += 250) {
+          const r = await ctx.amalFon('doriSorovOson', idlar.slice(i, i + 250), belgi);
+          if (r == null) { ok = false; break; }
+          n += Number(r) || 0;
+        }
+        if (ok || n) ctx.toast(n > 0 ? (belgi ? 'Oson\'da ko\'chirildi ✓' + (idlar.length > 1 ? ' — ' + n + ' ta' : '') : 'Belgi olib tashlandi')
+          : 'Allaqachon belgilangan — boshqa telefonda bosilgan bo\'lishi mumkin');
+      } finally { band = false; await ol(); yukla(ctx, chizTash, true); }
+    };
+    const ciz = () => {
+      ich.textContent = '';
+      ich.append(h('div', { class: 'muted' }, 'Olib ketilgan dorilar — qaysi filialdan qaysi filialga. Oson Apteka\'da ham shu filialdan shu filialga '
+        + 'ko\'chiring, keyin «Oson\'da ko\'chirdim ✓» ni bosing. Ko\'chirilmaganlari doim tepada turadi.'),
+        pills([[7, '7 kun'], [30, '30 kun'], [90, '90 kun']], HR.kun, (v) => { HR.kun = v; HR.j = null; ciz(); ol(); }, 'Davr'));
+      if (HR.xato) { ich.append(h('div', { class: 'msg warn' }, 'Olinmadi: ' + HR.xato), h('button', { type: 'button', class: 's', onclick: ol }, 'Qayta urinish')); return; }
+      if (!HR.j) { ich.append(h('div', { class: 'muted', role: 'status' }, 'Yuklanmoqda…')); return; }
+      const q = Array.isArray(HR.j.qatorlar) ? HR.j.qatorlar : [];
+      const kut = q.filter((s) => !s.oson);
+      ich.append(h('div', { class: kut.length ? 'msg warn' : 'msg ok' }, kut.length ? 'Oson\'da ko\'chirish kerak: ' + kut.length + ' ta dori' : '✓ Hammasi Oson\'da ko\'chirilgan'));
+      if (!q.length) { ich.append(h('div', { class: 'muted' }, 'Bu davrda olib ketilgan dori yo\'q.')); return; }
+      const g = new Map();
+      q.forEach((s) => { const k = s.manba + ' → ' + s.filial; if (!g.has(k)) g.set(k, []); g.get(k).push(s); });
+      for (const [yon, l] of [...g.entries()].sort((a, b) => b[1].filter((s) => !s.oson).length - a[1].filter((s) => !s.oson).length)) {
+        const kl = l.filter((s) => !s.oson);
+        const k = h('section', { class: 'card list' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', {}, yon),
+          h('span', { class: kl.length ? 'pul-kerak' : 'muted' }, kl.length ? kl.length + ' ta ko\'chirilmagan' : '✓')));
+        l.forEach((s) => k.append(h('div', { class: 'item' },
+          h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '' }, s.nom), h('b', { style: 'white-space:nowrap' }, s.soni + ' ' + s.birlik)),
+          h('div', { class: 'muted', style: 'font-size:13px' }, 'Olib ketildi: ' + kun(s.vaqt), s.olib ? [' · ', asl(s.olib)] : null, s.kim ? [' · so\'ragan: ', asl(s.kim)] : null),
+          h('div', { class: 'row' }, s.oson
+            ? [h('span', { class: 'belgi ok' }, '✓ Oson\'da ko\'chirildi · ' + kun(s.oson), s.osonKim ? [' · ', asl(s.osonKim)] : null),
+              h('button', { type: 'button', class: 'link', disabled: band ? '' : null,
+                onclick: () => belgila([s.id], false, '«' + s.nom + '»: «Oson\'da ko\'chirildi» belgisi olib tashlansinmi?') }, 'Belgini olib tashlash')]
+            : h('button', { type: 'button', class: 'p', disabled: band ? '' : null, onclick: () => belgila([s.id], true) }, 'Oson\'da ko\'chirdim ✓')))));
+        if (kl.length) {
+          const matn = yon + ' (Oson\'da ko\'chirish):\n' + kl.map((s, i) => (i + 1) + '. ' + s.nom + ' — ' + s.soni + ' ' + s.birlik).join('\n');
+          k.append(h('div', { class: 'row' },
+            h('button', { type: 'button', class: 's', onclick: () => nusxaOl(matn, ctx.toast) }, 'Nusxalash'),
+            kl.length > 1 ? h('button', { type: 'button', class: 's', disabled: band ? '' : null,
+              onclick: () => belgila(kl.map((s) => s.id), true, yon + ': ' + kl.length + ' ta dori Oson\'da ko\'chirildimi?') }, 'Hammasi ko\'chirildi') : null));
+        }
+        ich.append(k);
+      }
+    };
+    ciz();
+    ol();
+    return () => { tirik = false; };
+  }, { fokus: false });
 }
 
 // Ro'yxat oynasi: ochiqlari (tugmalar bilan), filial bo'yicha tanlov, tayyorlash ro'yxati, yopilganlar (3 kun).
@@ -300,9 +435,9 @@ export function sorovKarta(ctx, chiz, o = {}) {
   kuzat(ctx, chiz);
   const all = royxat();
   const ochiq = all.filter((s) => OCHIQ.has(s.holat));
-  if (o.direktor && !ochiq.length) return h('div', { 'data-sorov-karta': '', hidden: true });
+  // 07.11 kech: direktorda ham doim ko'rinadi (so'rash, keldi-ketdi); faqat birinchi yuklanish paytida — yashirin.
   if (!S.j && !S.xato && o.direktor) return h('div', { 'data-sorov-karta': '', hidden: true });
-  const k = h('section', { class: 'card list sorov-karta', 'data-sorov-karta': '' }, kartaSarlavha((S.j ? nomi(ctx) : '📦 Dori so\'rovlari') + (ochiq.length ? ' (' + ochiq.length + ')' : '')));
+  const k = h('section', { class: 'card list sorov-karta muhim', 'data-sorov-karta': '' }, kartaSarlavha((S.j ? nomi(ctx) : '📦 Dori so\'rovlari') + (ochiq.length ? ' (' + ochiq.length + ')' : '')));
   if (!S.j) {
     k.append(h('div', { class: 'muted' }, S.xato ? 'Ro\'yxat olinmadi: ' + S.xato : 'Yuklanmoqda…'));
     return k;
@@ -321,14 +456,20 @@ export function sorovKarta(ctx, chiz, o = {}) {
   if (!myTayyor.length && !ty.length && !myYangi.length) {
     const kimdan = [...new Set(fl.flatMap((f) => (Array.isArray(f.manbalar) ? f.manbalar.map((m) => m.nom) : [(S.j && S.j.asosiy) || 'Osnovnoy'])))];
     k.append(h('div', { class: 'muted' }, ochiq.length ? 'Hammasi tayyorlangan — olib ketilishini kuting.'
-      : kimdan.length ? 'Tugagan yoki kam qolgan dorini ' + kimdan.join(', ') + '\'dan so\'rang: nomi va miqdori.' : 'Hozir so\'rov yo\'q.'));
+      : direktormi(ctx) ? 'Hozir ochiq so\'rov yo\'q.'
+        : kimdan.length ? 'Tugagan yoki kam qolgan dorini boshqa filialdan so\'rang (' + kimdan.join(', ') + '): nomi va miqdori.' : 'Hozir so\'rov yo\'q.'));
   }
   [...ty, ...myTayyor, ...myYangi].slice(0, 3).forEach((s) => k.append(qator(ctx, chiz, s, false)));
+  // Direktor: olib ketilgan, Oson'da hali ko'chirilmagan dorilar — keldi-ketdi oynasiga.
+  if (direktormi(ctx) && S.j.osonKut > 0) {
+    k.append(h('button', { type: 'button', class: 'sorov-oson', onclick: () => harakatOyna(ctx, chiz) }, '🔁 Oson\'da ko\'chirish kerak: ' + S.j.osonKut + ' ta dori ›'));
+  }
   const row = h('div', { class: 'row' });
-  const sor = fl.length > 0 && !o.direktor;
+  const sor = fl.length > 0;
   if (sor) row.append(h('button', { type: 'button', class: 'p', onclick: () => sorashOyna(ctx, chiz) }, '+ Dori so\'rash'));
   row.append(h('button', { type: 'button', class: sor ? 's' : 'p', onclick: () => sorovOyna(ctx, chiz) },
     ochiq.length ? 'Hammasi (' + ochiq.length + ')' : 'Ro\'yxat'));
   k.append(row);
+  if (direktormi(ctx)) k.append(h('button', { type: 'button', class: 'link', style: 'align-self:flex-start', onclick: () => harakatOyna(ctx, chiz) }, '🔁 Keldi-ketdi — qaysi filialdan nima ketdi'));
   return k;
 }

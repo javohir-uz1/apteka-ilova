@@ -234,7 +234,7 @@ function vvQoy(els) {
   const vv = typeof window !== 'undefined' && window.visualViewport;
   if (!vv) return;
   const hv = Math.round(vv.height) + 'px', tv = Math.round(vv.offsetTop) + 'px';
-  (els || document.querySelectorAll('.sheet-bg')).forEach((b) => {
+  (els || document.querySelectorAll('.sheet-bg:not(.yopilmoqda)')).forEach((b) => {
     if (b.style.getPropertyValue('--vv-h') !== hv) b.style.setProperty('--vv-h', hv);
     if (b.style.getPropertyValue('--vv-top') !== tv) b.style.setProperty('--vv-top', tv);
   });
@@ -311,9 +311,19 @@ export function sheet(title, build, o2 = {}) {
   vvQoy([bg]);
   let tozala = null;
   const o = { box: null, close: null, orqaga: typeof o2.orqaga === 'function' ? o2.orqaga : null };
+  let yopildi = false;
   const close = () => {
-    if (!bg.isConnected) return;
-    bg.remove();
+    if (!bg.isConnected || yopildi) return;
+    yopildi = true;
+    // 07.11 (dizayn: "ochilishlar iPhone'dek silliq"): oyna pastga sirg'alib, fon so'nib yopiladi. Holat darhol tozalanadi,
+    // faqat DOM 240 ms keyin olinadi; harakat imkoni bo'lmasa (jsdom, «kamroq harakat») — darhol.
+    if (animMumkin(box) && !o2.toliq) {
+      bg.classList.add('yopilmoqda');
+      const y = box.getBoundingClientRect ? Math.max(120, box.getBoundingClientRect().height) : 400;
+      const joriy = getComputedStyle(box).transform;
+      anim(box, [{ transform: joriy && joriy !== 'none' ? joriy : 'none' }, { transform: 'translateY(' + y + 'px)' }], 240, () => bg.remove());
+      anim(bg, [{ opacity: 1 }, { opacity: 0 }], 240);
+    } else bg.remove();
     const i = oynalar.indexOf(o);
     if (i >= 0) oynalar.splice(i, 1);
     if (!oynalar.length) document.removeEventListener('keydown', oynaTugmasi);
@@ -419,9 +429,10 @@ function surishUlash(box, joy, ruxsat, close) {
     if (bekor || !surishYopadimi(q.dy, tezlik)) { qaytar(q.dy); return; }
     // Yozilgan bo'lsa — so'raladi (ruxsat false qaytaradi), oyna joyiga qaytadi.
     if (!ruxsat()) { qaytar(q.dy); return; }
-    if (!animMumkin(box)) { box.style.transform = ''; close(); return; }
-    box.style.transform = '';
-    anim(box, [{ transform: 'translateY(' + q.dy + 'px)', opacity: 1 }, { transform: 'translateY(100%)', opacity: 0.6 }], 160, close);
+    // 07.11 kech: close() o'zi oynani joriy joyidan (barmoq qoldirgan translateY) pastga sirg'altiradi — ikkinchi animatsiya yo'q
+    // (avval bu yerda pastga tushib, close() uni yana yuqoridan tushirardi — oyna «sakrardi»).
+    if (!animMumkin(box)) box.style.transform = '';
+    close();
   };
   joy.addEventListener('pointerup', (e) => tugat(e, false));
   joy.addEventListener('pointercancel', (e) => tugat(e, true));
@@ -436,7 +447,7 @@ function surishUlash(box, joy, ruxsat, close) {
 // Bir nechta bo'lsa — oxirgisi (ustma-ust oynalar). Hammasi tozalanganda — offClick + hide.
 const asosiylar = [];
 let mbUlangan = null, mbBizda = false;
-const MB_RANG = '#0E6E64', MB_OCHIQ = '#9DB8AE';   // --accent; o'chiq holat — xira (ko'rinib turadi, bosilmaydi)
+const MB_RANG = '#0B7A6B', MB_OCHIQ = '#9FC4BC';   // --accent; o'chiq holat — xira (ko'rinib turadi, bosilmaydi)
 function mbOl() {
   const tg = tgOl();
   const b = tg && tg.MainButton;
@@ -715,7 +726,7 @@ export function holatniEsla(root) {
 export function holatniTikla(root) {
   const f = fokusda;
   fokusda = null;
-  if (!f || document.querySelector('.sheet-bg')) return;
+  if (!f || document.querySelector('.sheet-bg:not(.yopilmoqda)')) return;
   const el = [...root.querySelectorAll('[data-k]')].find((e) => e.dataset.k === f.k);
   if (!el) return;
   el.focus({ preventScroll: true });
@@ -737,7 +748,7 @@ export function nusxaOl(matn, t, okMatn = 'Nusxa olindi ✓') {
 }
 
 // Mavzu: doim yorug' (dizayn B "Yalpiz"). Telegram sarlavhasi va foni ham shu ranglarda.
-export const RANG = { fon: '#EDF4F0', karta: '#FFFFFF' };
+export const RANG = { fon: '#F2F2F7', karta: '#FFFFFF' };   // 07.11 kech: iOS qatlami foni (style.css)
 export function mavzu(tg) {
   document.documentElement.dataset.theme = 'light';
   if (!tg) return;

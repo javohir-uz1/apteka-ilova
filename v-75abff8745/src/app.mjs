@@ -4,7 +4,7 @@
 import * as A from './amallar.mjs';
 import * as H from './hisob.mjs';
 import { API_URL } from './config.mjs';
-import { yukla, saqla, tozala, serverga, rasmOl, faylOl, firmaPraysYukla, yuklashManzil } from './store.mjs';
+import { yukla, saqla, tozala, serverga, rasmOl, faylOl, firmaPraysYukla, filialSuratYukla, yuklashManzil } from './store.mjs';
 import { retseptBosh, retseptIchida, retseptRuxsat, retseptView } from './retsept.mjs';
 import { renderPunkt } from './punkt.mjs';
 import { serverSorovi, sinovdaBajar } from './ishlar.mjs';
@@ -58,7 +58,7 @@ const root = document.getElementById('app');
 
 // Serverga yuboruvchi (sorov.mjs): C1 kalit — xatodan keyin aynan shu so'rov qayta yuborilsa o'sha kalit (server ikki marta
 // yozmaydi); kech kelgan eski holat yangisining ustidan yozilmaydi. Oyna yopilib sahifa ko'ringach — eski kalitlar unutiladi.
-const sorov = sorovchi({ serverga, initData: () => tg.initData, korinadimi: () => !document.querySelector('.sheet-bg') });
+const sorov = sorovchi({ serverga, initData: () => tg.initData, korinadimi: () => !document.querySelector('.sheet-bg:not(.yopilmoqda)') });
 oynalarYopilganda(() => sorov.korildi());
 // 07.11: internet kutayotgan yozuvlar (sorov.mjs oflayn navbat) — tepada kichik belgi; son o'zgarsa faqat shu belgi yangilanadi.
 function navbatBelgi() {
@@ -322,6 +322,8 @@ function boshView(m, x) {
     fy('x_oyin') ? belgi('oyin', 'Bilimdon', 'qizil', () => { oyinBosh(); qaytishTab = 'bosh'; tab = 'oyin'; render(true); }) : null,
     SERVER && fy('x_inventar') ? belgi('quti', 'Inventar', 'kok', () => { qaytishTab = 'bosh'; tab = 'inventar'; render(true); }) : null));
   // Shtrix-kodlar — sotuvda doim kerak (28.10; 05.11 foydalanuvchi: "asosiy ekranga — uni doim ishlatadilar"): belgilar ostida.
+  // 07.11 kech (foydalanuvchi: "dori so'rovi asosiy ekranda ajralib ko'rinib tursin"): amallar ostida, birinchi karta (filial-sorov.mjs).
+  if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') render(); }));
   const sk = shtrixKarta(S);
   if (sk) { sk.id = 'shtrix-karta'; sk.tabIndex = -1; m.append(sk); }
   // Bugun: kelgan dorilar va bugun yozgan qarzlar.
@@ -339,8 +341,6 @@ function boshView(m, x) {
   if (!keldi.length && !qarzlarim.length) c.append(h('div', { class: 'muted' }, 'Hozircha yangilik yo\'q. Mijozga qarzga dori bersangiz — «Qarz yozish».'));
   m.append(c);
   // Muddati o'tgan dorilar — o'z filiali (vaqtincha biriktirilgan bo'lsa — o'sha filial; 03.11).
-  // 07.11: «Osnovnoy'dan dori olish» — filial xodimi so'raydi, Osnovnoy xodimi tayyorlaydi (filial-sorov.mjs; faqat serverda).
-  if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') render(); }));
   const mo = muddatiOtganKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); });
   if (mo) m.append(mo);
   // 07.11: direktor tanlagan narx — Oson'da tuzatish; narxi o'zgargan dorilarga yorliq (o'z filiali).
@@ -537,6 +537,8 @@ function xBosh(m, x) {
     retseptRuxsat(S, x) && fy('x_retsept') ? plitka('retsept', 'Retseptlar', 'yashil', () => { retseptBosh(); xOch('retsept'); }, 'Punkt ro\'yxatlari') : null,
     SERVER && fy('x_inventar') ? plitka('inventar', 'Inventar', 'binafsha', () => xOch('inventar'), 'Telefon bilan sanash') : null));
   // Shtrix-kodlar — sotuvda doim kerak (05.11 foydalanuvchi: "asosiy ekranga — uni doim ishlatadilar").
+  // 07.11 kech (foydalanuvchi: "dori so'rovi asosiy ekranda ajralib ko'rinib tursin"): amallar ostida, birinchi karta (filial-sorov.mjs).
+  if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') render(); }));
   const sk = shtrixKarta(S);
   if (sk) { sk.id = 'shtrix-karta'; sk.tabIndex = -1; m.append(sk); }
   // «Bugun»: kelgan dorilar va bugun yozgan qarzlar (ismsiz — kassa oldida begona ko'rmasin; audit 05.11).
@@ -552,8 +554,6 @@ function xBosh(m, x) {
   }
   if (!keldi.length && !qarzlarim.length) c.append(h('div', { class: 'muted' }, 'Hozircha yangilik yo\'q.'));
   m.append(c);
-  // 07.11: «Osnovnoy'dan dori olish» — filial xodimi so'raydi, Osnovnoy xodimi tayyorlaydi (filial-sorov.mjs; faqat serverda).
-  if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') render(); }));
   const mo = muddatiOtganKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); });
   if (mo) m.append(mo);
   const nk = SERVER && fy('x_narx') ? narxXodimKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); }) : null;
@@ -601,7 +601,9 @@ const rasmniOl = (id) => (SERVER ? rasmOl(id, tg.initData) : Promise.resolve(nul
 const retseptCtx = (x) => ({ S, x, amal, amalX, amalFon, oqi, toast, rasmOl: rasmniOl, rerender: render, server: SERVER, tg,
   yuklashManzil: SERVER ? yuklashManzil : null });
 // Firma prayslari (30.10): faylni olish va saqlash — server band (503) bo'lsa o'zi qayta.
-const firmaCtx = SERVER ? { fayl: (id) => bandBolsaQayta(() => faylOl(id, tg.initData)), yukla: (b) => bandBolsaQayta(() => firmaPraysYukla(b, tg.initData)) } : null;
+// 08.11: surat — filial surati (filial-mijoz.mjs).
+const firmaCtx = SERVER ? { fayl: (id) => bandBolsaQayta(() => faylOl(id, tg.initData)), yukla: (b) => bandBolsaQayta(() => firmaPraysYukla(b, tg.initData)),
+  surat: (b) => bandBolsaQayta(() => filialSuratYukla(b, tg.initData)) } : null;
 
 // Ekranni chizish. tepaga (true yoki { tepaga }) — boshqa bo'limga o'tildi: sahifa boshidan.
 // Aks holda (yangi holat keldi, amaldan keyin) — aylantirish joyi, sahifadagi maydonlarga yozilgan qiymatlar va fokus saqlanadi.

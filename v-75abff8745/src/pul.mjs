@@ -10,9 +10,10 @@
 // hisoblanadi?»); Pul nazorati → Muddat xavfi: muddat siyosati (ogohlantirish / javondan olish kunlari) va «Javondan oling».
 // Eski server javobi (yangi maydonlarsiz) — avvalgidek chiziladi.
 import * as H from './hisob.mjs';
-import { h, kartaSarlavha, nusxaOl, pills, sana, sheet, vaqt, yordam } from './ui.mjs';
+import { h, kartaSarlavha, nusxaOl, pills, sana, sheet, tasdiqlash, vaqt, yordam } from './ui.mjs';
 import { qoldiqMatn } from './oson-qoldiq.mjs';
 import { firmalarOl, narxlar } from './firma.mjs';
+import { ozFilialmi, sorovHolati, sorovYuklanganmi, sorovYukla } from './filial-sorov.mjs';
 
 const PB = () => ({ j: null, vaqt: 0, yuklanmoqda: null, xato: null, bolim: 'muddat', filial: '', ochiq: false });
 const BB = () => ({ j: null, kalit: '', vaqt: 0, yuklanmoqda: null, xato: null, xatoKalit: '', zaxira: 7, yetkazish: 2, filial: '', ochiq: {}, firmaBor: false, firmaXato: 0, firmaSoni: 0 });
@@ -357,6 +358,41 @@ function kYukla(ctx, chiz, majbur = false) {
     .finally(() => { K.vaqt = Date.now(); K.yuklanmoqda = null; chiz(); });
 }
 const tomon = (fil, t) => (t.f ? fil(t.f) : t.fn || '');
+// 07.11 kech (foydalanuvchi: "funksiyalarni bir-biriga bog'la"): ko'chirish taklifi → filiallararo so'rov (kim uchun — oluvchi «ga»,
+// kimdan — beruvchi «dan»). Miqdor: butun quti; 1 qutidan kam bo'lsa — dona. Holat (so'rov bormi) — filial-sorov ro'yxatidan.
+function taklifMiqdor(x) {
+  const s = Number(x.soni) || 0;
+  if (s >= 1) return { n: Math.min(9999, Math.floor(s)), b: 'quti' };
+  if (x.dona > 1 && s > 0) return { n: Math.min(9999, Math.max(1, Math.round(s * x.dona))), b: 'dona' };
+  return { n: 1, b: 'quti' };
+}
+const taklifIzoh = (x) => 'Ko\'chirish: ' + (x.sabab === 'muddat' ? 'muddati yaqin (' + kunMatn(x.muddat) + ')' : 'ortiqcha qoldiq');
+// jim — bir yo'la so'rashda har biriga alohida xabar chiqmasin (oxirida bitta xulosa).
+async function taklifSora(ctx, x, jim = false) {
+  const m = taklifMiqdor(x);
+  const r = await ctx.amalFon('doriSorovYoz', x.ga.f, x.nom, m.n, m.b, taklifIzoh(x), x.dan.f);
+  if (r && !jim) ctx.toast('So\'rov yuborildi ✓ — ' + (r.manba || '') + 'ga xabar ketdi');
+  return r;
+}
+// So'ralgan deb hisoblanadi: ochiq yoki olib ketilgan (Oson'da hali ko'chirilmagan bo'lishi mumkin) — tugma ham, «Hammasini so'rash» ham
+// bir xil qoida (audit 07.11 kech). «Yo'q» / bekor — qayta so'rash mumkin.
+const soralganmi = (x) => { const s = sorovHolati(x.nom, x.ga.f, x.dan.f); return !!s && ['yangi', 'tayyor', 'olindi'].includes(s.holat); };
+function taklifHolati(ctx, x, chiz) {
+  if (!ctx.server || !x.dan.f || !x.ga.f || !ctx.amalFon) return null;
+  if (!sorovYuklanganmi()) return h('span', { class: 'muted', style: 'font-size:13px' }, 'So\'rovlar yuklanmoqda…');
+  const s = sorovHolati(x.nom, x.ga.f, x.dan.f);
+  if (!s && !ozFilialmi(ctx, x.ga.f)) return null;   // so'rash — faqat o'z filiali uchun (direktor — hammasi)
+  if (s && ['yangi', 'tayyor'].includes(s.holat)) return h('span', { class: 'belgi ok' }, s.holat === 'tayyor' ? '✓ So\'rov: tayyor — olib ketish kerak' : '✓ So\'rov yuborilgan — tayyorlanmoqda');
+  if (s && s.holat === 'olindi') return h('span', { class: 'belgi ok' }, '✓ Olib ketilgan — Oson\'da ko\'chiring');
+  let band = false;
+  const b = h('button', { type: 'button', class: 's', onclick: async () => {
+    if (band) return;
+    band = true; b.disabled = true;
+    try { if (await taklifSora(ctx, x)) await sorovYukla(ctx, chiz, true); } finally { band = false; b.disabled = false; chiz(); }
+  } }, '📦 So\'rov qilish (' + taklifMiqdor(x).n + ' ' + taklifMiqdor(x).b + ')');
+  return b;
+}
+let ommaviyBand = false;
 const kunlikMatn = (n) => String(n == null ? 0 : n).replace('.', ',');
 export function kochirishMatn(dan, ga, qatorlar) {
   return dan + ' → ' + ga + ' — ko\'chirish\n' + qatorlar.map((x, i) => (i + 1) + '. ' + x.nom + ' — ' + x.soni + ' quti'
@@ -365,6 +401,7 @@ export function kochirishMatn(dan, ga, qatorlar) {
 export function kochirishView(m, ctx, fil) {
   const chiz = () => ctx.rerender();
   kYukla(ctx, chiz);
+  if (ctx.server && ctx.amalFon) sorovYukla(ctx, chiz);   // har taklif ostida — so'rov bormi
   m.append(h('div', { class: 'muted' }, 'Oxirgi 30 kun sotuvi bo\'yicha: bir filialda sekin sotilayotgan yoki muddatigacha sotib ulgurilmaydigan dori — '
     + 'uni tez sotadigan filialga. Bu faqat tavsiya: ko\'chirishni Oson\'da o\'zingiz qilasiz, keyin dori ro\'yxatdan o\'zi chiqadi.'));
   if (!K.j) {
@@ -404,12 +441,30 @@ export function kochirishView(m, ctx, fil) {
       x.astatka ? h('div', { class: 'oson-otgan' }, 'Boshlang\'ich qoldiq (astatka) — ko\'chirishdan oldin sanab tekshiring') : null,
       izohEl([x.sabab === 'muddat' ? 'muddati ' + kunMatn(x.muddat) + ' — bu yerda sotib ulgurilmaydi' : '90 kunlik sotuvdan ko\'p qoldiq',
         'bu yerda kuniga ' + kunlikMatn(x.dan.kunlik) + ' quti, qoldiq ' + qoldiqMatn(x.dan.qoldiq, x.dona),
-        'u yerda kuniga ' + kunlikMatn(x.ga.kunlik) + ' quti, qoldiq ' + qoldiqMatn(x.ga.qoldiq, x.dona)], x.sabab === 'muddat' ? 'oson-otgan' : 'muted'))));
+        'u yerda kuniga ' + kunlikMatn(x.ga.kunlik) + ' quti, qoldiq ' + qoldiqMatn(x.ga.qoldiq, x.dona)], x.sabab === 'muddat' ? 'oson-otgan' : 'muted'),
+      taklifHolati(ctx, x, chiz))));
     if (o.qatorlar.length > 15) {
       k.append(h('button', { type: 'button', class: 'oq-yana', onclick: () => { K.ochiq[o.kalit] = !K.ochiq[o.kalit]; chiz(); } },
         K.ochiq[o.kalit] ? 'Yig\'ish ▴' : 'Yana ' + (o.qatorlar.length - kor.length) + ' ta ▾'));
     }
     const matn = kochirishMatn(o.dan, o.ga, o.qatorlar);
+    // Yo'nalishning hali so'ralmagan takliflari — bir yo'la so'rov (tasdiq bilan, birin-ketin).
+    const soralmagan = ctx.server && ctx.amalFon && sorovYuklanganmi() ? o.qatorlar.filter((x) => x.dan.f && x.ga.f && ozFilialmi(ctx, x.ga.f) && !soralganmi(x)) : [];
+    if (soralmagan.length > 1) {
+      k.append(h('button', { class: 'p', disabled: ommaviyBand ? '' : null, onclick: async (e) => {
+        if (ommaviyBand) return;
+        ommaviyBand = true;   // tasdiq oynasidan oldin — ikki marta bosilsa ikki to'plam ketmasin
+        e.target.disabled = true;
+        let n = 0;
+        try {
+          if (!(await tasdiqlash(o.dan + ' → ' + o.ga + ': ' + soralmagan.length + ' ta dori so\'rovi yuborilsinmi? ' + o.dan + ' xodimlariga xabar boradi.'))) return;
+          for (const x of soralmagan) { if (await taklifSora(ctx, x, true)) n++; }
+          const qolgan = soralmagan.length - n;
+          ctx.toast(n ? n + ' ta so\'rov yuborildi ✓' + (qolgan ? ', ' + qolgan + ' tasi yuborilmadi' : '') : 'So\'rov yuborilmadi', n ? undefined : 'xato');
+          await sorovYukla(ctx, () => {}, true);
+        } finally { ommaviyBand = false; chiz(); }
+      } }, '📦 Hammasini so\'rash (' + soralmagan.length + ')'));
+    }
     k.append(h('div', { class: 'row' },
       h('button', { class: 's', onclick: () => nusxaOl(matn, ctx.toast, 'Ro\'yxat nusxalandi — xodimga yuboring ✓') }, 'Nusxalash'),
       ctx.tg && ctx.tg.openTelegramLink ? h('button', { class: 's', onclick: () => ctx.tg.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(matn.slice(0, 3500))) }, 'Telegram\'da yuborish') : null));
