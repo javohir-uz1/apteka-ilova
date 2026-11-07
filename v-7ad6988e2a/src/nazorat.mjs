@@ -25,19 +25,33 @@ const haftaKuni = (d) => HAFTA[new Date(d + 'T12:00:00+05:00').getUTCDay()];
 const xatoKarta = (xato, qayta) => h('div', { class: 'card' }, h('div', { class: 'muted' }, xato), h('button', { class: 's', onclick: qayta }, 'Qayta urinish'));
 const yuklanmoqda = (matn = 'Yuklanmoqda…') => h('div', { class: 'card muted', role: 'status' }, matn);
 
+// Yorliq o'lchami (07.11 tun; InvenTree/JsBarcode g'oyasi): haqiqiy mm — yorliq printeri (har yorliq alohida sahifa) yoki A4 varaq.
+// Tanlov shu telefonda eslab qolinadi; server HTML'ni shu o'lchamda yasaydi (api.mjs YORLIQ_OLCHAM — kalitlar bir xil), faylning
+// o'zida ham almashtirsa bo'ladi. Shtrix-kod (Oson'dagi qutidagi kod) — narx ostida, server qo'yadi.
+export const YORLIQ_OLCHAMLAR = [['a4', 'A4 varaq'], ['58x40', '58×40'], ['40x30', '40×30'], ['30x20', '30×20']];
+const OLCHAM_KALIT = 'apteka-yorliq-olcham';
+export function yorliqOlcham() {
+  let v = null;
+  try { v = localStorage.getItem(OLCHAM_KALIT); } catch (e) { v = null; }
+  return YORLIQ_OLCHAMLAR.some(([k]) => k === v) ? v : 'a4';
+}
+const olchamQoy = (v) => { try { localStorage.setItem(OLCHAM_KALIT, v); } catch (e) { /* yopiq rejim — shu safar */ } };
+const olchamTanlov = () => h('div', {}, pills(YORLIQ_OLCHAMLAR, yorliqOlcham(), olchamQoy, 'Yorliq o\'lchami, mm'),
+  h('div', { class: 'muted', style: 'font-size:13px' }, 'Yorliq printeri bo\'lsa — uning yorlig\'i o\'lchami; oddiy printer — A4. Narx ostida shtrix-kod (Oson\'da bo\'lsa).'));
+
 // Yorliqlarni Telegram'ga yuborish (direktor ham, xodim ham): server HTML fayl qilib so'raganning o'ziga yuboradi.
 async function yorliqYubor(ctx, holat, b, keyin) {
   if (holat.yuborilmoqda) return;
   holat.yuborilmoqda = b; ctx.rerender();
   try {
-    const r = await ctx.amalFon('narxYorliq', b);
+    const r = await ctx.amalFon('narxYorliq', b, yorliqOlcham());
     if (r != null) ctx.toast('Yorliqlar Telegram\'ga yuborildi ✓ — kompyuterda oching va chop eting');
   } finally { holat.yuborilmoqda = ''; keyin(); }
 }
 function yorliqQatorlari(ctx, fil, yorliq, holat, keyin) {
-  return yorliq.map((y) => h('div', { class: 'line' }, h('span', {}, asl(filNom(fil, y)), ': ' + y.soni + ' ta yangi narx'),
+  return [olchamTanlov(), ...yorliq.map((y) => h('div', { class: 'line' }, h('span', {}, asl(filNom(fil, y)), ': ' + y.soni + ' ta yangi narx'),
     h('button', { class: 's', disabled: holat.yuborilmoqda ? '' : null, onclick: () => yorliqYubor(ctx, holat, y.b, keyin) },
-      holat.yuborilmoqda === y.b ? 'Yuborilmoqda…' : 'Telegram\'ga yuborish')));
+      holat.yuborilmoqda === y.b ? 'Yuborilmoqda…' : 'Telegram\'ga yuborish')))];
 }
 
 // ---------- Narx farqi (direktor) ----------

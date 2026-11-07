@@ -9,6 +9,7 @@ import { qoldiqMatn } from './oson-qoldiq.mjs';
 import { KIRILL, kirill } from './kirill.mjs';
 const yozuvMatni = (m) => (document.documentElement.classList.contains(KIRILL) ? kirill(m) : m);
 import { rasmKorilganmi, rasmQrXabari, royxatXabari } from './xabar.mjs';
+import { yuklashTugmalari } from './yuklash.mjs';
 
 // Ro'yxat serverdan olinadi va ekranda turadi; yangisi kelguncha eskisi ko'rinadi (sahifa tepaga sakramaydi).
 const BOSH = () => ({ punktlar: [], xabarlar: [], bemorlar: [] });
@@ -598,7 +599,8 @@ function hisobotView(m, ctx) {
   punktlar.forEach((map, nom) => { const rows = [...map.values()].sort((a, b) => b.soni - a.soni);
     m.append(ochiladi(nom, rows.map((r) => h('div', { class: 'line' }, h('span', {}, r.nom), h('b', { style: 'white-space:nowrap' }, r.soni + ' dona'))),
       { k: 'hisobot-' + nom, cls: 'karta list', izoh: rows.reduce((a, r) => a + r.soni, 0) + ' dona' })); });
-  m.append(h('button', { class: 'p', onclick: () => ctx.amal('dorilarExcel', dan, gacha).then((r) => r && ctx.toast('Excel fayl Telegram\'ga yuborildi ✓')) }, 'Excel — Telegram\'ga yuborish'));
+  // 07.11 tun: Telegram 8.0+ — to'g'ridan telefonga (bemor ma'lumoti yo'q hisobot); eski Telegram — avvalgidek bot orqali.
+  m.append(...yuklashTugmalari(ctx, { tur: 'dorilar_excel', args: [dan, gacha], botga: () => ctx.amal('dorilarExcel', dan, gacha) }));
 }
 
 function orashView(m, ctx, tp) {

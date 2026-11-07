@@ -6,7 +6,7 @@
 // Xato (bu yerdagi tekshiruv yoki server qoidasi) — o'sha maydon tagida, kerak bo'lsa o'sha qadamga qaytib.
 // Telegram «orqaga» — oldingi qadamga (1-qadamda — oyna yopiladi).
 import * as H from './hisob.mjs';
-import { h, input, pills, sana, sheet } from './ui.mjs';
+import { asosiyTugma, h, input, pills, sana, sheet } from './ui.mjs';
 import { qarzXabari } from './xabar.mjs';
 import { haptik } from './qobiq.mjs';
 
@@ -58,6 +58,16 @@ export function qarzUsta(ctx) {
     const past = h('div', { class: 'qu-past' });
     box.append(ichi, past);
     let maydon = null;   // shu qadamdagi birinchi xatoli maydon (fokus uchun)
+    // 07.11 tun: Telegram asosiy tugmasi (ekran pastida, klaviatura ustida) — shu qadamning asosiy amali; ko'ringanda sahifadagi
+    // nusxasi yashiriladi, Telegram eski bo'lsa yoki brauzerda — sahifadagi tugma. Oyna yopilganda — tozalanadi (sheet chaqiradi).
+    const asosiy = asosiyTugma({ oyna: box, bosildi: () => (qadam === 1 ? keyingi1() : qadam === 2 ? keyingi2() : saqla()) });
+    // Tugma yetarli yozilgandagina yonadi; bosilsa — to'liq tekshiruv (xato maydon tagida, avvalgidek).
+    const tayyormi = () => (qadam === 1 ? String(f.ism).trim().length >= 3 && String(f.tel).replace(/\D/g, '').length >= 9 : qadam === 2 ? !!f.summa : true);
+    const asosiyYangila = () => {
+      asosiy.yangila({ faol: true, band });   // audit 07.11: doim faol — bosilsa maydon tagida sabab (kul tugma jim turmasin)
+      // Pastki qatorda boshqa ko'rinadigan tugma qolmasa (1-qadam) — bo'sh qator ham yashiriladi.
+      past.hidden = asosiy.korinadimi() && ![...past.children].some((c) => !c.hidden);
+    };
 
     const bosqich = () => h('div', { class: 'qu-bosqich', role: 'img', 'aria-label': qadam + '-qadam, jami 3 ta' },
       ...[1, 2, 3].map((n) => h('i', { class: n < qadam ? 'otdi' : n === qadam ? 'shu' : '' })), h('span', { class: 'muted' }, qadam + ' / 3'));
@@ -69,8 +79,8 @@ export function qarzUsta(ctx) {
       const ism = input('Ism-sharifi', { inputmode: 'text', placeholder: 'Familiya Ism', autocapitalize: 'words', enterkeyhint: 'next' });
       const tel = input('Telefon raqami', { inputmode: 'tel', placeholder: '90 123 45 67', autocomplete: 'tel', enterkeyhint: 'next' });
       ism.i.value = f.ism; tel.i.value = f.tel;
-      ism.i.addEventListener('input', () => { f.ism = ism.i.value; xato.ism = ''; });
-      tel.i.addEventListener('input', () => { f.tel = tel.i.value; xato.tel = ''; });
+      ism.i.addEventListener('input', () => { f.ism = ism.i.value; xato.ism = ''; asosiyYangila(); });
+      tel.i.addEventListener('input', () => { f.tel = tel.i.value; xato.tel = ''; asosiyYangila(); });
       ism.i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); tel.i.focus(); } });
       tel.i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); keyingi1(); } });
       ism.xato(xato.ism); tel.xato(xato.tel);
@@ -82,7 +92,9 @@ export function qarzUsta(ctx) {
           ...old.map((q) => h('button', { type: 'button', class: 'qu-chip', onclick: () => { f.ism = q.ism; f.tel = q.tel; xato.ism = ''; xato.tel = ''; haptik('bos'); chiz(); } },
             h('b', { 'data-asl': '' }, q.ism), h('small', {}, q.tel)))));
       }
-      past.append(davom('Davom etish', keyingi1));
+      const d1 = davom('Davom etish', keyingi1);
+      past.append(d1);
+      asosiy.yangila({ matn: 'Davom etish', tugma: d1 });
     }
     function keyingi1() {
       xato.ism = ismXato(); xato.tel = telXato();
@@ -102,7 +114,7 @@ export function qarzUsta(ctx) {
         if (t.limit) ogoh.append(h('div', { class: 'msg warn' }, t.limit));
         t.ogohlantirish.forEach((o) => ogoh.append(h('div', { class: 'msg info' }, o)));
       };
-      const bos = (k) => { const v = raqamQosh(f.summa, k); if (v !== f.summa) { f.summa = v; xato.summa = ''; err.textContent = ''; haptik('bos'); } yangila(); };
+      const bos = (k) => { const v = raqamQosh(f.summa, k); if (v !== f.summa) { f.summa = v; xato.summa = ''; err.textContent = ''; haptik('bos'); } yangila(); asosiyYangila(); };
       const tugmalar = h('div', { class: 'qu-tugmalar', role: 'group', 'aria-label': 'Raqam tugmalari' },
         ...TUGMALAR.map((k) => h('button', { type: 'button', class: 'qu-k' + (k === '⌫' ? ' ochir' : ''), 'aria-label': k === '⌫' ? 'Oxirgi raqamni o\'chirish' : k, onclick: () => bos(k) }, k)));
       // Kompyuterda (klaviatura bor) — raqam va Backspace ham ishlaydi.
@@ -120,7 +132,9 @@ export function qarzUsta(ctx) {
         h('b', { class: 'qu-s' }, 'Qachon qaytaradi?'), muddat, muddatErr, tugmalar,
         h('div', { class: 'muted qu-limit' }, 'Bitta mijozga ko\'pi bilan ', h('b', {}, H.som(sz.limitMijoz || 0)), ' · siz yana ', h('b', {}, H.som(qoldi)), ' yozishingiz mumkin'), ogoh);
       yangila();
-      past.append(orqa(), davom('Davom etish', keyingi2));
+      const d2 = davom('Davom etish', keyingi2);
+      past.append(orqa(), d2);
+      asosiy.yangila({ matn: 'Davom etish', tugma: d2 });
     }
     function keyingi2() {
       xato.summa = summaXato();
@@ -144,7 +158,9 @@ export function qarzUsta(ctx) {
         h('div', { class: 'qu-diqqat', role: 'note' }, h('b', { 'aria-hidden': 'true' }, '!'),
           h('span', {}, 'Mijoz pulni qaytarsa — kassaga qo\'shmang, direktorga olib boring. Qarzni direktor yopadi.')),
         xato.umumiy ? h('div', { class: 'msg xato', role: 'alert' }, xato.umumiy) : null].filter(Boolean));   // Element.append(null) «null» yozadi
-      past.append(orqa(), davom(band ? 'Saqlanmoqda…' : t.limit ? 'Direktordan ruxsat so\'rash' : 'Qarzni saqlash', saqla));
+      const d3 = davom(band ? 'Saqlanmoqda…' : t.limit ? 'Direktordan ruxsat so\'rash' : 'Qarzni saqlash', saqla);
+      past.append(orqa(), d3);
+      asosiy.yangila({ matn: t.limit ? 'Direktordan ruxsat so\'rash' : 'Qarzni saqlash', tugma: d3 });
     }
 
     // Server (yoki shu yerdagi) qoida xatosi — o'z maydoniga; eng birinchi qadamga qaytiladi.
@@ -187,6 +203,7 @@ export function qarzUsta(ctx) {
       ichi.textContent = ''; past.textContent = ''; maydon = null;
       ichi.append(bosqich(), el);
       if (qadam === 1) qadam1(el); else if (qadam === 2) qadam2(el); else qadam3(el);
+      asosiyYangila();
       ichi.scrollTop = 0;
       // Fokus: xatoli maydon; aks holda savol (ekran o'quvchi yangi qadamni o'qiydi). 1-qadam birinchi ochilishi — sheet o'zi.
       if (!box.isConnected) return;
@@ -196,5 +213,6 @@ export function qarzUsta(ctx) {
     }
     chizish = chiz;
     chiz();
+    return asosiy;   // oyna yopilganda — Telegram tugmasi yashiriladi va bosish ulanishi olinadi
   }, { toliq: true, orqaga: () => { if (qadam > 1 && !band && chizish) { qadam -= 1; chizish(); return true; } return false; } });
 }

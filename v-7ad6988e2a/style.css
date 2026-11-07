@@ -1181,10 +1181,61 @@ html.matn-katta .yk-almash-m b { font-size: 20px; } html.matn-katta .yk-almash-m
   .qu-k:active, .qu-chip:active, button.katta:active, button.qu-asosiy:active, button.qu-orqa:active, .yk-tumbler i { transform: none !important; transition: none !important; }
   .yk-almash[aria-checked="true"] .yk-tumbler i { transform: translateX(22px) !important; }
 }
-=======
 /* ---------- 07.11: davlat reyestri (20261107210000_dori_reyestr; nazorat.mjs, oson-qoldiq.mjs) ----------
    «Retsept bilan» belgisi (qidiruv va analog natijasi) — info rangi o'z fonida ~6:1; «Narx chegarasidan oshgan» amallari. */
 .rx-belgi { display: inline-block; margin-top: 4px; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600;
   color: var(--info); background: var(--info-bg); }
 .chegara-karta .chegara-amal { gap: 16px; flex-wrap: wrap; }
 .oflayn-navbat { margin: 8px 12px; }
+/* 07.11 tun: hisobdan chiqarish / firmaga qaytarish (chiqarish.mjs) va Aqlli buyurtmada kutilgan qoldiq (pul.mjs). */
+.chiq-tugma { align-self: flex-start; margin-top: 6px; }
+.chiq-q { text-align: left; width: 100%; background: none; border: 0; padding: 10px 0; display: flex; flex-direction: column; gap: 4px; }
+.chiq-q.bekor > .line span { text-decoration: line-through; }
+.chiq-jami .big { font-size: 26px; }
+.buy-kutilgan { font-size: 13px; font-weight: 600; margin-top: 4px; color: var(--info); }
+
+/* ---------- 07.11 tun: harakat va Telegram tugmalari (ui.mjs, qidiruv.mjs, tanishuv.mjs) ----------
+   Faqat transform/opacity; vaqt — --m-tez / --m-orta; «kamroq harakat»da hammasi o'chadi (pastda). */
+/* Oyna tutqichi: sarlavhani pastga surib yopish (ui.mjs surishUlash). Teginish joyi — butun sarlavha (≥ 52 px). */
+.sheet .head.tortiladi { padding-top: 18px; touch-action: none; -webkit-user-select: none; user-select: none; }
+.sheet-tutqich { position: absolute; top: 6px; left: 50%; width: 40px; height: 5px; margin-left: -20px; border-radius: 3px; background: #B9CCC3; pointer-events: none; }
+/* Ro'yxat harakati: ketayotgan qator (eski nusxa) konteyner ichida mutlaq joylashadi. */
+[data-royxat] { position: relative; }
+/* Raqam aylanishi: raqamlar kengligi bir xil — sakramaydi. */
+.son-r { font-variant-numeric: tabular-nums; }
+/* View Transitions: butun ekran yumshoq almashadi; pastki menyu joyida qoladi (o'zi alohida). */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--m-orta); animation-timing-function: var(--m-kir); }
+.yangi-qobiq .yn-nav { view-transition-name: yn-menyu; }
+/* Sarlavhadagi 🔍 (direktor, yangi ko'rinish) — teginish 48 px. */
+.yh-qidir { width: 48px; min-height: 48px; height: 48px; flex: none; padding: 0; border-radius: 24px; background: var(--card); color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--sep); display: flex; align-items: center; justify-content: center; transition: opacity 120ms ease-out, transform 120ms ease-out; }
+.yh-qidir .ikon { width: 26px; height: 26px; }
+.yh-qidir:active { opacity: .65; transform: scale(.97); }
+.gq-natija { display: flex; flex-direction: column; gap: 4px; }
+.gq-natija .yb { margin-top: 6px; }
+.gq-yordam { padding: 4px 2px; }
+.gq-q { min-height: 56px; }
+/* Tanishtiruv: 3 ekran — katta matn, katta tugmalar (≥ 56 px). */
+.tn { display: flex; flex-direction: column; gap: 16px; padding-bottom: 4px; }
+.tn-nuqtalar { display: flex; gap: 6px; }
+.tn-nuqtalar i { flex: 1; height: 6px; border-radius: 3px; background: var(--sep); }
+.tn-nuqtalar i.shu, .tn-nuqtalar i.otdi { background: var(--accent); }
+.tn-ekran { display: flex; flex-direction: column; gap: 10px; animation: y-kir var(--m-orta) ease-out both; }
+.tn-ikon { width: 64px; height: 64px; border-radius: 20px; background: var(--soft); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+.tn-ikon .ikon { width: 36px; height: 36px; }
+.tn-s { font-size: 26px; line-height: 1.2; font-weight: 800; letter-spacing: -.015em; }
+.tn-s:focus { outline: 0; }
+.tn-ekran p { font-size: 18px; line-height: 1.45; }
+.tn-tugmalar { display: flex; flex-direction: column; gap: 8px; }
+.tn-tugmalar button { min-height: 56px; font-size: 18px; }
+html.matn-katta .tn-s { font-size: 30px; } html.matn-katta .tn-ekran p { font-size: 21px; }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+  .tn-ekran { animation: none !important; }
+  .yh-qidir:active { transform: none !important; }
+}
+/* 07.11: Bugun — 5 ta dumaloq tugma (Savdo, Xarajat, Qarz, Retsept, Buyurtma) bitta qatorda; 375 px telefonda ham sig'adi. */
+.yt.yt-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; }
+.yt.yt-5 .yt-d { width: 54px; height: 54px; border-radius: 27px; }
+.yt.yt-5 .yt-t { font-size: 14px; min-height: 90px; }
+html.matn-katta .yt.yt-5 .yt-t { font-size: 15px; }

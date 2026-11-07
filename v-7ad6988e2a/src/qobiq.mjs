@@ -75,6 +75,10 @@ export function korinishOyna(o = {}) {
     box.append(almash,
       h('div', { class: 'muted' }, 'Tanlov shu telefonda eslab qolinadi. Eski ko\'rinish bir hafta turadi.'),
       h('b', { class: 'yk-s' }, 'Harf o\'lchami'), harf,
+      // 07.11 tun: tanishtiruv (3 ekran) — faqat yangi ko'rinishda (u yangi panelni tushuntiradi).
+      o.tanishuv && !eski ? h('button', { type: 'button', class: 'yq yk-havola', onclick: () => { close(); o.tanishuv(); } },
+        kvadrat('xabar', 'yashil'), h('span', { class: 'yq-m' }, h('b', {}, 'Qanday ishlatiladi?'), h('span', { class: 'muted' }, '3 ta qisqa ekran — asosiy joylar')),
+        ikon('oldinga')) : null,
       o.sozlamalar ? h('button', { type: 'button', class: 'yq yk-havola', onclick: () => { close(); o.sozlamalar(); } },
         kvadrat('sozlama', 'kul'), h('span', { class: 'yq-m' }, h('b', {}, 'Barcha sozlamalar'), h('span', { class: 'muted' }, 'Filiallar, xodimlar, limitlar, kalitlar')),
         ikon('oldinga')) : null);
@@ -113,7 +117,8 @@ export function bolimlar(gs) {
 
 // Dumaloq tez tugmalar: [[ikonka, nom, rang, onclick]] — bir qatorda 4 tagacha.
 export function dumaloqlar(items) {
-  return h('div', { class: 'yt' }, ...items.filter(Boolean).map(([ik, nom, rang, onclick]) => h('button', { type: 'button', class: 'yt-t', onclick },
+  const q = items.filter(Boolean);
+  return h('div', { class: 'yt' + (q.length === 5 ? ' yt-5' : '') }, ...q.map(([ik, nom, rang, onclick]) => h('button', { type: 'button', class: 'yt-t', onclick },
     h('span', { class: 'yt-d ' + (rang || 'yashil') }, ikon(ik)), h('span', { class: 'yt-n' }, nom))));
 }
 

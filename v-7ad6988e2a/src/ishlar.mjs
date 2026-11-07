@@ -87,6 +87,8 @@ export const ISHLAR = {
   dorilarHisobot: [(S, men, dan, gacha) => A.dorilarHisobot(S, dan, gacha), (dan, gacha) => ['dorilar_hisobot', [m(dan), m(gacha)]]],
   dorilarExcel: [() => A.dorilarExcel(), (dan, gacha) => ['dorilar_excel', [m(dan), m(gacha)]]],
   punktExcel: [() => A.punktExcel(), (p) => ['punkt_excel', [p]]],
+  // 07.11 tun: bir martalik yuklash havolasi (Telegram downloadFile) — tur: 'dorilar_excel', args: o'sha amal argumentlari.
+  faylHavola: [() => A.dorilarExcel(), (tur, args) => ['fayl_havola', [m(tur), JSON.stringify(args || [])]]],
   punktRoyxatExcel: [() => A.punktRoyxatExcel(), (p, kun) => ['punkt_royxat_excel', [p, m(kun)]]],
   // «Bilimdon» o'yini — faqat serverda (sinov rejimida yo'q).
   oyinYarat: [() => A.oyinYoq(), (tur, soni, mavzu, jekpot) => ['oyin_yarat', [tur || 'klassik', Number(soni) || 15, m(mavzu), !!jekpot]]],
@@ -151,7 +153,8 @@ export const ISHLAR = {
   narxFarq: [() => A.osonYoq(), () => ['narx_farq', []]],
   narxBelgila: [() => A.osonYoq(), (g, narx) => ['narx_belgila', [m(g), p(narx)]]],
   narxXodim: [() => A.osonYoq(), () => ['narx_xodim', []]],
-  narxYorliq: [() => A.osonYoq(), (b) => ['narx_yorliq', [m(b)]]],
+  // 07.11 tun: o'lcham — '58x40' | '40x30' | '30x20' | 'a4' (nazorat.mjs yorliqOlcham; bo'sh — a4).
+  narxYorliq: [() => A.osonYoq(), (b, olcham) => ['narx_yorliq', [m(b), m(olcham)]]],
   kassaOson: [() => A.osonYoq(), (n) => ['kassa_oson', [Math.trunc(Number(n) || 7)]]],
   partiyaNazorat: [() => A.osonYoq(), () => ['partiya_nazorat', []]],
   partiyaNarx: [() => A.osonYoq(), (id, narx) => ['partiya_narx', [m(id), p(narx)]]],
@@ -171,6 +174,15 @@ export const ISHLAR = {
   // 07.11 kech (20261107220000_mijoz_boti): mijoz botda qilgan bronlar — faqat serverda (bron.mjs).
   bronlar: [() => A.osonYoq(), () => ['bron_royxat', []]],
   bronHolat: [() => A.osonYoq(), (id, holat) => ['bron_holat', [id, m(holat)]]],
+  // 07.11 (20261107280000_filial_sorov): «Osnovnoy'dan dori olish» — faqat serverda (filial-sorov.mjs).
+  doriSorovRoyxat: [() => A.osonYoq(), () => ['dori_sorov_royxat', []]],
+  doriSorovYoz: [() => A.osonYoq(), (f, nom, soni, birlik, izoh) => ['dori_sorov_yoz', [m(f), m(nom), Number.isInteger(soni) ? soni : null, m(birlik), m(izoh)]]],
+  doriSorovHolat: [() => A.osonYoq(), (id, holat, berildi, javob) => ['dori_sorov_holat', [id, m(holat), Number.isInteger(berildi) ? berildi : null, m(javob)]]],
+  // 07.11 tun (20261107260000_hisobdan_chiqarish): hisobdan chiqarish / firmaga qaytarish — faqat serverda (chiqarish.mjs).
+  chiqarishYoz: [() => A.osonYoq(), (b, pr, tur, quti, dona, sabab, izoh, firma) => ['chiqarish_yoz',
+    [m(b), m(pr), m(tur), Math.trunc(Number(quti) || 0), Math.trunc(Number(dona) || 0), m(sabab), String(izoh || '').trim().slice(0, 300), String(firma || '').trim().slice(0, 200)]]],
+  chiqarishRoyxat: [() => A.osonYoq(), (kun) => ['chiqarish_royxat', [Math.trunc(Number(kun) || 30)]]],
+  chiqarishBekor: [() => A.osonYoq(), (id, sabab) => ['chiqarish_bekor', [id, String(sabab || '').trim().slice(0, 300)]]],
   smenaDirektorYop: [(S, men, id) => A.smenaDirektorYop(S, men.id, id), (id) => ['smena_direktor_yop', [id]]],
   savdoYoq: [(S, men, f, kun, yoq) => A.savdoYoq(S, men.id, f, kun, yoq), (f, kun, yoq) => ['savdo_yoq_belgila', [m(f), m(kun), !!yoq]]],
   punktQosh: [(S, men, nom) => A.punktQosh(S, nom), (nom) => ['punkt_qosh', [m(nom)]]],

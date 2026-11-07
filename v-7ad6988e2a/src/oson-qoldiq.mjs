@@ -9,9 +9,11 @@
 // Audit 02.11: fondagi yangilanish faqat ma'lumot o'zgarsa va qidiruv ochiq bo'lmasa qayta chizadi (klaviatura yopilmasin);
 // majburiy yangilash ketayotgan so'rovdan keyin yana bir bor; nomlar (dori, firma, ishlab chiqaruvchi, filial) Кирилл'ga o'tmaydi.
 import * as H from './hisob.mjs';
-import { h, input, kartaSarlavha, pills, sheet, sana, tasdiqlash, vaqt } from './ui.mjs';
+import { h, input, kartaSarlavha, pills, royxatHarakat, sheet, sana, tasdiqlash, vaqt } from './ui.mjs';
 import { defNarxQator, firmalarOl } from './firma.mjs';
 import { skanerTugma } from './shtrix-skan.mjs';
+// 07.11 tun: hisobdan chiqarish / firmaga qaytarish (chiqarish.mjs bu fayldan qoldiqMatn oladi — aylanma import faqat chaqiruvda ishlatiladi).
+import { chiqarishOyna, chiqarishRuxsat, chiqarishTugma } from './chiqarish.mjs';
 
 const BOSH = () => ({ j: null, vaqt: 0, yuklanmoqda: null, keyin: false, xato: null, filial: '', ochiq: {}, tartib: {}, rejim: 'tugadi', defda: new Map(),
   muddat: { oy: 3, j: null, vaqt: 0, yuklanmoqda: null, xato: null }, otgan: { j: null, vaqt: 0, yuklanmoqda: null, ochiq: false }, qidir: { soz: '', jSoz: null, j: null, xato: null, taymer: 0, avlod: 0, chiz: null } });
@@ -90,6 +92,7 @@ const izohEl = (qismlar, cls = 'muted') => {
 // ro'yxati bo'yicha (server filial id'si bilan tartiblaydi — rang o'zgarmaydi). Filtr tanlangan bo'lsa ham belgi chiqadi.
 const FIL_RANG = 5;
 const filRang = (id) => { const i = ((O.j && O.j.filiallar) || []).findIndex((f) => f.id === id); return 'f' + ((i < 0 ? 0 : i) % FIL_RANG); };
+const bizFilial = (b) => (((O.j && O.j.filiallar) || []).find((f) => f.id === b) || {}).filial || null;   // Oson filiali → bizdagi
 const filBelgi = (fNom, id) => h('span', { class: 'oq-fil ' + filRang(id), 'data-asl': '' }, fNom(id));
 // B ko'rinishi (03.11, foydalanuvchi maketlardan B ni tanladi): filial, tartib va muddat — «▾» tugma, bosilsa pastdan oyna
 // (katta tugmalar; tanlangani ✓). Tugmada tanlangan qiymat doim yozilgan turadi.
@@ -272,7 +275,7 @@ function tugayaptiView(k, ctx, fil, chiz) {
     const b = boshqaBor(q);
     const qoldiq = q.tugadi ? h('div', { class: 'oq-q qizil' }, '0', h('small', {}, 'tugadi'))
       : h('div', { class: 'oq-q sariq' }, qoldiqMatn(q.soni, q.dona), h('small', {}, 'qoldi'));
-    ro.append(h('div', { class: 'oq-r' },
+    ro.append(h('div', { class: 'oq-r', 'data-rk': q.b + '|' + (q.p != null ? q.p : q.nom) },
       h('button', { type: 'button', class: 'oq-m', 'aria-label': q.nom + ' — batafsil', onclick: () => doriSheet(ctx, q, fNom, chiz) },
         h('span', { class: 'oq-n', 'data-asl': '' }, q.nom),
         izohEl([filBelgi(fNom, q.b),
@@ -288,6 +291,8 @@ function tugayaptiView(k, ctx, fil, chiz) {
       O.ochiq[O.rejim] ? 'Yig\'ish ▴' : 'Yana ' + (qatorlar.length - kor.length) + ' ta ▾'));
   }
   k.append(ro);
+  // 07.11 tun: dori tugasa/qaytsa (fondagi yangilanish) — qatorlar yumshoq suriladi; bo'lim/filial/tartib almashsa — boshqa ro'yxat.
+  royxatHarakat(ro, 'oq:' + O.rejim + ':' + (O.filial || '') + ':' + (O.tartib[O.rejim] || ''));
   // ⚙︎ faqat direktorda (audit 03.11: xodimga yo'q tugmani aytmaslik).
   if (j.jami > j.qatorlar.length) k.append(h('div', { class: 'muted' }, 'Ro\'yxatda birinchi ' + j.qatorlar.length + ' tasi (jami ' + j.jami + ').'
     + (j.direktor ? ' Kamroq ko\'rish uchun ⚙︎ → chegarani kamaytiring yoki «Faqat tugaganlar».' : '')));
@@ -316,6 +321,10 @@ function doriSheet(ctx, q, fNom, chiz) {
       j.direktor ? narxJoy : null,
       defda(q) ? h('div', { class: 'belgi ok', style: 'align-self:flex-start' }, '✓ Defekturada bor')
         : h('button', { class: 'p', onclick: () => { close(); defekturaga(ctx, q, chiz); } }, '+ Defekturaga'),
+      // 07.11 tun: qoldig'i bor dori — hisobdan chiqarish / firmaga qaytarish (shu oyna yopilib, forma ochiladi).
+      !q.tugadi && q.soni > 0 && chiqarishRuxsat(ctx, bizFilial(q.b))
+        ? h('button', { type: 'button', class: 's chiq-tugma', onclick: () => { close(); chiqarishOyna(ctx, { b: q.b, p: q.p, nom: q.nom, ishlab: q.ishlab, soni: q.soni, dona: q.dona, firma: q.firma, fn: fNom(q.b) }); } },
+          'Hisobdan chiqarish / Firmaga qaytarish') : null,
       j.direktor ? h('button', { class: 's', onclick: () => tasdiqlash('«' + q.nom + '» kerak emasmi? Dori yana yetarli qoldiq bilan kelguncha bu ro\'yxatda ko\'rinmaydi.')
         .then((ha) => ha && ctx.amal('osonKerakEmas', q.b, q.p, true).then((r) => {
           if (r == null) return;
@@ -360,7 +369,10 @@ function muddatView(k, ctx, fil, chiz) {
     izohEl([j2(fNom, q), (q.muddat < kun ? 'muddati o\'tgan: ' : 'muddati: ') + kunMatn(q.muddat) + (q.msoni != null ? ' — ' + qoldiqMatn(q.msoni, q.dona) : ''),
       'jami ' + qoldiqMatn(q.soni, q.dona), q.firma ? asl(q.firma) : null], q.muddat < kun ? 'oson-otgan' : 'muted'),
     q.ishlab ? h('div', { class: 'muted', style: 'font-size:13px', 'data-asl': '' }, q.ishlab) : null,
-    q.javon && q.muddat >= kun ? h('div', { class: 'belgilar' }, h('span', { class: 'belgi javon' }, 'Javondan oling')) : null);
+    q.javon && q.muddat >= kun ? h('div', { class: 'belgilar' }, h('span', { class: 'belgi javon' }, 'Javondan oling')) : null,
+    // 07.11 tun: muddati o'tgan / javondan olinadigan — hisobdan chiqarish yoki firmaga qaytarish.
+    (q.muddat < kun || q.javon) && chiqarishRuxsat(ctx, bizFilial(q.b))
+      ? chiqarishTugma(ctx, { b: q.b, p: q.p, nom: q.nom, ishlab: q.ishlab, soni: q.soni, dona: q.dona, firma: q.firma, otgan: q.muddat < kun, fn: fNom(q.b) }) : null);
   bolim(k, 'otgan', 'Muddati o\'tgan', otgan, qatorEl, chiz);
   bolim(k, 'javon', 'Javondan oling', javon, qatorEl, chiz);
   bolim(k, 'yaqin', 'Muddati yaqin', yaqin, qatorEl, chiz);
@@ -395,10 +407,13 @@ export function muddatiOtganKarta(ctx, fil, chiz) {
   const k = h('section', { class: 'card list' }, kartaSarlavha('Muddati o\'tgan dorilar — ' + fNom + ' (' + j.qatorlar.length + ')'),
     h('div', { class: 'muted' }, 'Sotmang — javondan oling va direktorga ayting. Oson · ' + sana(j.vaqt) + ' ' + vaqt(j.vaqt)), eski);
   const KOR = 5, kor = T.ochiq ? j.qatorlar : j.qatorlar.slice(0, KOR);
+  // 07.11 tun: har qatorda «Hisobdan chiqarish / Firmaga qaytarish» (server 'bid' — Oson filiali, 'p' — mahsulot bersa).
+  const yoza = chiqarishRuxsat(ctx, j.filial);
   kor.forEach((q) => k.append(h('div', { class: 'item' },
     h('b', { 'data-asl': '' }, q.nom),
     izohEl(['muddati o\'tgan: ' + kunMatn(q.muddat) + ' — ' + qoldiqMatn(q.msoni != null ? q.msoni : q.soni, q.dona),
-      q.b ? asl(q.b) : null, q.firma ? asl(q.firma) : null], 'oson-otgan'))));   // b — filialga bir nechta Oson filiali bog'langanda
+      q.b ? asl(q.b) : null, q.firma ? asl(q.firma) : null], 'oson-otgan'),   // b — filialga bir nechta Oson filiali bog'langanda
+    yoza && q.bid && q.p ? chiqarishTugma(ctx, { b: q.bid, p: q.p, nom: q.nom, ishlab: q.ishlab, soni: q.soni, dona: q.dona, firma: q.firma, otgan: true, fn: fNom }) : null)));
   if (j.qatorlar.length > KOR) k.append(h('button', { class: 's', onclick: () => { T.ochiq = !T.ochiq; chiz(); } }, T.ochiq ? 'Yig\'ish' : 'Yana ' + (j.qatorlar.length - KOR) + ' ta'));
   javonQism(k, j, T, chiz);
   return k;
@@ -501,6 +516,9 @@ function sozlaSheet(ctx, fil, chiz) {
 
 // Sinov uchun (tests): modul holatini tozalash.
 export function osonUnut() { Object.assign(O, BOSH()); }
+
+// 07.11 tun: direktor global qidiruvidan — «Qaysi filialda bor?» shu so'z bilan ochiladi (chizilganda o'zi qidiradi).
+export function osonQidiruvQoy(soz) { Object.assign(O.qidir, { soz: String(soz || ''), j: null, jSoz: null, xato: null }); }
 
 // ---------- Analog (07.11; foydalanuvchi: "3. qo'shamiz") — «Qaysi filialda bor?» natijasida «Analog» tugmasi ----------
 // Server (oson_analog): bog'langan analoglar (xodim/direktor bir marta bog'lagan) va nomi bir xil (boshqa ishlab chiqaruvchi yoki

@@ -3,7 +3,7 @@
 // «Bekor» (tasdiq bilan; mijozga xabar boradi). Bot xabaridagi tugmalar ham xuddi shu amal (api.mjs TUGMA_AMAL b/o/r).
 // Faqat serverda (server: bron_royxat — OQISH, bron_holat — YENGIL). Bosh sahifa ochiq turganda har daqiqada yangilanadi;
 // ro'yxat o'zgarsagina qayta chiziladi. Faol bron bo'lmasa — yashirin belgi (joy egallamaydi, yangilanish davom etadi).
-import { h, kartaSarlavha, sheet, tasdiqlash, vaqt } from './ui.mjs';
+import { h, kartaSarlavha, royxatHarakat, sheet, tasdiqlash, vaqt } from './ui.mjs';
 
 const YANGILASH = 60000;
 const FAOL = new Set(['yangi', 'tayyor']);
@@ -85,7 +85,7 @@ function tugmalar(ctx, chiz, b) {
 
 function qator(b, fil, ctx, chiz, bilanTugma) {
   const [hm, rang] = HOLAT[b.holat] || [b.holat, 'var(--muted)'];
-  return h('div', { class: 'item bron-q', 'data-bron': b.id },
+  return h('div', { class: 'item bron-q', 'data-bron': b.id, 'data-rk': b.id },
     h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '' }, b.nom),
       h('span', { class: 'bron-h', style: 'font-weight:600;white-space:nowrap;color:' + rang }, hm)),
     h('div', { class: 'muted' }, izoh(b, fil), b.ism ? [' · ', asl(b.ism)] : null),
@@ -109,6 +109,7 @@ function royxatOyna(ctx, fil, chiz) {
       if (!faol.length) l.append(h('div', { class: 'muted' }, 'Hozir faol bron yo\'q.'));
       faol.forEach((b) => l.append(qator(b, fil, ctx, chiz, true)));
       ich.append(l);
+      royxatHarakat(l, 'bron:oyna');   // 07.11 tun: «Olib ketdi» — qator yumshoq yo'qoladi
       if (boshqa.length) {
         const y = h('details', { class: 'ochil' }, h('summary', {}, 'Yopilganlar (24 soat) · ' + boshqa.length));
         const yl = h('div', { class: 'card list' });
@@ -136,6 +137,7 @@ export function bronKarta(ctx, fil, chiz) {
     ? yangi + ' ta yangi bron — mijoz 3 soat ichida keladi. Dorini tayyorlab qo\'ying.'
     : 'Hammasi tayyor — mijoz kelishini kuting.'));
   faol.slice(0, 3).forEach((b) => k.append(qator(b, fil, ctx, chiz, false)));
+  royxatHarakat(k, 'bron:karta');
   k.append(h('button', { type: 'button', class: 'p', onclick: () => royxatOyna(ctx, fil, chiz) },
     faol.length > 3 ? 'Hammasi (' + faol.length + ') — tayyorlash' : 'Ochish — tayyorlash'));
   return k;

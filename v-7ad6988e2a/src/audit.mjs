@@ -15,7 +15,7 @@ export const JADVAL = {
   xodimlar: 'Xodim', filiallar: 'Filial', sozlama: 'Sozlamalar', smenalar: 'Savdo (smena)', qarzlar: 'Mijoz qarzi',
   qarz_tolovlar: 'Qarz to\'lovi', avanslar: 'Avans (oylik)', taminotchilar: 'Ta\'minotchi', taminot_amallar: 'Ta\'minot yozuvi',
   narx_qaror: 'Narx qarori', partiyalar: 'Partiya', savdo_yoq: 'Savdo bo\'lmadi', davomat: 'Davomat', punktlar: 'Punkt',
-  shtrix_kodlar: 'Shtrix-kod'
+  shtrix_kodlar: 'Shtrix-kod', chiqarishlar: 'Hisobdan chiqarish'
 };
 const FILTR = [['', 'Hammasi'], ['smenalar', 'Savdo'], ['qarzlar', 'Qarzlar'], ['avanslar', 'Oylik'], ['taminot_amallar', 'Ta\'minot'],
   ['xodimlar', 'Xodimlar'], ['davomat', 'Davomat'], ['sozlama', 'Sozlamalar'], ['partiyalar', 'Partiyalar'], ['narx_qaror', 'Narx']];
@@ -36,7 +36,9 @@ export const MAYDON = {
   keldi: 'Keldi', kun: 'Kun', etiroz: 'E\'tiroz', asosiy: 'Asosiy filial', guruh: 'Guruh', kod: 'Shtrix-kod', ochirildi: 'O\'chirildi',
   'malumot.narx': 'Narx', 'malumot.narx_dir': 'Direktor narxi', 'malumot.seriya': 'Seriya', 'malumot.savdoNomi': 'Savdo nomi',
   'malumot.xpn': 'XPN', 'malumot.doza': 'Doza', 'malumot.yaroqlilik': 'Yaroqlilik', 'malumot.ishlabChiqarilgan': 'Ishlab chiqarilgan',
-  'malumot.faol': 'Faol', 'malumot.qidiruv': 'Qidiruv so\'zi'
+  'malumot.faol': 'Faol', 'malumot.qidiruv': 'Qidiruv so\'zi',
+  // 07.11 tun: hisobdan chiqarish / firmaga qaytarish
+  soni: 'Soni (quti)', tur: 'Turi', sabab: 'Sababi', firma: 'Firma', bekor_kim: 'Bekor qilgan'
 };
 // Pul maydonlari — «12 000 so'm» ko'rinishida.
 export const PUL = new Set(['oylik', 'limit_mijoz', 'limit_xodim', 'boshlangich_kassa', 'boshlangich_uy', 'naqd', 'karta', 'sanalgan',

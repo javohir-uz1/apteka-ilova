@@ -4,13 +4,13 @@
 import * as A from './amallar.mjs';
 import * as H from './hisob.mjs';
 import { API_URL } from './config.mjs';
-import { yukla, saqla, tozala, serverga, rasmOl, faylOl, firmaPraysYukla } from './store.mjs';
+import { yukla, saqla, tozala, serverga, rasmOl, faylOl, firmaPraysYukla, yuklashManzil } from './store.mjs';
 import { retseptBosh, retseptIchida, retseptRuxsat, retseptView } from './retsept.mjs';
 import { renderPunkt } from './punkt.mjs';
 import { serverSorovi, sinovdaBajar } from './ishlar.mjs';
 import { bandBolsaQayta, kutayotganKuzat, kutayotganMatn, kutayotganTashlangan, qoidaXatosi, sorovchi, urinishMatni } from './sorov.mjs';
 import { qarzXabari } from './xabar.mjs';
-import { guruhXato, h, holatniEsla, holatniTikla, input, ishQator, kartaSarlavha, kunNomi, mavzu, nav, ochiladi, oynalarYopilganda, oyKey, orqagaQoy, pills, sana, sheet, svg, tasdiqlash, tgOrqagaUlash, toast, unut, vaqt, xatoJoyla, yordam, yozuvTugma } from './ui.mjs';
+import { guruhXato, h, holatniEsla, holatniTikla, input, ishQator, kartaSarlavha, kunNomi, mavzu, nav, ochiladi, otishdami, oynalarYopilganda, oyKey, orqagaQoy, pills, sahifaOtish, sana, sheet, svg, tasdiqlash, tgOrqagaUlash, toast, unut, vaqt, xatoJoyla, yordam, yozuvTugma } from './ui.mjs';
 import { KIRILL, kirillDom, kirillKuzat, yozuvKirillmi } from './kirill.mjs';
 import { renderDirektor } from './direktor.mjs';
 import { renderTaminotchi } from './taminotchi.mjs';
@@ -19,12 +19,14 @@ import { shtrixKarta } from './shtrix.mjs';
 import { muddatiOtganKarta, osonQidiruv } from './oson-qoldiq.mjs';
 import { narxXodimKarta } from './nazorat.mjs';
 import { bronKarta } from './bron.mjs';
+import { sorovKarta } from './filial-sorov.mjs';
 import { inventarOrqaga, inventarView } from './inventar.mjs';
 import { oyinBanner, oyinBosh, oyinView } from './oyin.mjs';
 import { menDavomat } from './davomat.mjs';
 import { bolimlar, eskiKorinishmi, haptik, korinishOyna, korinishQolla, orqagaTugma, sozlamaTugmasi } from './qobiq.mjs';
 import { ikon } from './ikon.mjs';
 import { qarzUsta } from './qarz-usta.mjs';
+import { tanishuvAvto, tanishuvOch } from './tanishuv.mjs';
 
 // Telegram skripti brauzerda ham WebApp obyektini yaratadi — haqiqiy Telegram'da initData bo'sh bo'lmaydi.
 const tg = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData ? window.Telegram.WebApp : null;
@@ -337,6 +339,8 @@ function boshView(m, x) {
   if (!keldi.length && !qarzlarim.length) c.append(h('div', { class: 'muted' }, 'Hozircha yangilik yo\'q. Mijozga qarzga dori bersangiz — «Qarz yozish».'));
   m.append(c);
   // Muddati o'tgan dorilar — o'z filiali (vaqtincha biriktirilgan bo'lsa — o'sha filial; 03.11).
+  // 07.11: «Osnovnoy'dan dori olish» — filial xodimi so'raydi, Osnovnoy xodimi tayyorlaydi (filial-sorov.mjs; faqat serverda).
+  if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') render(); }));
   const mo = muddatiOtganKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); });
   if (mo) m.append(mo);
   // 07.11: direktor tanlagan narx — Oson'da tuzatish; narxi o'zgargan dorilarga yorliq (o'z filiali).
@@ -442,12 +446,14 @@ function oylikView(m, x) {
 // «orqaga» va ‹ (kelgan sahifaga). Qarz yozish — 3 qadamli oyna (qarz-usta.mjs; amal va tekshiruv eski oynadagidek).
 const XY_TAB = { bosh: 'Bosh sahifa', qarz: 'Qarzlarim', men: 'Men', oylik: 'Oyligim', dorilar: 'Dorilar', retsept: 'Retseptlar', oyin: 'Bilimdon', inventar: 'Inventar' };
 let xYol = [];   // ichki sahifalar yo'li (orqaga — shu tartibda)
-function xOch(t, d) { if (tab !== t) xYol.push(tab); tab = t; if (d) dTab = d; render(true); }
+// 07.11 tun: sahifa almashishi — View Transition (qo'llamasa — oddiy). sinxron — chizishdan keyin darhol DOM'ga tegiladi
+// (qidiruvga fokus, kamera tugmasi: iPhone klaviatura va kamerani faqat bosish ichida ochadi) — o'tishsiz.
+function xOch(t, d, sinxron) { if (tab !== t) xYol.push(tab); tab = t; if (d) dTab = d; if (sinxron) render(true); else sahifaOtish(() => render(true)); }
 function xOrqaga() {
   if (tab === 'retsept' && retseptIchida()) { retseptBosh(); render(true); return; }
   if (tab === 'inventar' && inventarOrqaga()) { render(true); return; }
   tab = xYol.pop() || 'bosh';
-  render(true);
+  sahifaOtish(() => render(true));
 }
 const qarzYoz = (x) => (eskiKorinishmi() ? qarzSheet(x) : qarzUsta({ S: () => S, x, amalX, toast }));
 
@@ -496,12 +502,13 @@ function renderXodimYangi(x) {
   }
   root.append(m);
   orqagaQoy(ichki ? xOrqaga : null);
+  tanishuvAvto('xodim');   // 07.11 tun: birinchi ochilishda 3 ta qisqa ekran (shu Telegram akkaunti uchun bir marta)
 }
 
 // Qidiruv sahifasini ochadi (Dorilar → Narxlar) va maydonga fokus beradi; skan — o'sha yerdagi kamera tugmasi bosiladi.
 // Bosish ichida (iOS klaviatura va kamerani faqat foydalanuvchi bosganda ochadi).
 function qidiruvOch(skan) {
-  xOch('dorilar', 'narx');
+  xOch('dorilar', 'narx', true);
   if (skan) { const b = root.querySelector('main .skan-tugma'); if (b) { b.click(); return; } }
   qidiruvgaFokus();
 }
@@ -545,6 +552,8 @@ function xBosh(m, x) {
   }
   if (!keldi.length && !qarzlarim.length) c.append(h('div', { class: 'muted' }, 'Hozircha yangilik yo\'q.'));
   m.append(c);
+  // 07.11: «Osnovnoy'dan dori olish» — filial xodimi so'raydi, Osnovnoy xodimi tayyorlaydi (filial-sorov.mjs; faqat serverda).
+  if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') render(); }));
   const mo = muddatiOtganKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); });
   if (mo) m.append(mo);
   const nk = SERVER && fy('x_narx') ? narxXodimKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); }) : null;
@@ -571,7 +580,8 @@ function xMen(m, x) {
       { ikon: 'oylik', rang: 'yashil', l: 'Oyligim', izoh: 'Oylik, avanslar' + (dv && !dv.xato ? ' · shu oy ' + dv.keldi + ' kun keldingiz' : ', davomat'), onclick: () => xOch('oylik') },
       fy('x_oyin') ? { ikon: 'oyin', rang: 'binafsha', l: 'Bilimdon', izoh: 'O\'yin va mashqlar — dorilarni yaxshiroq bilish uchun', onclick: () => { oyinBosh(); xOch('oyin'); } } : null].filter(Boolean) },
     { nom: 'Ilova', qatorlar: [
-      { ikon: 'korinish', rang: 'kul', l: 'Ko\'rinish', izoh: 'Eski ko\'rinish, harf o\'lchami', onclick: () => xKorinish() }] }]));
+      { ikon: 'korinish', rang: 'kul', l: 'Ko\'rinish', izoh: 'Eski ko\'rinish, harf o\'lchami', onclick: () => xKorinish() },
+      { ikon: 'xabar', rang: 'yashil', l: 'Qanday ishlatiladi?', izoh: '3 ta qisqa ekran — asosiy joylar', onclick: () => tanishuvOch('xodim') }] }]));
 }
 
 // Prays-listdan qidirish (faqat o'qish — holat yangilanmaydi). Xato bo'lsa — bo'sh ro'yxat.
@@ -587,7 +597,9 @@ async function oqi(nom, ...args) {
   return (await bandBolsaQayta(() => serverga(api, a, tg.initData))).natija;   // server band (503) — o'zi qayta
 }
 const rasmniOl = (id) => (SERVER ? rasmOl(id, tg.initData) : Promise.resolve(null));
-const retseptCtx = (x) => ({ S, x, amal, amalX, amalFon, oqi, toast, rasmOl: rasmniOl, rerender: render, server: SERVER, tg });
+// yuklashManzil (07.11 tun) — telefonga yuklash havolasi (store.mjs; sinov rejimida yo'q).
+const retseptCtx = (x) => ({ S, x, amal, amalX, amalFon, oqi, toast, rasmOl: rasmniOl, rerender: render, server: SERVER, tg,
+  yuklashManzil: SERVER ? yuklashManzil : null });
 // Firma prayslari (30.10): faylni olish va saqlash — server band (503) bo'lsa o'zi qayta.
 const firmaCtx = SERVER ? { fayl: (id) => bandBolsaQayta(() => faylOl(id, tg.initData)), yukla: (b) => bandBolsaQayta(() => firmaPraysYukla(b, tg.initData)) } : null;
 
@@ -616,7 +628,8 @@ function render(o) {
   try { navbatBelgi(); } catch (e) { /* belgisiz */ }
   holatniTikla(root);
   // Harakat (29.10): yangi bo'lim/sahifa ochilganda — bloklar ketma-ket chiqadi; holat yangilanganda harakat yo'q.
-  if (tepaga) { const mm = root.querySelector('main, .o-main'); if (mm) mm.classList.add('kirish'); }
+  // 07.11 tun: View Transition ketayotgan bo'lsa — ekranni brauzer almashtiradi, bloklar alohida chiqmaydi (ikki harakat bo'lmasin).
+  if (tepaga && !otishdami()) { const mm = root.querySelector('main, .o-main'); if (mm) mm.classList.add('kirish'); }
   window.scrollTo(0, tepaga ? 0 : y);
 }
 
@@ -656,7 +669,7 @@ function panelChiz() {
   if (eskiKorinishmi()) renderXodim(x); else renderXodimYangi(x);
 }
 // Ko'rinish oynasi (Telegram ⋮ → Sozlamalar; ilovada — Men → «Ko'rinish»). Almashganda — Bosh sahifaga.
-const xKorinish = () => korinishOyna({ rerender: render, almashdi: () => { tab = 'bosh'; xYol = []; } });
+const xKorinish = () => korinishOyna({ rerender: render, almashdi: () => { tab = 'bosh'; xYol = []; }, tanishuv: () => tanishuvOch('xodim') });
 
 // Telegram ichida ochilganmi (SDK kelmagan bo'lsa ham): Telegram manzilga tgWebAppData qo'shadi va o'z ko'prigini qo'yadi.
 const telegramdanOchilgan = () => /tgWebAppData=/.test(location.hash) || typeof window.TelegramWebviewProxy !== 'undefined';

@@ -56,7 +56,9 @@ export function pulKirish(och) {
     t('inventar', '📋', 'Inventarizatsiya', 'Telefon bilan sanash, Oson bilan solishtirish'),
     // 07.11: filiallarda narx farqi va yorliqlar; kiritilgan savdo va Oson sotuvi.
     t('narx', '🏷', 'Narx farqi', 'Filiallarda har xil narx, yorliqlar'),
-    t('kassa', '💵', 'Kassa ↔ Oson', 'Kiritilgan savdo va Oson sotuvi'));
+    t('kassa', '💵', 'Kassa ↔ Oson', 'Kiritilgan savdo va Oson sotuvi'),
+    // 07.11 tun: hisobdan chiqarilgan va firmaga qaytarilgan dorilar (sabab bilan).
+    t('chiqarish', '🗑', 'Hisobdan chiqarilganlar', 'Muddati o\'tgan, singan, qaytarilgan'));
 }
 
 // Audit 06.11: xatodan keyin ham 1 daqiqa kutiladi («Qayta urinish» — majbur); aks holda har chizishda yangi so'rov ketib,
@@ -256,7 +258,9 @@ export function buyurtmaView(m, ctx, fil) {
       + 'Har kuni emas, uzuq-uzuq sotiladigan dori («uzuq-uzuq», «notekis», «bo\'lak») — Syntetos–Boylan usuli: o\'rtacha 5% kamroq olinadi (ortiqcha zaxira yig\'ilmasin). '
       + 'A / B / C — 30 kunlik tushum: A — tushumning 80% ini beradigan dorilar (+3 kun zaxira), B — keyingi 15% (+1 kun), C — qolgani (qo\'shimchasiz). '
       + 'Defekturada so\'ralgan va kutayotgan mijozlar — qo\'shimcha quti. Firma «Buyurtma berdim» dan Oson\'da «Keldi» gacha odatda necha kunda olib kelgani '
-      + 'kamida 3 marta ko\'rilgan bo\'lsa — yuqoridagi yetkazish kunlari o\'rniga shu olinadi.', 'Qanday hisoblanadi?'));
+      + 'kamida 3 marta ko\'rilgan bo\'lsa — yuqoridagi yetkazish kunlari o\'rniga shu olinadi. '
+      + 'Kutilgan qoldiq = Oson\'dagi qoldiq + yo\'ldagi (defekturada «Buyurtma berdim», hali kelmagan — har yozuv kamida 1 quti) − mijozlar bron qilgan qutilar: '
+      + 'buyurtma berilgan dori qayta tavsiya qilinmaydi, bron qilingani sotilgan deb olinadi.', 'Qanday hisoblanadi?'));
     if (Array.isArray(j.firmalar) && j.firmalar.length) m.append(firmalarKarta(j.firmalar));
   }
   if (B.filial && !j.qatorlar.some((x) => (x.f || x.fn) === B.filial)) B.filial = '';
@@ -297,8 +301,22 @@ function bQator(x, fil) {
   return h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, x.nom), h('b', { class: 'pul-kerak' }, x.kerak + ' quti')),
     izohEl([asl(filNom(fil, x)), x.tugadi ? 'tugagan' : 'qoldiq ' + qoldiqMatn(x.qoldiq, x.dona), 'kuniga ' + kunlik + ' quti',
       x.yetadi != null ? String(x.yetadi).replace('.', ',') + ' kunga yetadi' : null, x.def ? 'defekturada bor' : null], kam || x.tugadi ? 'oson-otgan' : 'muted'),
+    kutilganEl(x),
     buyBelgilar(x),
     x.eng ? h('div', { class: 'firma-nomi', 'data-asl': '' }, x.eng.firma + ': ' + x.eng.nom + ' — ' + H.som(x.eng.yuz) + (x.eng.aniq ? '' : ' (taxminiy)')) : null);
+}
+
+// Kutilgan qoldiq (07.11 tun, server 20261107260000): «Bor 3 · yo'lda 10 · bron 1 → kutilgan 12» — yo'lda (defekturada «Buyurtma
+// berdim», hali kelmagan) yoki bron bo'lsa. Soni — quti (kasr — ochilgan quti). Eski server (maydonlar yo'q) — hech narsa.
+const qutiM = (n) => String(Math.round(Number(n) * 100) / 100).replace('.', ',').replace('-', '−');
+export function kutilganMatn(x) {
+  if (!x || x.kutilgan == null || !(Number(x.yolda) > 0 || Number(x.bron) > 0)) return null;
+  return ['Bor ' + qutiM(x.qoldiq), Number(x.yolda) > 0 ? 'yo\'lda ' + qutiM(x.yolda) : null, Number(x.bron) > 0 ? 'bron ' + qutiM(x.bron) : null]
+    .filter(Boolean).join(' · ') + ' → kutilgan ' + qutiM(x.kutilgan);
+}
+function kutilganEl(x) {
+  const t = kutilganMatn(x);
+  return t ? h('div', { class: 'buy-kutilgan', title: 'Yo\'lda — «Buyurtma berdim» qilingan, hali kelmagan (har yozuv kamida 1 quti); bron — mijozlar bron qilgan qutilar' }, t) : null;
 }
 
 // Aqlli buyurtma 2 belgilari (server 20261107200000): ABC, sotuv turi, tugagan kunlar, kutayotgan mijozlar, firma yetkazish vaqti.
