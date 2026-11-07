@@ -7,7 +7,10 @@
 // Audit 06.11 kech: oyna yopilgach o'qish natijasi e'tiborsiz (ishchi qayta yaratilmaydi); ilova yashirilsa, surat olinayotganda
 // va 1,5 daqiqadan keyin jonli kamera o'chadi («📷 Jonli kamerani ochish» bilan qaytadi); jonli kadrdan — o'rtadagi ramka qismi
 // to'liq aniqlikda (tezroq va aniqroq), har 4-kadr — butun kadr.
+// 07.11: qutidagi DataMatrix («Asl belgisi», GS1) ham o'qiladi — ZXing ishchisida doim, Android'da telefon o'qisa; GS1 matnidan
+// GTIN → EAN-13 (gs1.mjs): chaqiruvchi avvalgidek shtrix-kod oladi, tafsilot (muddat, seriya, raqam) — ikkinchi argumentda.
 import { h, sheet } from './ui.mjs';
+import { gs1Ajrat } from './gs1.mjs';
 
 const TURLAR = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'];
 const KOD = /^\d{8,14}$/;
@@ -17,9 +20,19 @@ const kutish = (ms) => new Promise((ok) => setTimeout(ok, ms));
 // UPC-A (12 raqam) → EAN-13 (oldiga 0): Oson'da va ZXing'da shtrix-kod 13 raqamli (audit: 0 tushib qolsa topilmasdi).
 export const kodTozala = (v, format) => { const k = String(v || '').trim(); return format === 'upc_a' && /^\d{12}$/.test(k) ? '0' + k : k; };
 
-// Brauzerning o'z o'quvchisi (bo'lsa) — { oqi(manba) → kod | null }.
+// O'qilgan matn → { kod, format, gs1 } | null (kod — 8–14 raqam). GTIN'li GS1 (DataMatrix) — kod = EAN-13 (yoki GTIN-14,
+// gs1.mjs shtrixKod bilan bir xil), gs1 — tafsilot; boshqasi — avvalgidek (gs1: null, raqam bo'lmasa — o'qilmagan).
+export function oqilgan(matn, format) {
+  const g = gs1Ajrat(matn, format);
+  const gs1 = g && g.gtin ? g : null;
+  const kod = gs1 ? gs1.ean13 || gs1.gtin : kodTozala(matn, format);
+  return KOD.test(kod) ? { kod, format: format || null, gs1 } : null;
+}
+
+// Brauzerning o'z o'quvchisi (bo'lsa) — { oqi(manba) → { kod, format, gs1 } | null }. DataMatrix — faqat getSupportedFormats
+// aytsa (1D turlari avvalgidek shart).
 let tabiiy = null;
-function tabiiyOquvchi() {
+export function tabiiyOquvchi() {
   return tabiiy || (tabiiy = (async () => {
     try {
       const BD = globalThis.BarcodeDetector;
@@ -27,11 +40,13 @@ function tabiiyOquvchi() {
       const bor = BD.getSupportedFormats ? await BD.getSupportedFormats() : TURLAR;
       const t = TURLAR.filter((x) => bor.includes(x));
       if (!t.length) return null;
+      if (bor.includes('data_matrix')) t.push('data_matrix');
       const det = new BD({ formats: t });
       return {
         oqi: async (manba) => {
           const r = await det.detect(manba).catch(() => []);
-          return (r || []).map((x) => kodTozala(x.rawValue, x.format)).find((x) => KOD.test(x)) || null;
+          for (const x of r || []) { const n = oqilgan(x.rawValue, x.format); if (n) return n; }
+          return null;
         }
       };
     } catch (e) { return null; }
@@ -39,13 +54,16 @@ function tabiiyOquvchi() {
 }
 
 const ISHCHI_XATO = 'Shtrix-kod o\'quvchisi yuklanmadi — internetni tekshiring';
-// ZXing ishchisi — { oqi(ImageData, qattiq) → kod | null, yop() }.
+// ZXing ishchisi — { oqi(ImageData, qattiq) → { kod, format, gs1 } | null, yop() }.
 function ishchiOquvchi() {
   const w = new Worker(new URL('./shtrix-ishchi.js', import.meta.url));
   let n = 0, buzildi = null;
   const kut = new Map();
   const hammasigaXato = (e) => { kut.forEach((p) => p.no(e)); kut.clear(); };
-  w.onmessage = (e) => { const p = kut.get(e.data && e.data.id); if (p) { kut.delete(e.data.id); p.ok(e.data.natija || null); } };
+  w.onmessage = (e) => {
+    const d = e.data || {}, p = kut.get(d.id);
+    if (p) { kut.delete(d.id); p.ok(d.natija ? oqilgan(d.natija, d.format) : null); }
+  };
   w.onerror = (e) => { if (e && e.preventDefault) e.preventDefault(); buzildi = new Error(ISHCHI_XATO); hammasigaXato(buzildi); };
   return {
     oqi: (img, qattiq = false) => new Promise((ok, no) => {
@@ -53,7 +71,7 @@ function ishchiOquvchi() {
       const id = ++n;
       kut.set(id, { ok, no });
       w.postMessage({ id, data: img.data.buffer, width: img.width, height: img.height, qattiq }, [img.data.buffer]);
-    }).then((k) => (k && KOD.test(k) ? k : null)),
+    }),
     yop: () => { w.terminate(); hammasigaXato(new Error('to\'xtatildi')); }
   };
 }
@@ -87,7 +105,8 @@ function suratYukla(fayl) {
   });
 }
 
-// Tugma: kichik «📷 Qutidan» (qidiruv yonida) yoki katta «📷 Kamera bilan o'qish» (inventarizatsiya). Topilgan raqam — topildi(kod).
+// Tugma: kichik «📷 Qutidan» (qidiruv yonida) yoki katta «📷 Kamera bilan o'qish» (inventarizatsiya). Topilgan raqam —
+// topildi(kod, { format, gs1 }) (gs1 — DataMatrix tafsiloti yoki null; eski chaqiruvchilar faqat kod'ni oladi).
 export function skanerTugma(topildi, { katta = false } = {}) {
   return h('button', { type: 'button', class: (katta ? 'p katta' : 's') + ' skan-tugma', 'aria-label': 'Qutidagi shtrix-kodni kamera bilan o\'qish',
     onclick: () => skanerOyna(topildi) }, katta ? '📷 Kamera bilan o\'qish' : '📷 Qutidan');
@@ -112,7 +131,7 @@ function skanerOyna(topildi) {
       document.removeEventListener('visibilitychange', yashirildi);
       try { if (tgw && tgw.offEvent) tgw.offEvent('deactivated', yigildi); } catch (e) { /* eski Telegram */ }
     };
-    const topdi = (kod) => { if (tugadi || toxta) return; tugadi = true; yop(); close(); topildi(kod); };
+    const topdi = (n) => { if (tugadi || toxta) return; tugadi = true; yop(); close(); topildi(n.kod, { format: n.format, gs1: n.gs1 }); };
     const ishchiOl = () => { if (toxta) throw new Error('to\'xtatildi'); return ishchi || (ishchi = ishchiOquvchi()); };
     const toxtatildi = (sabab) => {
       kameraOchir(); vb.hidden = true; qayta.hidden = false;
@@ -148,9 +167,9 @@ function skanerOyna(topildi) {
           if (video.videoWidth) {
             if (!korindi) { korindi = true; holat.textContent = 'Shtrix-kodni ramkaga yotiq to\'g\'rilang…'; }
             const vw = video.videoWidth, vh = video.videoHeight;
-            const kod = tb ? await tb.oqi(video)
+            const nat = tb ? await tb.oqi(video)
               : await ishchiOl().oqi(n++ % 4 === 3 ? kadr(c, video, [0, 0, vw, vh], 960) : kadr(c, video, markaz(vw, vh), 1280));
-            if (kod) { topdi(kod); return; }
+            if (nat) { topdi(nat); return; }
           } else if (!korindi && Date.now() - t0 > 6000) {
             holat.textContent = 'Kamera tasviri kelmayapti — «📸 Rasmga olish»ni bosing.';
           }
@@ -184,14 +203,14 @@ function skanerOyna(topildi) {
         if (toxta) return;
         const w = img.naturalWidth || img.width, hh = img.naturalHeight || img.height;
         const tb = await tabiiyOquvchi();
-        let kod = tb ? await tb.oqi(img) : null;
+        let nat = tb ? await tb.oqi(img) : null;
         // Bir necha o'lchamda va 90° burib (shtrix-kod tik olingan bo'lsa); sinchiklab (qattiq).
         for (const [en, burch] of [[1280, false], [1280, true], [800, false], [1920, false]]) {
-          if (kod || tugadi || toxta) break;
-          kod = await ishchiOl().oqi(kadr(c, img, [0, 0, w, hh], en, burch), true);
+          if (nat || tugadi || toxta) break;
+          nat = await ishchiOl().oqi(kadr(c, img, [0, 0, w, hh], en, burch), true);
         }
         if (tugadi || toxta) return;
-        if (kod) topdi(kod);
+        if (nat) topdi(nat);
         else holat.textContent = 'Rasmdan shtrix-kod topilmadi — yaqinroqdan, tekis va yorug\'da qayta oling (shtrix-kod rasmning o\'rtasida bo\'lsin).';
       } catch (e) {
         if (!tugadi && !toxta) holat.textContent = (e && e.message) || 'Rasm o\'qilmadi';

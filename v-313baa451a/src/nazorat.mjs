@@ -6,7 +6,9 @@ import * as H from './hisob.mjs';
 import { h, input, kartaSarlavha, pills, sana, sheet, tasdiqlash, vaqt } from './ui.mjs';
 import { qoldiqMatn } from './oson-qoldiq.mjs';
 
-const NB = () => ({ j: null, y: null, vaqt: 0, yuklanmoqda: null, xato: null, saralash: 'hammasi', ochiq: false, yuborilmoqda: '' });
+// c — davlat reyestri narx chegarasi (20261107210000_dori_reyestr; eski serverda yo'q — bo'lim ko'rinmaydi).
+const NB = () => ({ j: null, y: null, c: null, vaqt: 0, yuklanmoqda: null, xato: null, saralash: 'hammasi', ochiq: false, yuborilmoqda: '',
+  chOchiq: false, moslanmoqda: false });
 // Kassa: j — jKalit davri uchun; xato — xatoKalit davri uchun (audit 07.11: xatoda eski davr yangisi ostida ko'rinardi).
 const KB = () => ({ j: null, jKalit: 0, kunlar: 7, vaqt: 0, yuklanmoqda: null, xato: null, xatoKalit: 0, ochiq: {} });
 const XB = () => ({ j: null, vaqt: 0, yuklanmoqda: null, xato: null, yuborilmoqda: '' });
@@ -23,36 +25,55 @@ const haftaKuni = (d) => HAFTA[new Date(d + 'T12:00:00+05:00').getUTCDay()];
 const xatoKarta = (xato, qayta) => h('div', { class: 'card' }, h('div', { class: 'muted' }, xato), h('button', { class: 's', onclick: qayta }, 'Qayta urinish'));
 const yuklanmoqda = (matn = 'Yuklanmoqda…') => h('div', { class: 'card muted', role: 'status' }, matn);
 
+// Yorliq o'lchami (07.11 tun; InvenTree/JsBarcode g'oyasi): haqiqiy mm — yorliq printeri (har yorliq alohida sahifa) yoki A4 varaq.
+// Tanlov shu telefonda eslab qolinadi; server HTML'ni shu o'lchamda yasaydi (api.mjs YORLIQ_OLCHAM — kalitlar bir xil), faylning
+// o'zida ham almashtirsa bo'ladi. Shtrix-kod (Oson'dagi qutidagi kod) — narx ostida, server qo'yadi.
+export const YORLIQ_OLCHAMLAR = [['a4', 'A4 varaq'], ['58x40', '58×40'], ['40x30', '40×30'], ['30x20', '30×20']];
+const OLCHAM_KALIT = 'apteka-yorliq-olcham';
+export function yorliqOlcham() {
+  let v = null;
+  try { v = localStorage.getItem(OLCHAM_KALIT); } catch (e) { v = null; }
+  return YORLIQ_OLCHAMLAR.some(([k]) => k === v) ? v : 'a4';
+}
+const olchamQoy = (v) => { try { localStorage.setItem(OLCHAM_KALIT, v); } catch (e) { /* yopiq rejim — shu safar */ } };
+const olchamTanlov = () => h('div', {}, pills(YORLIQ_OLCHAMLAR, yorliqOlcham(), olchamQoy, 'Yorliq o\'lchami, mm'),
+  h('div', { class: 'muted', style: 'font-size:13px' }, 'Yorliq printeri bo\'lsa — uning yorlig\'i o\'lchami; oddiy printer — A4. Narx ostida shtrix-kod (Oson\'da bo\'lsa).'));
+
 // Yorliqlarni Telegram'ga yuborish (direktor ham, xodim ham): server HTML fayl qilib so'raganning o'ziga yuboradi.
 async function yorliqYubor(ctx, holat, b, keyin) {
   if (holat.yuborilmoqda) return;
   holat.yuborilmoqda = b; ctx.rerender();
   try {
-    const r = await ctx.amalFon('narxYorliq', b);
+    const r = await ctx.amalFon('narxYorliq', b, yorliqOlcham());
     if (r != null) ctx.toast('Yorliqlar Telegram\'ga yuborildi ✓ — kompyuterda oching va chop eting');
   } finally { holat.yuborilmoqda = ''; keyin(); }
 }
 function yorliqQatorlari(ctx, fil, yorliq, holat, keyin) {
-  return yorliq.map((y) => h('div', { class: 'line' }, h('span', {}, asl(filNom(fil, y)), ': ' + y.soni + ' ta yangi narx'),
+  return [olchamTanlov(), ...yorliq.map((y) => h('div', { class: 'line' }, h('span', {}, asl(filNom(fil, y)), ': ' + y.soni + ' ta yangi narx'),
     h('button', { class: 's', disabled: holat.yuborilmoqda ? '' : null, onclick: () => yorliqYubor(ctx, holat, y.b, keyin) },
-      holat.yuborilmoqda === y.b ? 'Yuborilmoqda…' : 'Telegram\'ga yuborish')));
+      holat.yuborilmoqda === y.b ? 'Yuborilmoqda…' : 'Telegram\'ga yuborish')))];
 }
 
 // ---------- Narx farqi (direktor) ----------
 function nYukla(ctx, chiz, majbur = false) {
   if (N.yuklanmoqda) return;
   if (!majbur && (N.j || N.xato) && Date.now() - N.vaqt < 60000) return;
-  N.yuklanmoqda = Promise.all([ctx.oqi('narxFarq'), ctx.oqi('narxXodim').catch(() => null)])
-    .then(([j, y]) => { if (!j || !Array.isArray(j.qatorlar)) throw new Error('Server javobi tushunarsiz'); N.j = j; N.y = y; N.xato = null; },
+  N.yuklanmoqda = Promise.all([ctx.oqi('narxFarq'), ctx.oqi('narxXodim').catch(() => null), ctx.oqi('narxChegara').catch(() => null)])
+    .then(([j, y, c]) => { if (!j || !Array.isArray(j.qatorlar)) throw new Error('Server javobi tushunarsiz'); N.j = j; N.y = y; N.c = c; N.xato = null; },
       (e) => { N.xato = (e && e.message) || 'Ma\'lumot olinmadi'; })
     .finally(() => { N.vaqt = Date.now(); N.yuklanmoqda = null; chiz(); });
 }
 
 // To'g'ri narxni tanlash: filiallardagi narxlardan biri yoki boshqa summa; tanlov olib tashlanishi mumkin.
-function narxOyna(ctx, x, fil, keyin) {
+// chegara (davlat reyestri, «Narx chegarasidan oshgan» dan) — undan yuqori narx tavsiya qilinmaydi, yozilsa so'raladi.
+function narxOyna(ctx, x, fil, keyin, chegara = null) {
   sheet('To\'g\'ri narx', (box, close) => {
-    const narxlar = [...new Set(x.filiallar.map((f) => Number(f.narx)))].sort((a, b) => b - a);
-    const f = input('Narx, so\'m (1 quti)', { placeholder: H.som(narxlar[0] || 0), enterkeyhint: 'done' });
+    const hamma = [...new Set(x.filiallar.map((f) => Number(f.narx)))].sort((a, b) => b - a);
+    const narxlar = chegara ? hamma.filter((n) => n <= chegara) : hamma;
+    // Chegaraga eng yaqin «yumaloq» narx (100 so'mga pastga) — chegaradan oshmaydi.
+    const tavsiya = chegara ? (chegara >= 1000 ? Math.floor(chegara / 100) * 100 : Math.floor(chegara)) : null;
+    if (tavsiya && !narxlar.includes(tavsiya)) narxlar.unshift(tavsiya);
+    const f = input('Narx, so\'m (1 quti)', { placeholder: H.som(narxlar[0] || hamma[0] || 0), enterkeyhint: 'done' });
     if (x.qaror) { f.qiymat(String(x.qaror)); f.i.defaultValue = f.i.value; }
     let band = false;
     // Yozilgan matn: bo'sh yoki noto'g'ri — xato (null — faqat «Tanlovni olib tashlash»dan; noto'g'ri yozuv tanlovni o'chirmasin).
@@ -60,8 +81,10 @@ function narxOyna(ctx, x, fil, keyin) {
     const yozilgan = async () => {
       const n = H.pul(f.i.value);
       if (!(n > 0)) { f.xato('Narxni yozing — masalan: 25 000'); return; }
-      if ((n > 2 * narxlar[0] || n < 0.5 * narxlar[narxlar.length - 1])
-        && !(await tasdiqlash(H.som(n) + ' — filiallardagi narxdan ancha farq qiladi (' + narxlar.map(H.som).join(', ') + '). To\'g\'rimi?'))) return;
+      if (chegara && n > chegara
+        && !(await tasdiqlash(H.som(n) + ' — davlat chegarasidan (' + H.som(chegara) + ') yuqori. Baribir shu narxmi?'))) return;
+      if ((n > 2 * hamma[0] || n < 0.5 * hamma[hamma.length - 1])
+        && !(await tasdiqlash(H.som(n) + ' — filiallardagi narxdan ancha farq qiladi (' + hamma.map(H.som).join(', ') + '). To\'g\'rimi?'))) return;
       saqla(n);
     };
     const saqla = async (narx) => {
@@ -78,7 +101,8 @@ function narxOyna(ctx, x, fil, keyin) {
     box.append(h('div', {}, h('b', { 'data-asl': '' }, x.nom), x.ishlab ? h('div', { class: 'muted', 'data-asl': '' }, x.ishlab) : null),
       h('div', { class: 'card list', style: 'margin:10px 0' }, ...x.filiallar.map((b) => h('div', { class: 'line' },
         h('span', {}, asl(filNom(fil, b)), h('span', { class: 'muted' }, ' · ' + qoldiqMatn(b.soni, b.dona))), h('b', {}, H.som(b.narx))))),
-      h('div', { class: 'muted' }, 'Filiallardagi narxlardan birini tanlang:'),
+      chegara ? h('div', { class: 'msg warn' }, '⚖️ Davlat chegarasi: ' + H.som(chegara) + ' (1 quti) — narx shundan oshmasin.') : null,
+      h('div', { class: 'muted' }, chegara ? 'Narxni tanlang:' : 'Filiallardagi narxlardan birini tanlang:'),
       h('div', { class: 'row', style: 'flex-wrap:wrap' }, ...narxlar.map((n) => h('button', { class: x.qaror === n ? 'p' : 's', onclick: () => saqla(n) }, H.som(n)))),
       h('div', { class: 'muted', style: 'margin-top:10px' }, 'yoki boshqa narx yozing:'), f.el,
       h('button', { class: 'p', onclick: yozilgan }, 'Saqlash'),
@@ -86,6 +110,52 @@ function narxOyna(ctx, x, fil, keyin) {
       h('div', { class: 'muted', style: 'font-size:13px;margin-top:8px' }, 'Narxni Oson\'da filial xodimi o\'zgartiradi — ilova Oson\'ga yozmaydi. Oson\'da tuzatilgach dori ro\'yxatdan o\'zi chiqadi va yangi narx yorlig\'i tayyor bo\'ladi.'));
     f.i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); yozilgan(); } });
   }, { fokus: false });
+}
+
+// ---------- Narx chegarasi — davlat reyestri (20261107210000_dori_reyestr) ----------
+const sanaDMY = (d) => (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(8, 10) + '.' + d.slice(5, 7) + '.' + d.slice(0, 4) : '');
+const foizMatn = (f) => String(Number(f) >= 10 ? Math.round(Number(f)) : Number(f)).replace('.', ',');
+async function reyestrMosla(ctx, chiz) {
+  if (N.moslanmoqda) return;
+  N.moslanmoqda = true; chiz();
+  try {
+    const r = await ctx.amalFon('reyestrMosla');
+    if (r != null) ctx.toast('Moslandi ✓ — ' + (r.yuqori || 0) + ' ta dori aniq' + (r.orta ? ', ' + r.orta + ' tasi taxminiy' : ''));
+  } finally { N.moslanmoqda = false; nYukla(ctx, chiz, true); chiz(); }
+}
+function chegaraKarta(m, ctx, fil, chiz) {
+  const c = N.c;
+  if (!c || !Array.isArray(c.qatorlar)) return;   // eski server yoki xato — bo'lim ko'rinmaydi
+  const r = c.reyestr || {};
+  const k = h('div', { class: 'card list chegara-karta' }, kartaSarlavha('⚖️ Narx chegarasidan oshgan'),
+    h('div', { class: 'muted', style: 'font-size:13px' }, 'Davlat reyestri (' + (r.manba || 'mpa.uz') + (r.sana ? ', ' + sanaDMY(r.sana) : '')
+      + ') — retsept dorilarining eng yuqori chakana narxi. Reyestrga aniq moslangan: ' + (c.moslangan || 0) + ' xil dori.'));
+  if (!c.qatorlar.length) {
+    k.append(h('div', { class: 'muted' }, c.moslangan ? '✓ Moslangan dorilarning hammasi chegaradan oshmagan' : 'Hali hech bir dori reyestrga moslanmagan.'));
+  }
+  const kor = N.chOchiq ? c.qatorlar : c.qatorlar.slice(0, 10);
+  kor.forEach((x) => {
+    const ry = x.reyestr || {};
+    k.append(h('div', { class: 'item' },
+      h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '' }, x.nom), h('b', { class: 'pul-zarar' }, '+' + foizMatn(x.foiz) + '%')),
+      h('div', { class: 'muted', style: 'font-size:13px' }, 'Chegara: ', h('b', {}, H.som(x.chegara)), ' (1 quti' + (x.dona ? ' №' + x.dona : '') + ')'
+        + (ry.qadoq && x.dona && ry.qadoq !== x.dona ? ' · reyestrda №' + ry.qadoq + ' — ' + H.som(ry.narx) : '')),
+      ry.nom ? h('div', { class: 'muted', style: 'font-size:13px', 'data-asl': '' }, 'Reyestr: ' + ry.nom + (ry.ishlab ? ' · ' + ry.ishlab : '')) : null,
+      h('div', { class: 'oq-qf-royxat' }, ...(x.filiallar || []).map((b) => h('div', { class: 'oq-qf' }, h('span', { class: 'oq-fil', 'data-asl': '' }, filNom(fil, b)),
+        h('b', { class: b.oshgan ? 'yoq' : 'bor' }, H.som(b.narx))))),
+      x.qaror != null ? h('div', { class: 'muted' }, 'Tanlangan: ' + H.som(x.qaror) + ' — Oson\'da hali tuzatilmagan') : null,
+      h('div', { class: 'row chegara-amal' },
+        h('button', { class: 'link', onclick: () => narxOyna(ctx, x, fil, () => nYukla(ctx, chiz, true), Number(x.chegara)) }, 'Narxni tuzatish'),
+        h('button', { class: 'link', onclick: async () => {
+          if (!(await tasdiqlash('«' + x.nom + '» — reyestrdagi «' + (ry.nom || '') + '» bilan moslik noto\'g\'rimi? Bu dori narx chegarasida boshqa chiqmaydi.'))) return;
+          const res = await ctx.amalFon('reyestrRad', x.g);
+          if (res != null) { ctx.toast('Olib tashlandi'); nYukla(ctx, chiz, true); }
+        } }, 'Moslik noto\'g\'ri'))));
+  });
+  if (c.qatorlar.length > 10) k.append(h('button', { type: 'button', class: 'oq-yana', onclick: () => { N.chOchiq = !N.chOchiq; chiz(); } }, N.chOchiq ? 'Yig\'ish ▴' : 'Yana ' + (c.qatorlar.length - kor.length) + ' ta ▾'));
+  k.append(h('div', { class: 'muted', style: 'font-size:13px' }, 'Shubhali bo\'lsa — pharm.gov.uz da tekshiring. Oson\'ga yangi dori qo\'shilsa — qayta moslang.'),
+    h('button', { class: 's', disabled: N.moslanmoqda ? '' : null, onclick: () => reyestrMosla(ctx, chiz) }, N.moslanmoqda ? 'Moslanmoqda…' : 'Reyestrni qayta moslash'));
+  m.append(k);
 }
 
 export function narxView(m, ctx, fil) {
@@ -103,6 +173,7 @@ export function narxView(m, ctx, fil) {
   m.append(h('div', { class: 'card list' }, kartaSarlavha('🏷 Narx yorliqlari'),
     ...(y.length ? yorliqQatorlari(ctx, fil, y, N, () => nYukla(ctx, chiz, true))
       : [h('div', { class: 'muted' }, 'Hozir yangi yorliq kerak emas. Oson\'da narx o\'zgarsa — shu yerda yig\'iladi va bir tugma bilan chop etish uchun fayl qilib Telegram\'ga yuboriladi.')])));
+  chegaraKarta(m, ctx, fil, chiz);   // 07.11: davlat reyestri
   m.append(h('div', { class: 'card' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', {}, j.soni + ' xil dori'), j.katta ? h('b', { class: 'pul-kam' }, j.katta + ' tasida 20%+') : null),
     h('div', { class: 'muted' }, j.soni ? 'filiallarda har xil narxda' + (j.tuzat ? ' · ' + j.tuzat + ' tasida siz tanlagan narx hali Oson\'da qo\'yilmagan' : '')
       : '✓ Hamma dori filiallarda bir xil narxda')));
@@ -224,4 +295,11 @@ export function narxXodimKarta(ctx, fil, chiz) {
     yorliqQatorlari(ctx, fil, j.yorliq, X, () => xYukla(ctx, chiz, true)).forEach((e) => k.append(e));
   }
   return k;
+}
+
+// 07.11 (yangi ko'rinish — Ombor bo'limi): «Narx farqi» kartasidagi son (keshdan; yuklanmagan bo'lsa — fonda). Hali yo'q — null.
+export function narxFarqSoni(ctx, chiz) {
+  if (!ctx.server) return null;
+  if (!N.j && !N.xato) nYukla(ctx, chiz);
+  return N.j && Array.isArray(N.j.qatorlar) ? N.j.qatorlar.length : null;
 }
