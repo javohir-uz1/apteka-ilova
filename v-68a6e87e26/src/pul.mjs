@@ -300,14 +300,20 @@ export function buyurtmaView(m, ctx, fil) {
 // (2) filialdagi holat oddiy so'z bilan, (3) «Nega N quti» — server formulasi (kerak = ⌈kunlik × jamiKun − kutilgan + talab⌉,
 // 20261107260000) raqamlari bilan. Formula aynan shu sonni bermasa (eski server, yaxlitlash) — hisob satri ko'rsatilmaydi.
 const kasr = (n) => String(Math.round(Number(n) * 10) / 10).replace('.', ',');
+// Audit 08.11: server kunlikni 2 xonagacha yaxlitlab beradi, kerak'ni esa aniq qiymatdan hisoblaydi — tekshiruvda ±0,005 × jamiKun
+// joiz; kutilgan manfiy bo'lsa (bron qoldiqdan ko'p) — «+ bron qilingan»; yo'lda yoki bron bo'lsa — «kutilgan qoldiq» (javondagi emas).
 export function buyHisob(x) {
   if (x.jamiKun == null || x.kunlik == null) return null;
   const sotuv = Number(x.kunlik) * Number(x.jamiKun), bor = Number(x.kutilgan != null ? x.kutilgan : x.qoldiq) || 0, talab = Number(x.talab) || 0;
-  if (Math.ceil(sotuv - bor + talab - 1e-9) !== Number(x.kerak)) return null;
+  const tol = 0.005 * Number(x.jamiKun) + 1e-9;
+  const k = Number(x.kerak);
+  if (!(k >= Math.ceil(sotuv - tol - bor + talab - 1e-9) && k <= Math.ceil(sotuv + tol - bor + talab - 1e-9))) return null;
+  const kutilganmi = x.kutilgan != null && (Number(x.yolda) > 0 || Number(x.bron) > 0);
   const q = [];
   if (sotuv > 0) q.push(x.jamiKun + ' kunlik sotuv ' + kasr(sotuv));
   if (talab > 0) q.push((q.length ? '+ ' : '') + 'xodimlar so\'ragan ' + talab);
-  if (bor > 0) q.push('− hozir bor ' + kasr(bor));
+  if (bor > 0) q.push('− ' + (kutilganmi ? 'kutilgan qoldiq ' : 'hozir bor ') + kasr(bor));
+  if (bor < 0) q.push((q.length ? '+ ' : '') + 'bron qilingan ' + kasr(-bor));
   if (!q.length) return null;
   return 'Nega ' + x.kerak + ' quti: ' + q.join(' ') + (sotuv > 0 ? '' : ' (sotuv ko\'rinmadi)');
 }
