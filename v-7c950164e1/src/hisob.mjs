@@ -676,8 +676,10 @@ export function defekturaGuruh(list) {
     // 05.11: «Keldi» alohida qator — Oson bir filialga kelganini aytsa, boshqa filialdagi ochiq yozuv «Kerak»da qoladi,
     // kelgani esa «Keldi»da (avval guruh «Kerak» bo'lib, ikkala filial yonma-yon chiqardi).
     const k = defNom(d.nom).toLowerCase() + (d.holat === 'keldi' ? '|keldi' : '');
-    const o = g.get(k) || { nom: defNom(d.nom), holat: d.holat, soni: 0, filiallar: [], izohlar: [], ts: d.ts, holatTs: 0, yozuvlar: [] };
+    const o = g.get(k) || { nom: defNom(d.nom), holat: d.holat, soni: 0, filiallar: [], izohlar: [], ts: d.ts, holatTs: 0, yozuvlar: [], asl: [] };
     o.soni += 1;
+    // 09.11: xodim yozgan asl matn (nom to'g'irlangan bo'lsa) — «Xodim yozgani: …».
+    if (d.aslNom && defNom(d.aslNom).toLowerCase() !== defNom(d.nom).toLowerCase() && !o.asl.includes(defNom(d.aslNom))) o.asl.push(defNom(d.aslNom));
     if (!o.filiallar.includes(d.filialId)) o.filiallar.push(d.filialId);
     if (d.izoh) o.izohlar.push(d.izoh);
     if (DEF_TARTIB[d.holat] < DEF_TARTIB[o.holat]) o.holat = d.holat;

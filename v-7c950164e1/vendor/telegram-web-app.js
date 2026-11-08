@@ -445,7 +445,11 @@
   };
 
   function setCssProperty(name, value) {
+    // Apteka (09.11): ilova --tg-viewport-* ni ishlatmaydi; klaviatura ochilayotganda har qadamda <html>ga yozilib, butun sahifa
+    // qayta hisoblanib qotardi (Android). Qiymat o'zgarmasa ham yozilmaydi.
+    if (name === 'viewport-height' || name === 'viewport-stable-height') return;
     var root = document.documentElement;
+    if (root && root.style && root.style.getPropertyValue && root.style.getPropertyValue('--tg-' + name) === String(value)) return;
     if (root && root.style && root.style.setProperty) {
       root.style.setProperty('--tg-' + name, value);
     }

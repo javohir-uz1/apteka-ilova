@@ -9,7 +9,7 @@ import { oddiyRejimmi, rejimQoy, renderOddiy } from './oddiy.mjs';
 import { yozuvKirillmi, yozuvQoy } from './kirill.mjs';
 import { doira, RANGLAR } from './diagramma.mjs';
 import { BOT_USERNAME, UY_PULI } from './config.mjs';
-import { DEF_HOLAT, defekturaYozKarta, keldiTasdiq, kelganKarta, praysQidiruv, yozganEl, yozganlar } from './bolimlar.mjs';
+import { DEF_HOLAT, aslNomEl, defQoldiqEl, defQoldiqYukla, defekturaYozKarta, keldiTasdiq, kelganKarta, nomTuzatOyna, praysQidiruv, yozganEl, yozganlar } from './bolimlar.mjs';
 import { shtrixDirektor } from './shtrix.mjs';
 import { punktlarView, retseptBosh, retseptIchida, retseptView } from './retsept.mjs';
 import { sanashXabari } from './xabar.mjs';
@@ -2153,12 +2153,16 @@ function defQator(ctx, fil, d, narx) {
     h('div', { class: 'muted' }, d.filiallar.map(fil).join(', ') + (d.soni > 1 ? ' · ' + d.soni + ' marta yozilgan' : '') + ' · '
       + (d.holat === 'buyurtma' && d.holatTs ? 'buyurtma ' + sana(d.holatTs) : sana(d.ts)) + (d.izohlar.length ? ' · ' + d.izohlar.join('; ') : '')),
     yozganEl(ctx.S, d),   // 06.11: kim yozgan
+    aslNomEl(d),   // 09.11: to'g'irlangan bo'lsa — xodim yozgani
+    d.holat !== 'keldi' && ctx.server ? defQoldiqEl(ctx.retseptCtx(), d, fil, (t) => nomTuzatOyna(ctx, d, t)) : null,   // 09.11 kech: bizdagi qoldiq
     narx && ctx.server && firmaOchiq() ? defNarxQator(d.nom) : null,
     ctx.server ? mijozBelgi(d) : null,   // 06.11 kech: direktorda faqat «N mijoz kutmoqda» (tugma — xodimlarda)
     h('div', { class: 'row' },
       d.holat === 'yangi' ? h('button', { class: 'p s', onclick: () => ctx.amal('defekturaHolat', d.nom, 'buyurtma') }, 'Buyurtma berdim') : null,
       h('button', { class: d.holat === 'buyurtma' ? 'p s' : 's', onclick: () => keldiTasdiq(d).then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'keldi')) }, 'Keldi'),
-      h('button', { class: 's', onclick: () => tasdiqlash(d.nom + ' ro\'yxatdan olib tashlansinmi?').then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'bekor')) }, 'Kerak emas')));
+      h('button', { class: 's', onclick: () => tasdiqlash(d.nom + ' ro\'yxatdan olib tashlansinmi?').then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'bekor')) }, 'Kerak emas')),
+    // 09.11: nomni Oson / prays-listdagi to'g'ri nomga (xodim o'zicha yozgan bo'lsa).
+    h('button', { type: 'button', class: 'link', style: 'align-self:flex-start', onclick: () => nomTuzatOyna(ctx, d) }, 'Nomni to\'g\'irlash'));
 }
 
 // Defektura: hamma filiallar ro'yxati birlashgan ("2 marta yozilgan"). Ota buyurtma beradi → "Buyurtma berdim" → kelganda "Keldi".
@@ -2167,6 +2171,7 @@ function defQator(ctx, fil, d, narx) {
 const DEF_TAB = { v: 'kerak' };
 function defekturaDirektor(m, ctx, fil, ochFirmalar) {
   const { S } = ctx;
+  if (ctx.server) defQoldiqYukla(ctx.retseptCtx(), S);   // 09.11 kech: bizdagi qoldiq
   const g = H.defekturaGuruh(S.defektura || []);
   const kerak = g.filter((d) => d.holat === 'yangi'), keldi = g.filter((d) => d.holat === 'keldi');
   const berilgan = g.filter((d) => d.holat === 'buyurtma').sort((a, b) => b.holatTs - a.holatTs);

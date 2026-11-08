@@ -537,8 +537,13 @@ export function osonQidiruv(ctx, fil, o = {}) {
   // soni 0) va ma'lumot vaqtini ('vaqt') — butun «Qoldiq» ro'yxati yuklanmaydi. Xodimning o'z filiali birinchi, «siz» belgisi bilan.
   const men = ctx.x && ctx.x.rol !== 'direktor' ? ctx.x.filialId : null;
   const rang = (x) => (O.j ? filRang(x.b) : 'f' + (Math.max(0, ((ctx.S && ctx.S.filiallar) || []).findIndex((fl) => fl.id === x.f)) % FIL_RANG));
+  // 09.11 (qotish): yozayotganda eski natija o'chirilmaydi — xira bo'lib turadi, javob kelganda bir yo'la almashadi (sahifa
+  // har harfda yig'ilib-yoyilib sakramasin).
+  const kutish = () => { holat.textContent = 'Qidirilmoqda…'; natija.style.opacity = '.55'; natija.style.pointerEvents = 'none'; };
   const chiz = () => {
     natija.textContent = '';
+    natija.style.opacity = '';
+    natija.style.pointerEvents = '';
     holat.textContent = '';
     if (o.ixcham && !Q.soz.trim()) return;   // B ko'rinishi: bo'sh qidiruv — shovqinsiz
     if (Q.soz.trim().length < 2) { holat.textContent = 'Kamida 2 harf yozing — lotin yoki kirill harfida. Masalan: analgin 500'; return; }
@@ -572,14 +577,15 @@ export function osonQidiruv(ctx, fil, o = {}) {
   const izla = () => {
     const avlod = ++Q.avlod, soz = Q.soz.trim();
     Q.xato = null;
-    Q.chiz && Q.chiz();
+    if (soz.length >= 2 && natija.childNodes.length && Q.chiz === chiz) kutish(); else if (Q.chiz) Q.chiz();
     if (soz.length < 2) return;
     Q.yukSoz = soz;   // audit 06.11: shu so'z ketayotgan bo'lsa — qayta chizish yana so'ramaydi
     ctx.oqi('osonQidir', soz).then((j) => { if (avlod === Q.avlod) { Q.yukSoz = null; Q.j = Array.isArray(j) ? j : []; Q.jSoz = soz; Q.chiz && Q.chiz(); } },
       (e) => { if (avlod === Q.avlod) { Q.yukSoz = null; Q.xatoSoz = soz; Q.xato = (e && e.message) || 'Qidirib bo\'lmadi'; Q.chiz && Q.chiz(); } });
   };
   Q.chiz = chiz;   // eng oxirgi chizilgan nusxa — kutayotgan qidiruv natijani shunga chizadi
-  f.i.addEventListener('input', () => { Q.soz = f.i.value; clearTimeout(Q.taymer); Q.taymer = setTimeout(izla, 400); chiz(); });
+  f.i.addEventListener('input', () => { Q.chiz = chiz; Q.soz = f.i.value; clearTimeout(Q.taymer); Q.taymer = setTimeout(izla, 400);
+    if (Q.soz.trim().length >= 2 && natija.childNodes.length) kutish(); else chiz(); });
   // 06.11: qutidagi shtrix-kod (kamera, qo'llab-quvvatlansa) — raqam qidiruvga yoziladi.
   box.append(h('div', { class: 'skan-maydon' }, f.el, skanerTugma((kod) => { f.i.value = kod; Q.soz = kod; clearTimeout(Q.taymer); izla(); })), holat, natija);
   // Qayta chizilganda: natija yo'q va shu so'z ketmayotgan bo'lsa so'raladi; xatodan keyin — faqat «Qayta urinish» bilan (audit 06.11:

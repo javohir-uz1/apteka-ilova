@@ -710,6 +710,20 @@ export function defekturaHolat(s, nom, holat, kim) {
   return ochiq.length;
 }
 
+// 09.11: direktor nomni to'g'irlaydi — shu nomli ochiq yozuvlar yangi nomga, eski matn aslNom'da (SQL defektura_nom).
+export function defekturaNom(s, eski, yangi, kim) {
+  const x = xodim(s, kim);
+  if (!x || x.rol !== 'direktor') throw new Error('Bu amal uchun ruxsat yo\'q');
+  const v = H.defNom(yangi);
+  if (v.length < 2 || v.length > 200) throw new Error('To\'g\'ri nomini yozing');
+  if (H.defNom(eski) === v) throw new Error('Nom o\'zgarmadi');
+  const n = H.defNom(eski).toLowerCase();
+  const ochiq = (s.defektura || []).filter((d) => H.defNom(d.nom).toLowerCase() === n && (d.holat === 'yangi' || d.holat === 'buyurtma'));
+  if (!ochiq.length) throw new Error('Ochiq yozuv topilmadi');
+  ochiq.forEach((d) => { d.aslNom = d.aslNom || d.nom; d.nom = v; });
+  return ochiq.length;
+}
+
 export function defekturaOchir(s, id, xodimId) {
   const x = H.ishdagi(xodim(s, xodimId), s);
   const d = (s.defektura || []).find((z) => z.id === id && z.holat === 'yangi' && (z.xodimId === xodimId || (x && x.rol === 'direktor')));

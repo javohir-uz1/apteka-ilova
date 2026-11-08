@@ -271,7 +271,7 @@ function firmaSheet(ctx, chiz, fayl, firmaOldin) {
     };
     const saqla = async (firma) => {
       const eski = (F.royxat || []).find((r) => r.firma.toLowerCase() === firma.toLowerCase());
-      if (eski && !(await tasdiqlash(eski.firma + ' praysi almashtirilsinmi?\nHozirgi: ' + eski.soni + ' ta dori (' + eski.yuklandi + ')\nYangi: ' + natija.length + ' ta dori.\nOldingisi saqlanadi — kerak bo\'lsa qaytarasiz.'))) return;
+      if (eski && !(await tasdiqlash(eski.firma + ' praysi almashtirilsinmi?\nHozirgi: ' + eski.soni + ' ta dori (' + eski.yuklandi + ')\nYangi: ' + natija.length + ' ta dori.\nEski prays o\'chiriladi — faqat yangisi qoladi.'))) return;
       tugma.disabled = true; holat.textContent = 'Saqlanmoqda…';
       try {
         const n = await ctx.firma.yukla({ firma, fayl: fayl.id, faylNom: fayl.nom, qatorlar: natija.map((q) => [q.nom, q.yuz, q.kech, q.muddat, q.ishlab]) });
@@ -304,9 +304,6 @@ export function firmaPrayslarView(m, ctx) {
   F.royxat.forEach((r) => k.append(h('button', { type: 'button', class: 'item', onclick: () => sheet(r.firma, (box, close) => {
     box.append(h('div', { class: 'muted' }, r.soni + ' ta dori · yuklangan ' + r.yuklandi + (r.fayl ? ' · ' + r.fayl : '')),
       h('button', { class: 'p', onclick: () => { close(); yuklashSheet(ctx, chiz, r.firma); } }, 'Yangi prays yuklash'),
-      r.oldin ? h('button', { class: 's', onclick: () => tasdiqlash(r.firma + ': oldingi praysga qaytilsinmi?\nOldingi: ' + r.oldin.soni + ' ta dori (' + r.oldin.yuklandi + ').\nHozirgisi saqlanadi — yana qaytarsa bo\'ladi.')
-        .then((ha) => ha && ctx.amal('firmaQaytar', r.firma).then((x) => { if (x == null) return; ctx.toast('Oldingi praysga qaytildi ✓'); close(); return firmalarOl(ctx, true).then(chiz, chiz); })) },
-      'Oldingi praysga qaytarish (' + r.oldin.yuklandi + ')') : null,
       h('button', { class: 's', onclick: () => tasdiqlash(r.firma + ' praysi o\'chirilsinmi?').then((ha) => ha && ctx.amal('firmaOchir', r.firma)
         .then((x) => { if (x == null) return; close(); return firmalarOl(ctx, true).then(chiz, chiz); })) }, 'Praysni o\'chirish'));
   }, { fokus: false }) },
