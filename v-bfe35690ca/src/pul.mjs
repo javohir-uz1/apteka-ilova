@@ -296,15 +296,37 @@ export function buyurtmaView(m, ctx, fil) {
   m.append(h('div', { class: 'muted' }, 'Sotuv — Oson qoldig\'i kamaygani (30 daqiqalik o\'qishlar orasida). Shu oraliqda dori kelgan bo\'lsa, sotuv biroz kam ko\'rinadi. Muddati yaqin va «Muzlagan pul»dagi dorilarni ko\'p olmang.'));
 }
 
+// 08.11 (foydalanuvchi: "1 quti yashilda — nima u? Tushunarliroq qilib ber"): qator uch qismdan — (1) nomi va «Olish: N quti»,
+// (2) filialdagi holat oddiy so'z bilan, (3) «Nega N quti» — server formulasi (kerak = ⌈kunlik × jamiKun − kutilgan + talab⌉,
+// 20261107260000) raqamlari bilan. Formula aynan shu sonni bermasa (eski server, yaxlitlash) — hisob satri ko'rsatilmaydi.
+const kasr = (n) => String(Math.round(Number(n) * 10) / 10).replace('.', ',');
+export function buyHisob(x) {
+  if (x.jamiKun == null || x.kunlik == null) return null;
+  const sotuv = Number(x.kunlik) * Number(x.jamiKun), bor = Number(x.kutilgan != null ? x.kutilgan : x.qoldiq) || 0, talab = Number(x.talab) || 0;
+  if (Math.ceil(sotuv - bor + talab - 1e-9) !== Number(x.kerak)) return null;
+  const q = [];
+  if (sotuv > 0) q.push(x.jamiKun + ' kunlik sotuv ' + kasr(sotuv));
+  if (talab > 0) q.push((q.length ? '+ ' : '') + 'xodimlar so\'ragan ' + talab);
+  if (bor > 0) q.push('− hozir bor ' + kasr(bor));
+  if (!q.length) return null;
+  return 'Nega ' + x.kerak + ' quti: ' + q.join(' ') + (sotuv > 0 ? '' : ' (sotuv ko\'rinmadi)');
+}
+export function buyHolat(x) {
+  const yet = x.yetadi != null ? kasr(x.yetadi) : null;
+  if (x.tugadi || !(Number(x.qoldiq) > 0)) return 'tugagan';
+  return qoldiqMatn(x.qoldiq, x.dona) + ' qoldi' + (yet != null && Number(x.kunlik) > 0 ? ' — ' + yet + ' kunga yetadi' : '');
+}
 function bQator(x, fil) {
   const kam = x.yetadi != null && x.yetadi < 3;
-  const kunlik = String(x.kunlik).replace('.', ',');
-  return h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, x.nom), h('b', { class: 'pul-kerak' }, x.kerak + ' quti')),
-    izohEl([asl(filNom(fil, x)), x.tugadi ? 'tugagan' : 'qoldiq ' + qoldiqMatn(x.qoldiq, x.dona), 'kuniga ' + kunlik + ' quti',
-      x.yetadi != null ? String(x.yetadi).replace('.', ',') + ' kunga yetadi' : null, x.def ? 'defekturada bor' : null], kam || x.tugadi ? 'oson-otgan' : 'muted'),
+  const hisob = buyHisob(x);
+  const narx = x.eng && Number(x.eng.yuz) > 0 ? H.som(x.eng.yuz) + (x.kerak > 1 ? ' × ' + x.kerak + ' = ' + H.som(x.eng.yuz * x.kerak) : '') : null;
+  return h('div', { class: 'item buy-q' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, x.nom),
+    h('b', { class: 'pul-kerak', title: 'Shu firmadan nechta quti buyurtma qilish kerak' }, h('small', {}, 'Olish: '), x.kerak + ' quti')),
+    h('div', { class: x.tugadi || kam ? 'oson-otgan' : 'muted' }, asl(filNom(fil, x)), ': ' + buyHolat(x)),
+    hisob ? h('div', { class: 'buy-hisob' }, hisob) : izohEl(['kuniga ' + kasr(x.kunlik) + ' quti sotiladi', x.def ? 'defekturada bor' : null]),
     kutilganEl(x),
     buyBelgilar(x),
-    x.eng ? h('div', { class: 'firma-nomi', 'data-asl': '' }, x.eng.firma + ': ' + x.eng.nom + ' — ' + H.som(x.eng.yuz) + (x.eng.aniq ? '' : ' (taxminiy)')) : null);
+    x.eng ? h('div', { class: 'firma-nomi' }, h('span', { 'data-asl': '' }, x.eng.firma + ': ' + x.eng.nom), narx ? ' — ' + narx : '', x.eng.aniq ? '' : ' (taxminiy)') : null);
 }
 
 // Kutilgan qoldiq (07.11 tun, server 20261107260000): «Bor 3 · yo'lda 10 · bron 1 → kutilgan 12» — yo'lda (defekturada «Buyurtma
@@ -326,10 +348,12 @@ const TUR_NOMI = { uzuq: 'uzuq-uzuq sotiladi', notekis: 'sotuvi notekis', bolak:
 const sonM = (n) => String(Math.round(Number(n) * 10) / 10).replace('.', ',');
 export function buyBelgilar(x) {
   const b = [];
-  if (x.abc) b.push(h('span', { class: 'buy-b abc-' + x.abc, title: 'ABC — 30 kunlik tushum ulushi' }, x.abc + (x.xavf ? ' · +' + x.xavf + ' kun zaxira' : '')));
+  // 08.11: harf (A/B/C) o'rniga oddiy so'z; C — hech narsa qo'shmaydi, belgi yo'q. Defektura talabi — «Nega N quti» satrida.
+  const ABC_NOM = { A: 'Ko\'p pul keltiradi', B: 'O\'rtacha pul keltiradi' };
+  if (ABC_NOM[x.abc]) b.push(h('span', { class: 'buy-b abc-' + x.abc, title: 'ABC — 30 kunlik tushum ulushi' }, ABC_NOM[x.abc] + (x.xavf ? ' · +' + x.xavf + ' kun zaxira' : '')));
   if (TUR_NOMI[x.tur]) b.push(h('span', { class: 'buy-b' }, TUR_NOMI[x.tur]));
-  if (Number(x.yoqKun) >= 1) b.push(h('span', { class: 'buy-b ogoh' }, sonM(x.yoqKun) + ' kun tugagan edi — hisobga olinmadi'));
-  if (x.talab > 0) b.push(h('span', { class: 'buy-b ogoh' }, '+' + x.talab + ' quti: defekturada kutishmoqda'));
+  if (Number(x.yoqKun) >= 1) b.push(h('span', { class: 'buy-b' }, sonM(x.yoqKun) + ' kun tugab turgan — o\'sha kunlar sotuvga qo\'shilmadi'));
+  if (x.talab > 0 && !buyHisob(x)) b.push(h('span', { class: 'buy-b ogoh' }, '+' + x.talab + ' quti: defekturada kutishmoqda'));
   if (x.firmaN >= 3 && x.firmaKun != null) {
     b.push(h('span', { class: 'buy-b' }, h('span', { 'data-asl': '' }, x.firma || 'Firma'), ' odatda ' + sonM(x.firmaKun) + ' kunda olib keladi'));
   }
