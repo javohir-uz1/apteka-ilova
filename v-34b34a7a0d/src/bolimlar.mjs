@@ -179,6 +179,7 @@ export function defekturaXodim(m, ctx, x) {
   // Hamma filiallar; "Keldi"lar — "Keldi" bo'limida alohida.
   const g = H.defekturaGuruh((S.defektura || []).filter((d) => d.holat !== 'keldi'));
   m.append(defekturaYozKarta(ctx));
+  defQoldiqYukla(ctx.oson, S);   // 09.11 kech: bizdagi qoldiq
   const fil = (id) => (S.filiallar.find((f) => f.id === id) || {}).nom || id;
   const qator = (d) => {
     const [l, c] = DEF_HOLAT[d.holat];
@@ -187,6 +188,8 @@ export function defekturaXodim(m, ctx, x) {
       h('div', { class: 'muted' }, d.filiallar.map(fil).join(', ') + (d.soni > 1 ? ' · ' + d.soni + ' marta yozilgan' : '')
         + (d.holat === 'buyurtma' && d.holatTs ? ' · buyurtma ' + sana(d.holatTs) : '') + (d.izohlar.length ? ' · ' + d.izohlar.join(' · ') : '')),
       yozganEl(S, d),   // 06.11: kim yozgan
+      aslNomEl(d),   // 09.11: direktor nomini to'g'irlagan bo'lsa — xodim yozgani
+      defQoldiqEl(ctx.oson, d, fil),   // 09.11 kech: bizdagi qoldiq (tanilmasa — taklif)
       mijozQism(ctx.oson, d, x.filialId),   // 06.11: mijoz kutish ro'yxati — o'z filialidagi yozuv
       // 2-darajali xodim buyurtma beradi va "Keldi" qiladi (pulga aralashmaydi).
       x.daraja === 2 ? h('div', { class: 'row' },
@@ -204,4 +207,110 @@ export function defekturaXodim(m, ctx, x) {
   if (berilgan.length) m.append(h('div', { class: 'card list' }, kartaSarlavha('Buyurtma berilganlar (' + berilgan.length + ')'), ...berilgan.map(qator)));
   // Oson qoldig'i (02.11): kam qolgan va tugagan dorilar — xodim ham «+ Defekturaga» bosadi (faqat serverda).
   if (ctx.oson) { const ok = osonKarta(ctx.oson, fil, () => ctx.oson.rerender()); if (ok) m.append(ok); }
+}
+
+// 09.11: defektura nomi to'g'irlangan bo'lsa — xodim yozgan asl matn (u o'z yozganini taniydi).
+export function aslNomEl(d) {
+  const a = (d && d.asl) || [];
+  return a.length ? h('div', { class: 'muted def-asl' }, 'Xodim yozgani: ', h('span', { 'data-asl': '' }, a.join('; '))) : null;
+}
+
+// 09.11 (egasi: "defekturadagi nomlarni xodimlar o'zlari tushunadigan tilda yozgan — to'g'irla"): direktor nomni Oson /
+// prays-listdagi to'g'ri nomga almashtiradi. Hamma filialdagi shu nomli ochiq yozuvlar o'zgaradi, eski matn «Xodim yozgani»da
+// qoladi va lug'atga yoziladi — xodim keyin yana shunday yozsa, o'zi to'g'ri nomga o'tadi. To'g'ri nom Oson'dagiga mos kelsa,
+// dori Oson'ga kirim qilinganda «Keldi» o'zi bo'ladi. ctx: { amal, qidir, toast }
+export function nomTuzatOyna(ctx, d, boshQidiruv) {
+  sheet('Nomni to\'g\'irlash', (box, close) => {
+    const asl = boshQidiruv || (d.asl && d.asl[0]) || d.nom;
+    const q = input('Qidirish (Oson va prays-list)', { inputmode: 'text', placeholder: 'Masalan: Нош-Бра' });
+    q.i.value = asl;
+    const nat = h('div', { class: 'shumi', 'aria-live': 'polite' });
+    let navbat = 0, taymer = null, band = false;
+    // Audit 09.11: saqlanayotganda tugmalar o'chiq (ikkinchi bosish yolg'on xato bermasin).
+    const saqla = (nom) => {
+      if (band) return;
+      band = true; nat.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+      Promise.resolve(ctx.amal('defekturaNom', d.nom, nom)).then((n) => {
+        band = false; nat.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+        if (n == null) return;
+        close(); ctx.toast('Nom to\'g\'irlandi ✓');
+      });
+    };
+    const qidir = () => {
+      const v = String(q.i.value || '').replace(/\s+/g, ' ').trim();
+      nat.textContent = '';
+      if (v.length < 2) return;
+      const men = ++navbat;
+      nat.append(h('div', { class: 'muted' }, 'Qidirilmoqda…'));
+      Promise.resolve(ctx.qidir ? ctx.qidir(v) : []).catch(() => []).then((r) => {
+        if (men !== navbat) return;
+        nat.textContent = '';
+        // Oson nomlari birinchi (kirim shu nom bilan keladi — «Keldi» aniq moslashadi), keyin prays-list.
+        const l = (Array.isArray(r) ? r : []).filter((z) => z && z.nom);
+        const nomlar = [...new Set([...l.filter((z) => z.oson), ...l.filter((z) => !z.oson)].map((z) => z.nom))].slice(0, 8);
+        const osonda = new Set(l.filter((z) => z.oson).map((z) => z.nom));
+        if (!nomlar.length) nat.append(h('div', { class: 'muted' }, 'Topilmadi — boshqacha yozib ko\'ring.'));
+        nomlar.forEach((n) => nat.append(h('button', { type: 'button', class: 's shumi-t', onclick: () => saqla(n) }, h('span', { 'data-asl': '' }, n),
+          osonda.has(n) ? h('small', {}, 'Oson\'dagi nom') : null)));
+        nat.append(h('button', { type: 'button', class: 'link', onclick: () => saqla(v) }, h('span', {}, '«', h('span', { 'data-asl': '' }, v), '» deb saqlash')));
+      });
+    };
+    q.i.addEventListener('input', () => { clearTimeout(taymer); taymer = setTimeout(qidir, 350); });
+    q.i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(taymer); qidir(); } });
+    box.append(h('div', { class: 'tt-kim' }, 'Hozir: ', h('b', { 'data-asl': '' }, d.nom)),
+      h('div', { class: 'muted' }, 'To\'g\'ri nomni tanlang — Oson\'dagi nom bilan tanlasangiz, dori kirim qilinganda «Keldi» o\'zi bo\'ladi. Xodim keyin yana shunday yozsa, o\'zi to\'g\'ri nomga o\'tadi.'),
+      q.el, nat);
+    qidir();
+    return () => clearTimeout(taymer);
+  });
+}
+
+// 09.11 kech (egasi: "defekturadagi dorilarning bizdagi qoldig'i ko'rinsin; nomini tanimasa — «bizda yo'q» demasin"):
+// SQL defektura_qoldiq — tanilgan dori: filiallar bo'yicha qoldiq (hammasi 0 — «tugagan»); tanilmagan: «❓ tanilmadi» va
+// Oson'dagi eng yaqin dori (qoldig'i bilan), direktorga — «Bog'lash» (nomni Oson nomiga to'g'irlash, lug'atga ham).
+// Bir marta yuklanadi; ochiq nomlar o'zgarsa yoki 5 daqiqadan keyin — qayta. rctx: { oqi, server, rerender }.
+const DQ = { kalit: '', data: null, yuk: null, vaqt: 0, osonVaqt: null, eski: false };
+const dqKalit = (S) => (S.defektura || []).filter((d) => d.holat === 'yangi' || d.holat === 'buyurtma')
+  .map((d) => H.defNom(d.nom).toLowerCase()).sort().join('|');
+export function defQoldiqYukla(rctx, S) {
+  if (!rctx || !rctx.server || !rctx.oqi || DQ.yuk) return;
+  const k = dqKalit(S);
+  if (DQ.kalit === k && DQ.vaqt && Date.now() - DQ.vaqt < 5 * 60e3) return;
+  DQ.yuk = Promise.resolve(rctx.oqi('defekturaQoldiq')).then((r) => {
+    // Javob: { royxat, vaqt, eski } yoki { yopiq } («Dori qidirish» o'chiq xodimga — qoldiq ko'rsatilmaydi).
+    if (r && Array.isArray(r.royxat)) {
+      DQ.data = r.yopiq ? null : new Map(r.royxat.map((z) => [H.defNom(z.nom).toLowerCase(), z]));
+      DQ.osonVaqt = r.vaqt || null; DQ.eski = !!r.eski;
+    }
+  }, () => null).then(() => {
+    DQ.kalit = k; DQ.vaqt = Date.now(); DQ.yuk = null;   // xato bo'lsa ham — 5 daqiqa qayta so'ralmaydi (cheksiz aylanish yo'q)
+    if (rctx.rerender) rctx.rerender();
+  });
+}
+export function defQoldiqEl(rctx, d, fil, bogla) {
+  if (!rctx || !rctx.server || !DQ.data) return null;
+  const z = DQ.data.get(H.defNom(d.nom).toLowerCase());
+  if (!z) return null;
+  // Oson ma'lumoti 26 soatdan eski — qaysi vaqtdagi ekani aytiladi (kompyuterda Oson admin ochilmagan bo'lishi mumkin).
+  const eski = DQ.eski && DQ.osonVaqt ? ' (Oson ' + sana(DQ.osonVaqt) + ' dagi)' : '';
+  if (z.holat === 'bor') {
+    const bor = (z.filiallar || []).filter((f) => Number(f.soni) > 0);
+    return h('div', { class: 'dq dq-bor' }, '📦 Bizda: ', h('b', {}, z.jami || ''),
+      bor.length ? ' — ' + bor.map((f) => (f.f ? fil(f.f) : f.b) + ' ' + f.matn).join(', ') : '', eski);
+  }
+  if (z.holat === 'tugagan') return h('div', { class: 'dq dq-yoq' }, '📦 Bizda: hamma filialda tugagan' + eski);
+  const t = z.taklif;
+  // Yagona to'liq mos variant (faqat «п/о», «№» kabi farq) — qoldiq «≈» bilan va Oson'dagi nomi; direktor bog'lab qo'yadi.
+  if (t && t.aniq) {
+    return h('div', { class: 'dq dq-taxmin' }, '📦 Bizda ≈ ', h('b', {}, Number(t.soni) > 0 ? t.matn : 'tugagan'), ' — Oson\'da: ',
+      h('span', { 'data-asl': '' }, t.nom), eski,
+      bogla ? h('button', { type: 'button', class: 'link dq-bogla', onclick: () => bogla(t.nom) }, 'Bog\'lash') : null);
+  }
+  // Tanilmadi — «yo'q» demaymiz (egasi): taklif bo'lsa — ehtimol (bir necha variant bo'lsa — soni), aks holda direktor bog'laydi.
+  return h('div', { class: 'dq dq-nomalum' },
+    h('span', {}, '❓ Nomi Oson\'da tanilmadi'),
+    t ? h('span', {}, ' · ehtimol: ', h('span', { 'data-asl': '' }, t.nom), ' — ' + (Number(t.soni) > 0 ? 'bizda ' + t.matn : 'tugagan')
+      + (Number(t.variant) > 1 ? ' (yana ' + (Number(t.variant) - 1) + ' ta o\'xshash)' : ''))
+      : h('span', {}, bogla ? ' — «Bog\'lash» bilan Oson\'dagi nomini tanlang' : ' — qoldig\'ini bilish uchun direktorga ayting'),
+    bogla ? h('button', { type: 'button', class: 'link dq-bogla', onclick: () => bogla(t && t.nom) }, 'Bog\'lash') : null);
 }

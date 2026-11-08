@@ -9,7 +9,7 @@ import { oddiyRejimmi, rejimQoy, renderOddiy } from './oddiy.mjs';
 import { yozuvKirillmi, yozuvQoy } from './kirill.mjs';
 import { doira, RANGLAR } from './diagramma.mjs';
 import { BOT_USERNAME, UY_PULI } from './config.mjs';
-import { DEF_HOLAT, defekturaYozKarta, keldiTasdiq, kelganKarta, praysQidiruv, yozganEl, yozganlar } from './bolimlar.mjs';
+import { DEF_HOLAT, aslNomEl, defQoldiqEl, defQoldiqYukla, defekturaYozKarta, keldiTasdiq, kelganKarta, nomTuzatOyna, praysQidiruv, yozganEl, yozganlar } from './bolimlar.mjs';
 import { shtrixDirektor } from './shtrix.mjs';
 import { punktlarView, retseptBosh, retseptIchida, retseptView } from './retsept.mjs';
 import { sanashXabari } from './xabar.mjs';
@@ -20,6 +20,7 @@ import { osonKarta, osonQidiruv, osonQidiruvQoy, osonRejimQoy, osonSonlar } from
 import { globalQidiruvOyna } from './qidiruv.mjs';
 import { tanishuvAvto, tanishuvOch } from './tanishuv.mjs';
 import { mijozBelgi } from './mijoz.mjs';
+import { qabulOyna, tasdiqHolati, xodimlardagiPul } from './qarz-mijoz.mjs';
 import { buyurtmaView, ertalabKarta, kochirishView, pulKirish, pulView } from './pul.mjs';
 import { filialMijozOyna } from './filial-mijoz.mjs';
 import { inventarOrqaga, inventarView } from './inventar.mjs';
@@ -506,13 +507,19 @@ export function renderDirektor(root, ctx) {
     m.append(h('div', { class: 'grid2' }, h('div', { class: 'card' }, h('span', { class: 'muted' }, 'Ochiq qarz'), h('b', {}, H.som(ochiq.reduce((a, q) => a + qol(q), 0)))),
       h('div', { class: 'card warn' }, h('span', {}, 'Muddati o\'tgan'), h('b', {}, H.som(ochiq.filter((q) => H.muddatiOtgan(q)).reduce((a, q) => a + qol(q), 0))))));
     ruxsatKartalari().forEach((c) => m.append(c));
+    // 09.11: mijozlar qaytargan pul xodimlarda — qabul qilish (har to'lov alohida kirim).
+    xodimlardagiPul(S).forEach((t) => m.append(h('div', { class: 'card qm-topshir warn' }, kartaSarlavha(ism(t.xodimId) + 'da qarz pullari'),
+      h('div', { class: 'qm-jami' }, h('b', {}, H.som(t.jami)), h('span', { class: 'muted' }, ' · ' + t.soni + ' ta to\'lov')),
+      h('button', { type: 'button', class: 'p s', style: 'align-self:flex-start', onclick: () => qabulOyna(ctx, t, ism(t.xodimId), UY_PULI) }, 'Ko\'rish va qabul qilish'))));
     const w = h('div', { class: 'card list' }, kartaSarlavha('Xodimlar bo\'yicha (bitta xodimga limit ' + H.som(S.sozlama.limitXodim) + ')'));
+    const xodimdagi = (id) => H.xodimdagiPullar(S.qarzlar, id).reduce((a, z) => a + z.pul.summa, 0);   // qabul qilinmagan qarz puli
     S.xodimlar.filter((z) => z.rol === 'sotuvchi' && z.faol !== false).forEach((z) => {
       const r = S.qarzlar.filter((q) => q.xodimId === z.id && (q.holat === 'ochiq' || q.holat === 'undirildi'));
       const qo = r.filter((q) => q.holat === 'ochiq').reduce((a, q) => a + qol(q), 0), ot = r.filter((q) => q.holat === 'ochiq' && H.muddatiOtgan(q)).length;
       const pct = S.sozlama.limitXodim > 0 ? Math.min(100, Math.round(qo / S.sozlama.limitXodim * 100)) : 0;
       w.append(h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', {}, z.ism), h('span', {}, H.som(qo) + ' qoldi')),
-        h('div', { class: 'muted' }, 'Berdi ' + H.som(r.reduce((a, q) => a + q.summa, 0)) + ' · undirildi ' + H.som(r.reduce((a, q) => a + q.summa - qol(q), 0)) + ' · ' + (ot ? ot + ' tasi muddati o\'tgan' : 'muddati o\'tgan yo\'q')),
+        h('div', { class: 'muted' }, 'Berdi ' + H.som(r.reduce((a, q) => a + q.summa, 0)) + ' · undirildi ' + H.som(r.reduce((a, q) => a + (q.tolovlar || []).reduce((b, t) => b + t.summa, 0), 0))
+          + (xodimdagi(z.id) ? ' · xodimda ' + H.som(xodimdagi(z.id)) : '') + ' · ' + (ot ? ot + ' tasi muddati o\'tgan' : 'muddati o\'tgan yo\'q')),
         h('div', { class: 'bar' + (pct > 80 ? ' over' : ''), role: 'progressbar', 'aria-valuenow': String(pct), 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-label': z.ism + ': limitdan foydalanish' }, h('i', { style: 'width:' + pct + '%' }))));
     });
     m.append(w);
@@ -524,8 +531,22 @@ export function renderDirektor(root, ctx) {
       const it = h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '' }, q.ism), h('b', {}, H.som(q.holat === 'ochiq' ? qol(q) : q.summa))),
         h('div', { class: 'muted' }, q.tel + ' · ' + ism(q.xodimId) + ' · ' + fil(q.filialId)),
         h('div', { class: 'muted', style: otgan ? 'color:var(--warn);font-weight:600' : '' }, q.holat === 'undirildi' ? 'To\'liq qaytarildi ✓' : otgan ? 'Muddati ' + Math.abs(kun) + ' kun o\'tdi' : 'Qaytarishga ' + kun + ' kun'));
+      if (q.dorilar) it.append(h('div', { class: 'muted qm-dori' }, '💊 ', h('span', { 'data-asl': '' }, q.dorilar)));
       if (q.tolovlar.length) it.append(h('div', { class: 'muted' }, 'To\'lovlar: ' + q.tolovlar.map((t) => H.som(t.summa) + ' (' + sana(t.ts) + ', ' + HAM[t.hamyon] + ')').join(', ')));
-      if (q.holat === 'ochiq') it.append(h('button', { class: 'p s', style: 'align-self:flex-start', onclick: () => sheet('Pul qaytdi: ' + q.ism, (box, close) => {
+      // 09.11: xodim olgan, hali qabul qilinmagan pul; mijoz tasdig'i; mijoz «Noto'g'ri» desa — bekor qilish (to'lovsiz qarz).
+      const xodimda = (q.pullar || []).filter((p) => p.holat === 'xodimda');
+      if (xodimda.length) it.append(h('div', { class: 'qm-xodimda' }, ism(q.xodimId) + 'da: ' + H.som(xodimda.reduce((a, p) => a + p.summa, 0)) + ' — hali qabul qilinmagan'));
+      const th = tasdiqHolati(q);
+      if (th) it.append(h('div', { class: 'qm-tasdiq ' + th.rang }, th.matn.replace(' — «QR ko\'rsatish» ni bosing', ' (xodim QR ko\'rsatadi)')));
+      if ((q.holat === 'ochiq' || q.holat === 'ruxsat') && !q.tolovlar.length && !(q.pullar || []).length) {
+        it.append(h('button', { type: 'button', class: 'link', style: 'align-self:flex-start', onclick: () => tasdiqlash(q.ism + ': ' + H.som(q.summa) + ' qarz yozuvi bekor qilinsinmi? (xato yozilgan bo\'lsa) Mijoz botga ulangan bo\'lsa — unga xabar boradi.')
+          .then((ha) => ha && ctx.amal('qarzBekor', q.id)).then((ok) => { if (ok) ctx.toast('Qarz bekor qilindi'); }) }, 'Qarzni bekor qilish'));
+      }
+      // Audit 09.11: xodimda to'lov bor — «Pul qaytdi» emas, avval o'sha pulni qabul qilish (bir pul ikki marta seyfga yozilmasin).
+      if (q.holat === 'ochiq' && xodimda.length) {
+        const t = xodimlardagiPul(S).find((z) => z.xodimId === xodimda[0].xodimId);
+        if (t) it.append(h('button', { class: 'p s', style: 'align-self:flex-start', onclick: () => qabulOyna(ctx, t, ism(t.xodimId), UY_PULI) }, ism(t.xodimId) + 'dagi pulni qabul qilish'));
+      } else if (q.holat === 'ochiq') it.append(h('button', { class: 'p s', style: 'align-self:flex-start', onclick: () => sheet('Pul qaytdi: ' + q.ism, (box, close) => {
         const s = input('Qancha olib keldi (qoldiq ' + H.som(qol(q)) + ')', { value: String(qol(q)) });
         let ham = UY_PULI ? 'uy' : 'kassa';
         const hamG = pills([['uy', 'Uy'], ['kassa', 'Seyf']], ham, (v) => { ham = v; }, 'Hamyon');
@@ -716,6 +737,11 @@ function boshIshlar(ctx, go, bugun) {
       tugma: ['Tasdiqlash', () => tasdiqlash(nomi + ' savdosi: naqd ' + H.som(z.naqd) + ', karta ' + H.som(z.karta) + ' — jami ' + H.som(jami) + '. Savdoga yozilsinmi?')
         .then((ha) => ha && ctx.amal('savdoTasdiq', z.id).then((ok) => ok && ctx.toast('Savdoga yozildi ✓')))] };
     }),
+    // 09.11: xodimdagi qarz pullari (mijoz qaytardi) — qabul qilish; mijoz «Noto'g'ri» degan qarz.
+    ...xodimlardagiPul(S).map((t) => ({ tur: 'qarzPul', icon: 'kirim', rang: 'kirim', sarlavha: ism(t.xodimId) + ': qarz pullari',
+      izoh: H.som(t.jami) + ' · ' + t.soni + " ta to'lov — qabul qiling", tugma: ['Qabul', () => qabulOyna(ctx, t, ism(t.xodimId), UY_PULI)] })),
+    ...S.qarzlar.filter((q) => q.holat === 'ochiq' && q.tasdiq === 'rad').map((q) => ({ tur: 'qarzRad', icon: 'odam', rang: 'warn',
+      sarlavha: "Mijoz qarzni «Noto'g'ri» dedi", izoh: q.ism + ' · ' + H.som(q.summa) + ' · ' + ism(q.xodimId), onclick: () => go('more', 'qarz') })),
     ...S.qarzlar.filter((q) => q.holat === 'ruxsat').map((q) => ({ tur: 'ruxsat', icon: 'odam', rang: 'warn', sarlavha: ism(q.xodimId) + ' qarz bermoqchi',
       izoh: q.ism + ' · ' + H.som(q.summa) + ' — ruxsatingiz kerak', tugma: ['Ko\'rish', () => go('more', 'qarz')], asosiy: false })),
     ...S.taminotchilar.map((t) => [t, t.amallar.filter((a) => a.holat === 'ular' && !a.bekor).length]).filter(([, n]) => n)
@@ -884,6 +910,8 @@ const DIQQAT = {
   smenaOchiq: ['soat', 'sariq', 'Ochiq qolgan smenalar'],
   qabul: ['hamyon', 'yashil', 'Pul qabul qilish'],
   tasdiq: ['savdo', 'sariq', 'Savdoni tasdiqlash'],
+  qarzPul: ['hamyon', 'yashil', 'Qarz pullari — qabul qilish'],
+  qarzRad: ['mijoz', 'qizil', 'Mijoz qarzni «Noto\'g\'ri» dedi'],
   ruxsat: ['mijoz', 'sariq', 'Qarzga ruxsat so\'ralmoqda'],
   taYozdi: ['tamin', 'sariq', 'Ta\'minotchilar yozuv yozdi'],
   taEtiroz: ['tamin', 'qizil', 'Ta\'minotchilar e\'tiroz bildirdi'],
@@ -2125,12 +2153,16 @@ function defQator(ctx, fil, d, narx) {
     h('div', { class: 'muted' }, d.filiallar.map(fil).join(', ') + (d.soni > 1 ? ' · ' + d.soni + ' marta yozilgan' : '') + ' · '
       + (d.holat === 'buyurtma' && d.holatTs ? 'buyurtma ' + sana(d.holatTs) : sana(d.ts)) + (d.izohlar.length ? ' · ' + d.izohlar.join('; ') : '')),
     yozganEl(ctx.S, d),   // 06.11: kim yozgan
+    aslNomEl(d),   // 09.11: to'g'irlangan bo'lsa — xodim yozgani
+    d.holat !== 'keldi' && ctx.server ? defQoldiqEl(ctx.retseptCtx(), d, fil, (t) => nomTuzatOyna(ctx, d, t)) : null,   // 09.11 kech: bizdagi qoldiq
     narx && ctx.server && firmaOchiq() ? defNarxQator(d.nom) : null,
     ctx.server ? mijozBelgi(d) : null,   // 06.11 kech: direktorda faqat «N mijoz kutmoqda» (tugma — xodimlarda)
     h('div', { class: 'row' },
       d.holat === 'yangi' ? h('button', { class: 'p s', onclick: () => ctx.amal('defekturaHolat', d.nom, 'buyurtma') }, 'Buyurtma berdim') : null,
       h('button', { class: d.holat === 'buyurtma' ? 'p s' : 's', onclick: () => keldiTasdiq(d).then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'keldi')) }, 'Keldi'),
-      h('button', { class: 's', onclick: () => tasdiqlash(d.nom + ' ro\'yxatdan olib tashlansinmi?').then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'bekor')) }, 'Kerak emas')));
+      h('button', { class: 's', onclick: () => tasdiqlash(d.nom + ' ro\'yxatdan olib tashlansinmi?').then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'bekor')) }, 'Kerak emas')),
+    // 09.11: nomni Oson / prays-listdagi to'g'ri nomga (xodim o'zicha yozgan bo'lsa).
+    h('button', { type: 'button', class: 'link', style: 'align-self:flex-start', onclick: () => nomTuzatOyna(ctx, d) }, 'Nomni to\'g\'irlash'));
 }
 
 // Defektura: hamma filiallar ro'yxati birlashgan ("2 marta yozilgan"). Ota buyurtma beradi → "Buyurtma berdim" → kelganda "Keldi".
@@ -2139,6 +2171,7 @@ function defQator(ctx, fil, d, narx) {
 const DEF_TAB = { v: 'kerak' };
 function defekturaDirektor(m, ctx, fil, ochFirmalar) {
   const { S } = ctx;
+  if (ctx.server) defQoldiqYukla(ctx.retseptCtx(), S);   // 09.11 kech: bizdagi qoldiq
   const g = H.defekturaGuruh(S.defektura || []);
   const kerak = g.filter((d) => d.holat === 'yangi'), keldi = g.filter((d) => d.holat === 'keldi');
   const berilgan = g.filter((d) => d.holat === 'buyurtma').sort((a, b) => b.holatTs - a.holatTs);

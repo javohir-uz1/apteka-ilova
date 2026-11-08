@@ -26,6 +26,7 @@ import { menDavomat } from './davomat.mjs';
 import { bolimlar, eskiKorinishmi, haptik, korinishOyna, korinishQolla, orqagaTugma, sozlamaTugmasi } from './qobiq.mjs';
 import { ikon } from './ikon.mjs';
 import { qarzUsta } from './qarz-usta.mjs';
+import { qrKerak, qrOyna, tasdiqHolati, tolovOyna, topshirKarta, yozilgandan } from './qarz-mijoz.mjs';
 import { tanishuvAvto, tanishuvOch } from './tanishuv.mjs';
 
 // Telegram skripti brauzerda ham WebApp obyektini yaratadi — haqiqiy Telegram'da initData bo'sh bo'lmaydi.
@@ -369,19 +370,33 @@ function qarzView(m, x) {
     h('div', { class: 'muted' }, 'Limitingiz ' + H.som(S.sozlama.limitXodim) + ' — yana ' + H.som(Math.max(0, S.sozlama.limitXodim - ochiq)) + ' yozish mumkin · bitta mijozga ko\'pi bilan ' + H.som(S.sozlama.limitMijoz))));
   if (fy('x_qarz')) m.append(h('button', { class: 'p', onclick: () => qarzYoz(x) }, '+ Qarz yozish'));
   else m.append(h('div', { class: 'msg warn', role: 'status' }, 'Qarz yozish direktor tomonidan o\'chirilgan.'));
-  m.append(yordam('Mijoz pul qaytarsa — kassaga qo\'shmang, direktorga olib boring. Qarzni direktor yopadi.', 'Mijoz pulni qaytarsa?'));
+  // 09.11: xodimdagi qarz pullari — «direktorga bering» va «✓ Direktor qabul qildi».
+  const tk = topshirKarta({ amal, toast }, S, x);
+  if (tk) m.append(tk);
+  m.append(yordam('Mijoz to\'lasa — qarz ostidagi «💵 To\'lov kiritish» ni bosing. Pulni kassaga qo\'shmang — alohida saqlab direktorga bering, direktor qabul qiladi. Mijoz botga ulangan bo\'lsa — unga xabar boradi.', 'Mijoz pulni qaytarsa?'));
   const list = h('div', { class: 'card list' }, kartaSarlavha('Siz yozgan qarzlar'));
   if (!mine.length) list.append(h('div', { class: 'muted' }, 'Hali qarz yozmagansiz. Mijoz pulsiz dori olsa — "+ Qarz yozish" ni bosing.'));
+  const ctx = qarzCtx(x);
   mine.sort((a, b) => H.qarzQoldiq(b) - H.qarzQoldiq(a)).forEach((q) => {
     const qol = H.qarzQoldiq(q), otgan = q.holat === 'ochiq' && H.muddatiOtgan(q);
     const kun = Math.ceil((H.muddatKuni(q) - Date.now()) / 864e5);
-    list.append(h('div', { class: 'item' }, h('div', { class: 'line' }, h('b', { 'data-asl': '' }, q.ism), h('b', {}, q.holat === 'undirildi' ? 'Yopildi ✓' : H.som(qol))),
+    const xodimda = (q.pullar || []).filter((p) => p.holat === 'xodimda').reduce((a, p) => a + p.summa, 0);
+    const th = tasdiqHolati(q);
+    const tolandi = q.holat === 'ochiq' && qol <= 0;
+    list.append(h('div', { class: 'item qm-item' }, h('div', { class: 'line' }, h('b', { 'data-asl': '' }, q.ism), h('b', {}, q.holat === 'undirildi' || tolandi ? 'To\'landi ✓' : H.som(qol))),
+      q.dorilar ? h('div', { class: 'muted qm-dori' }, '💊 ', h('span', { 'data-asl': '' }, q.dorilar)) : null,
       h('div', { class: 'muted', style: otgan || q.holat === 'ruxsat' ? 'color:var(--warn);font-weight:600' : '' },
         q.holat === 'ruxsat' ? 'Direktor ruxsatini kutmoqda — javob kelguncha dorini qarzga bermang'
-          : q.holat === 'rad' ? 'Direktor rad etdi — qarz berilmasin' : q.holat === 'undirildi' ? 'Direktor yopdi · ' + H.som(q.summa)
-            : otgan ? 'Muddati ' + Math.abs(kun) + ' kun o\'tdi — qo\'ng\'iroq qiling!' : 'Qaytarishga ' + kun + ' kun qoldi'),
-      q.holat === 'undirildi' || q.holat === 'rad' ? null
-        : h('a', { class: 'btn', style: 'min-height:44px;align-self:flex-start;font-size:15px', href: 'tel:' + q.tel }, 'Qo\'ng\'iroq qilish: ' + q.tel)));
+          : q.holat === 'rad' ? (q.izoh === 'Direktor bekor qildi' ? 'Direktor bekor qildi' : 'Direktor rad etdi — qarz berilmasin')
+            : q.holat === 'undirildi' ? 'Yopildi · ' + H.som(q.summa)
+              : tolandi ? 'To\'liq to\'landi — pulni direktorga bering'
+                : otgan ? 'Muddati ' + Math.abs(kun) + ' kun o\'tdi (' + sana(H.muddatKuni(q)) + ') — qo\'ng\'iroq qiling!' : 'Qaytarishga ' + kun + ' kun qoldi · ' + sana(H.muddatKuni(q))),
+      xodimda > 0 ? h('div', { class: 'qm-xodimda' }, 'Sizda: ' + H.som(xodimda) + ' — direktorga bering') : null,
+      th ? h('div', { class: 'qm-tasdiq ' + th.rang }, th.matn) : null,
+      q.holat !== 'ochiq' ? null : h('div', { class: 'qm-tugmalar' },
+        qol > 0 ? h('button', { type: 'button', class: 'p s', onclick: () => tolovOyna(ctx, q) }, '💵 To\'lov kiritish') : null,
+        SERVER && qrKerak(q) ? h('button', { type: 'button', class: 's', onclick: () => qrOyna(ctx, q) }, 'QR ko\'rsatish') : null,
+        qol > 0 ? h('a', { class: 'btn', href: 'tel:' + q.tel, 'aria-label': 'Qo\'ng\'iroq qilish: ' + q.tel }, '📞 ' + q.tel) : null)));
   });
   m.append(list);
 }
@@ -390,7 +405,8 @@ function qarzSheet(x) {
   sheet('Qarz yozish', (box, close) => {
     const forma = { muddatKun: 7 };
     const ism = input('Mijozning ism-sharifi', { inputmode: 'text', placeholder: 'Familiya Ism' }),
-      tel = input('Telefon raqami', { inputmode: 'tel', placeholder: '90 123 45 67' }), summa = input('Summa, so\'m');
+      tel = input('Telefon raqami', { inputmode: 'tel', placeholder: '90 123 45 67' }), summa = input('Summa, so\'m'),
+      dor = input('Qaysi dorilar? (ixtiyoriy)', { inputmode: 'text', placeholder: 'Masalan: Анальгин, Цитрамон', maxlength: '300' });
     const res = h('div', { 'aria-live': 'polite' });
     const btn = h('button', { class: 'p' }, 'Qarzni yozish');
     const upd = () => {
@@ -406,15 +422,16 @@ function qarzSheet(x) {
     btn.addEventListener('click', () => {
       if (xatolarniKorsat([[ism, String(ism.i.value).trim().length < 3 ? 'Ism-sharifni to\'liq yozing' : null],
         [tel, H.normTel(tel.i.value) ? null : 'Raqam noto\'g\'ri — masalan: 90 123 45 67'], [summa, pulXato(summa, 'Summani yozing')]])) return;
-      const f = { ism: ism.i.value, tel: tel.i.value, summa: summa.i.value, muddatKun: forma.muddatKun };
-      amalX(xatoJoyla([[ism, /ism/i], [tel, /telefon/i], [summa, /summa/i], [muddatX, /muddat/i]]), 'qarzYozish', f).then((r) => {
+      const f = { ism: ism.i.value, tel: tel.i.value, summa: summa.i.value, muddatKun: forma.muddatKun, dorilar: String(dor.i.value).trim() };
+      amalX(xatoJoyla([[ism, /ism/i], [tel, /telefon/i], [summa, /summa/i], [muddatX, /muddat/i]]), 'qarzBer', f).then((r) => {
         if (!r) return;
         close();
         // Takrorda natija yo'q — xabar yangi holatdagi shu qarzdan (ruxsat kutayotgan bo'lsa ogohlantirish yo'qolmaydi).
         toast(...qarzXabari(r, S, x.id, f));
+        yozilgandan(qarzCtx(x), r, f);   // 09.11: QR yoki «so'rov botga ketdi»
       });
     });
-    box.append(ism.el, tel.el, summa.el, h('b', {}, 'Qachon qaytaradi?'), muddat, muddatX.el, res, btn);
+    box.append(ism.el, tel.el, dor.el, summa.el, h('b', {}, 'Qachon qaytaradi?'), muddat, muddatX.el, res, btn);
   });
 }
 
@@ -455,7 +472,9 @@ function xOrqaga() {
   tab = xYol.pop() || 'bosh';
   sahifaOtish(() => render(true));
 }
-const qarzYoz = (x) => (eskiKorinishmi() ? qarzSheet(x) : qarzUsta({ S: () => S, x, amalX, toast }));
+// 09.11: mijoz qarzi — saqlangach QR (mijoz botda tasdiqlaydi) yoki «so'rov botga ketdi».
+const qarzCtx = (x) => ({ S: () => S, x, amal, amalX, toast, tg, server: SERVER, keyin: (r, f) => yozilgandan(qarzCtx(x), r, f) });
+const qarzYoz = (x) => (eskiKorinishmi() ? qarzSheet(x) : qarzUsta(qarzCtx(x)));
 
 function renderXodimYangi(x) {
   if (!XY_TAB[tab]) tab = 'bosh';
@@ -552,7 +571,11 @@ function xBosh(m, x) {
     c.append(ishQator({ icon: 'odam', rang: 'warn', sarlavha: 'Bugun ' + qarzlarim.length + ' ta qarz yozdingiz',
       izoh: 'Jami ' + H.som(qarzlarim.reduce((a, q) => a + (q.summa || 0), 0)) + (ruxsat ? ' · ' + ruxsat + ' tasi ruxsat kutmoqda' : ''), onclick: () => xOch('qarz') }));
   }
-  if (!keldi.length && !qarzlarim.length) c.append(h('div', { class: 'muted' }, 'Hozircha yangilik yo\'q.'));
+  // 09.11: mijoz qaytargan qarz puli xodimda — direktorga topshirish eslatmasi.
+  const qp = H.xodimdagiPullar(S.qarzlar, x.id);
+  if (qp.length) c.append(ishQator({ icon: 'kirim', rang: 'warn', sarlavha: 'Qarz pullari — direktorga bering',
+    izoh: H.som(qp.reduce((a, z) => a + z.pul.summa, 0)) + ' · ' + qp.length + ' ta to\'lov · kassaga qo\'shmang', onclick: () => xOch('qarz') }));
+  if (!keldi.length && !qarzlarim.length && !qp.length) c.append(h('div', { class: 'muted' }, 'Hozircha yangilik yo\'q.'));
   m.append(c);
   const mo = muddatiOtganKarta(ctx, (id) => filialOf(id).nom || id, () => { if (tab === 'bosh') render(); });
   if (mo) m.append(mo);

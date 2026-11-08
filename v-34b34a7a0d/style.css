@@ -1634,3 +1634,29 @@ html.matn-katta .tt-tavsiya, html.matn-katta .tt-b { font-size: 16px; } html.mat
 .tt-qosh { align-self: flex-start; margin-top: 8px; }
 .shumi-t small { display: block; }
 .tt-kim { font-size: 15px; margin: 0 0 4px; }
+/* 09.11: mijoz qarzi — tasdiq holati, to'lov, xodimdagi pul, QR qadamlari */
+.qm-item .qm-tugmalar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.qm-item .qm-tugmalar > * { min-height: 44px; }
+.qm-dori { font-size: 15px; }
+.qm-tasdiq { font-size: 15px; font-weight: 600; color: var(--muted); }
+.qm-tasdiq.ok { color: var(--accent-txt); }
+.qm-tasdiq.warn { color: var(--warn); }
+.qm-tasdiq.xato { color: var(--red); }
+.qm-xodimda { font-size: 15px; font-weight: 600; color: var(--warn); }
+.qm-kim { font-size: 17px; margin: 0 0 8px; }
+.qm-jami b { font-size: 26px; }
+.qm-qator { display: flex; align-items: center; gap: 10px; min-height: 44px; border-top: 1px solid var(--sep); }
+.qm-qator > span { flex: 1; min-width: 0; }
+.qm-qator .link { min-height: 44px; padding: 0 4px; }
+.qm-qadam { margin: 0 0 8px; padding-left: 22px; line-height: 1.45; }
+.qm-qadam li + li { margin-top: 4px; }
+.qm-xulosa { font-weight: 600; min-height: 1.4em; margin: 6px 0; }
+.qm-muddat { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
+.card.list > .qm-qator:first-child { border-top: 0; }
+/* 09.11 kech: defektura — bizdagi qoldiq */
+.dq { font-size: 15px; line-height: 1.4; }
+.dq-bor { color: var(--accent-txt); }
+.dq-yoq { color: var(--warn); font-weight: 600; }
+.dq-nomalum { color: var(--muted); }
+.dq .dq-bogla { min-height: 44px; padding: 0 6px; }
+.dq-taxmin { color: var(--ink); }
