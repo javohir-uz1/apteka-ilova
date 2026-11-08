@@ -58,7 +58,7 @@ const root = document.getElementById('app');
 
 // Serverga yuboruvchi (sorov.mjs): C1 kalit — xatodan keyin aynan shu so'rov qayta yuborilsa o'sha kalit (server ikki marta
 // yozmaydi); kech kelgan eski holat yangisining ustidan yozilmaydi. Oyna yopilib sahifa ko'ringach — eski kalitlar unutiladi.
-const sorov = sorovchi({ serverga, initData: () => tg.initData, korinadimi: () => !document.querySelector('.sheet-bg') });
+const sorov = sorovchi({ serverga, initData: () => tg.initData, korinadimi: () => !document.querySelector('.sheet-bg:not(.yopilmoqda)') });
 oynalarYopilganda(() => sorov.korildi());
 // 07.11: internet kutayotgan yozuvlar (sorov.mjs oflayn navbat) — tepada kichik belgi; son o'zgarsa faqat shu belgi yangilanadi.
 function navbatBelgi() {
