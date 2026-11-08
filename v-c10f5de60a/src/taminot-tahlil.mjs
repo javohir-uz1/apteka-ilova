@@ -4,7 +4,7 @@
 // (Oson qoldig'i kamayishi), Oson sotuv narxi, ta'minotchi narxi. Sotuv — qoldiq kamayishidan (chek emas), shuning uchun taxminiy.
 // Faqat direktor va faqat serverda. Hisob — sof funksiyalar (doriHisob, taHisobi), test: miniapp-taminot-tahlil.
 import * as H from './hisob.mjs';
-import { h, input, kartaSarlavha, pills, sana, sheet } from './ui.mjs';
+import { h, input, kartaSarlavha, pills, sana, sheet, tasdiqlash } from './ui.mjs';
 
 const T = { kun: 30, j: null, jKun: null, vaqt: 0, xato: null, yuk: null, ta: null };
 export function tahlilUnut() { Object.assign(T, { j: null, jKun: null, vaqt: 0, xato: null, yuk: null }); }
@@ -116,7 +116,53 @@ function boglaOyna(ctx, ta, d, chiz) {
     q.i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); qidir(); } });
     box.append(q.el, h('button', { type: 'button', onclick: qidir }, 'Qidirish'), nat);
     if (d.bog) box.append(h('button', { type: 'button', class: 'link', onclick: () => tanla('') }, 'Bog\'lashni olib tashlash'));
+    // 09.11: dorini shu ta'minotchi ro'yxatidan olib tashlash (xaridlar va qarz o'zgarmaydi).
+    box.append(h('button', { type: 'button', class: 'ogoh', onclick: () => {
+      tasdiqlash('«' + d.nom + '» ' + ta.nom + ' ro\'yxatidan olib tashlansinmi? Xaridlar va qarz o\'zgarmaydi.')
+        // Kalit bilan (bog'lashdagidek): nomdan qayta hisoblangan kalit eski yozuvnikidan farq qilishi mumkin (08.11 izohi).
+        .then((ha) => (ha ? ctx.amal('taminotDori', ta.id, d.kalit || d.nom, false) : null)).then((r) => {
+          if (r == null) return;
+          close(); ctx.toast(r === 0 ? 'Ro\'yxatda topilmadi — yangilandi' : 'Ro\'yxatdan olindi'); tahlilUnut(); yukla(ctx, chiz, true);
+        });
+    } }, 'Ro\'yxatdan olib tashlash'));
   }, { fokus: false });
+}
+
+// «+ Dori qo'shish»: nomini yozasiz — Oson'dagi o'xshash dorilar chiqadi, tanlansa aynan shu nom yoziladi (qoldiq va sotuv
+// o'zi bog'lanadi); Oson'da yo'q dori — yozilgan nom bilan (keyin «Oson'dagi qaysi dori?» bilan bog'lash mumkin).
+function doriQoshOyna(ctx, ta, chiz) {
+  sheet('Dori qo\'shish', (box, close) => {
+    const qosh = (nom) => ctx.amal('taminotDori', ta.id, nom, true).then((r) => {
+      if (r == null) return;
+      close(); ctx.toast('Qo\'shildi ✓'); tahlilUnut(); yukla(ctx, chiz, true);
+    });
+    // Yozilgan nom bilan qo'shish tugmasi (nom kirill rejimida ham o'zgarmaydi — data-asl).
+    const ozi = (v, old) => h('button', { type: 'button', class: 'link', onclick: () => qosh(v) }, h('span', {}, old, '«', h('span', { 'data-asl': '' }, v), '» deb qo\'shish'));
+    const q = input('Dori nomi', { inputmode: 'text', placeholder: 'Masalan: Гемостим' });
+    const nat = h('div', { class: 'shumi' });
+    let avlod = 0, taymer = null;
+    const qidir = () => {
+      const v = String(q.i.value || '').replace(/\s+/g, ' ').trim();
+      nat.textContent = '';
+      if (v.length < 2) return;
+      const men = ++avlod;
+      nat.append(h('div', { class: 'muted' }, 'Oson\'dan qidirilmoqda…'));
+      ctx.oqi('osonQidir', v).then((j) => {
+        if (men !== avlod) return;
+        nat.textContent = '';
+        const nomlar = [...new Set((Array.isArray(j) ? j : []).map((z) => z && z.nom).filter(Boolean))].slice(0, 8);
+        nomlar.forEach((n) => nat.append(h('button', { type: 'button', class: 's shumi-t', onclick: () => qosh(n) },
+          h('span', { 'data-asl': '' }, n), h('small', {}, 'Oson\'da bor — qoldig\'i ko\'rinadi'))));
+        nat.append(ozi(v, nomlar.length ? 'Hech biri emas — ' : 'Oson\'da topilmadi — '));
+      }, () => { if (men === avlod) { nat.textContent = ''; nat.append(ozi(v, '')); } });
+    };
+    q.i.addEventListener('input', () => { clearTimeout(taymer); taymer = setTimeout(qidir, 350); });
+    q.i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(taymer); qidir(); } });
+    box.append(h('div', { class: 'tt-kim' }, 'Ta\'minotchi: ', h('b', { 'data-asl': '' }, ta.nom)),
+      h('div', { class: 'muted' }, 'Nomini yoza boshlang — Oson\'dagi nom bilan tanlasangiz, bizda qancha qolgani va sotuvi o\'zi chiqadi. Ta\'minotchi botga ulanmagan bo\'lsa ham ishlaydi.'),
+      q.el, nat);
+    return () => clearTimeout(taymer);
+  });
 }
 
 function holatEl(ctx, chiz) {
@@ -141,11 +187,15 @@ export function taDorilarKarta(ctx, ta, chiz, ochTahlil) {
   const t = T.j.taminotchilar.find((z) => z.id === ta.id);
   // Audit 08.11: yangi xarid yoki ta'minotchi — 60 soniyalik keshda hali yo'q; bir marta (3 s dan keyin) qayta olinadi.
   if ((!t || (ta.dorilar && t.dorilar.length !== ta.dorilar.length)) && !T.yuk && Date.now() - T.vaqt > 3000) yukla(ctx, chiz, true);
-  if (!t || !t.dorilar.length) { k.append(h('div', { class: 'muted' }, 'Ro\'yxatda dori yo\'q. Xarid yozilganda dorilar shu yerga o\'zi qo\'shiladi.')); return k; }
+  const qoshT = h('button', { type: 'button', class: 's tt-qosh', onclick: () => doriQoshOyna(ctx, ta, chiz) }, '+ Dori qo\'shish');
+  if (!t || !t.dorilar.length) {
+    k.append(h('div', { class: 'muted' }, 'Ro\'yxatda dori yo\'q. «+ Dori qo\'shish» bilan shu ta\'minotchi olib keladigan dorilarni yozing — bizda qancha qolgani Oson\'dan o\'zi chiqadi. Xarid yozilganda ham dorilar o\'zi qo\'shiladi.'), qoshT);
+    return k;
+  }
   const s = taHisobi(t, T.j.davr);
-  k.append(h('div', { class: 'muted' }, 'Hamma filialdagi jami (Oson) · oxirgi ' + T.j.davr + ' kun sotuvi.'));
+  k.append(h('div', { class: 'muted' }, 'Hamma filialdagi jami (Oson) · ' + (T.j.davr >= 1 ? 'oxirgi ' + T.j.davr + ' kun sotuvi.' : 'sotuv hali kuzatilmoqda.')));
   const ro = h('div', { class: 'tt-royxat' }, ...s.ds.map(({ d, x }) => doriQator(ctx, t, d, x, chiz)));
-  k.append(ro);
+  k.append(ro, qoshT);
   if (ochTahlil) k.append(h('button', { type: 'button', class: 'link', onclick: () => { T.ta = ta.id; ochTahlil(); } }, 'To\'liq tahlil ›'));
   return k;
 }

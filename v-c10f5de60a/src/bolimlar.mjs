@@ -187,6 +187,7 @@ export function defekturaXodim(m, ctx, x) {
       h('div', { class: 'muted' }, d.filiallar.map(fil).join(', ') + (d.soni > 1 ? ' · ' + d.soni + ' marta yozilgan' : '')
         + (d.holat === 'buyurtma' && d.holatTs ? ' · buyurtma ' + sana(d.holatTs) : '') + (d.izohlar.length ? ' · ' + d.izohlar.join(' · ') : '')),
       yozganEl(S, d),   // 06.11: kim yozgan
+      aslNomEl(d),   // 09.11: direktor nomini to'g'irlagan bo'lsa — xodim yozgani
       mijozQism(ctx.oson, d, x.filialId),   // 06.11: mijoz kutish ro'yxati — o'z filialidagi yozuv
       // 2-darajali xodim buyurtma beradi va "Keldi" qiladi (pulga aralashmaydi).
       x.daraja === 2 ? h('div', { class: 'row' },
@@ -204,4 +205,60 @@ export function defekturaXodim(m, ctx, x) {
   if (berilgan.length) m.append(h('div', { class: 'card list' }, kartaSarlavha('Buyurtma berilganlar (' + berilgan.length + ')'), ...berilgan.map(qator)));
   // Oson qoldig'i (02.11): kam qolgan va tugagan dorilar — xodim ham «+ Defekturaga» bosadi (faqat serverda).
   if (ctx.oson) { const ok = osonKarta(ctx.oson, fil, () => ctx.oson.rerender()); if (ok) m.append(ok); }
+}
+
+// 09.11: defektura nomi to'g'irlangan bo'lsa — xodim yozgan asl matn (u o'z yozganini taniydi).
+export function aslNomEl(d) {
+  const a = (d && d.asl) || [];
+  return a.length ? h('div', { class: 'muted def-asl' }, 'Xodim yozgani: ', h('span', { 'data-asl': '' }, a.join('; '))) : null;
+}
+
+// 09.11 (egasi: "defekturadagi nomlarni xodimlar o'zlari tushunadigan tilda yozgan — to'g'irla"): direktor nomni Oson /
+// prays-listdagi to'g'ri nomga almashtiradi. Hamma filialdagi shu nomli ochiq yozuvlar o'zgaradi, eski matn «Xodim yozgani»da
+// qoladi va lug'atga yoziladi — xodim keyin yana shunday yozsa, o'zi to'g'ri nomga o'tadi. To'g'ri nom Oson'dagiga mos kelsa,
+// dori Oson'ga kirim qilinganda «Keldi» o'zi bo'ladi. ctx: { amal, qidir, toast }
+export function nomTuzatOyna(ctx, d) {
+  sheet('Nomni to\'g\'irlash', (box, close) => {
+    const asl = (d.asl && d.asl[0]) || d.nom;
+    const q = input('Qidirish (Oson va prays-list)', { inputmode: 'text', placeholder: 'Masalan: Нош-Бра' });
+    q.i.value = asl;
+    const nat = h('div', { class: 'shumi', 'aria-live': 'polite' });
+    let navbat = 0, taymer = null, band = false;
+    // Audit 09.11: saqlanayotganda tugmalar o'chiq (ikkinchi bosish yolg'on xato bermasin).
+    const saqla = (nom) => {
+      if (band) return;
+      band = true; nat.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+      Promise.resolve(ctx.amal('defekturaNom', d.nom, nom)).then((n) => {
+        band = false; nat.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+        if (n == null) return;
+        close(); ctx.toast('Nom to\'g\'irlandi ✓');
+      });
+    };
+    const qidir = () => {
+      const v = String(q.i.value || '').replace(/\s+/g, ' ').trim();
+      nat.textContent = '';
+      if (v.length < 2) return;
+      const men = ++navbat;
+      nat.append(h('div', { class: 'muted' }, 'Qidirilmoqda…'));
+      Promise.resolve(ctx.qidir ? ctx.qidir(v) : []).catch(() => []).then((r) => {
+        if (men !== navbat) return;
+        nat.textContent = '';
+        // Oson nomlari birinchi (kirim shu nom bilan keladi — «Keldi» aniq moslashadi), keyin prays-list.
+        const l = (Array.isArray(r) ? r : []).filter((z) => z && z.nom);
+        const nomlar = [...new Set([...l.filter((z) => z.oson), ...l.filter((z) => !z.oson)].map((z) => z.nom))].slice(0, 8);
+        const osonda = new Set(l.filter((z) => z.oson).map((z) => z.nom));
+        if (!nomlar.length) nat.append(h('div', { class: 'muted' }, 'Topilmadi — boshqacha yozib ko\'ring.'));
+        nomlar.forEach((n) => nat.append(h('button', { type: 'button', class: 's shumi-t', onclick: () => saqla(n) }, h('span', { 'data-asl': '' }, n),
+          osonda.has(n) ? h('small', {}, 'Oson\'dagi nom') : null)));
+        nat.append(h('button', { type: 'button', class: 'link', onclick: () => saqla(v) }, h('span', {}, '«', h('span', { 'data-asl': '' }, v), '» deb saqlash')));
+      });
+    };
+    q.i.addEventListener('input', () => { clearTimeout(taymer); taymer = setTimeout(qidir, 350); });
+    q.i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(taymer); qidir(); } });
+    box.append(h('div', { class: 'tt-kim' }, 'Hozir: ', h('b', { 'data-asl': '' }, d.nom)),
+      h('div', { class: 'muted' }, 'To\'g\'ri nomni tanlang — Oson\'dagi nom bilan tanlasangiz, dori kirim qilinganda «Keldi» o\'zi bo\'ladi. Xodim keyin yana shunday yozsa, o\'zi to\'g\'ri nomga o\'tadi.'),
+      q.el, nat);
+    qidir();
+    return () => clearTimeout(taymer);
+  });
 }

@@ -43,7 +43,7 @@ export function raqamQosh(summa, k) {
 // ctx: { S: () => holat, x, amalX, toast }
 export function qarzUsta(ctx) {
   const { x } = ctx;
-  const f = { ism: '', tel: '', summa: '', muddatKun: 7 };
+  const f = { ism: '', tel: '', summa: '', muddatKun: 7, dorilar: '' };   // 09.11: dorilar nomi (ixtiyoriy) — mijoz botda ko'radi
   const xato = { ism: '', tel: '', summa: '', muddat: '', umumiy: '' };
   let qadam = 1, band = false, chizish = null;
   const qarzlar = () => (ctx.S().qarzlar || []).filter((q) => q.holat !== 'rad');
@@ -78,14 +78,17 @@ export function qarzUsta(ctx) {
     function qadam1(el) {
       const ism = input('Ism-sharifi', { inputmode: 'text', placeholder: 'Familiya Ism', autocapitalize: 'words', enterkeyhint: 'next' });
       const tel = input('Telefon raqami', { inputmode: 'tel', placeholder: '90 123 45 67', autocomplete: 'tel', enterkeyhint: 'next' });
-      ism.i.value = f.ism; tel.i.value = f.tel;
+      const dor = input('Qaysi dorilar? (ixtiyoriy)', { inputmode: 'text', placeholder: 'Masalan: Анальгин, Цитрамон', maxlength: '300', enterkeyhint: 'next' });
+      ism.i.value = f.ism; tel.i.value = f.tel; dor.i.value = f.dorilar;
       ism.i.addEventListener('input', () => { f.ism = ism.i.value; xato.ism = ''; asosiyYangila(); });
       tel.i.addEventListener('input', () => { f.tel = tel.i.value; xato.tel = ''; asosiyYangila(); });
+      dor.i.addEventListener('input', () => { f.dorilar = dor.i.value; });
       ism.i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); tel.i.focus(); } });
-      tel.i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); keyingi1(); } });
+      tel.i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); dor.i.focus(); } });
+      dor.i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); keyingi1(); } });
       ism.xato(xato.ism); tel.xato(xato.tel);
       maydon = xato.ism ? ism.i : xato.tel ? tel.i : null;
-      el.append(savol('Kim qarzga oldi?'), ism.el, tel.el);
+      el.append(savol('Kim qarzga oldi?'), ism.el, tel.el, dor.el);
       const old = oldingiMijozlar(ctx.S().qarzlar, x.id);
       if (old.length) {
         el.append(h('div', { class: 'qu-chiplar', role: 'group', 'aria-label': 'Oldingi mijozlar' }, h('span', { class: 'muted' }, 'Oldingi mijozlar — bosing:'),
@@ -151,12 +154,13 @@ export function qarzUsta(ctx) {
         h('div', { class: 'card qu-royxat' },
           satr('Mijoz', h('span', { 'data-asl': '' }, f.ism.trim()), 1),
           satr('Telefon', telMatn(f.tel), 1),
+          String(f.dorilar).trim() ? satr('Dorilar', h('span', { 'data-asl': '' }, String(f.dorilar).trim()), 1) : null,
           satr('Summa', H.som(H.pul(f.summa) || 0), 2),
           satr('Qaytaradi', f.muddatKun + ' kunda · ' + qaytadi, 2)),
         t.limit ? h('div', { class: 'msg warn' }, t.limit + ' Ruxsat kelguncha dorini bermang.') : null,
         ...t.ogohlantirish.map((o) => h('div', { class: 'msg info' }, o)),
         h('div', { class: 'qu-diqqat', role: 'note' }, h('b', { 'aria-hidden': 'true' }, '!'),
-          h('span', {}, 'Mijoz pulni qaytarsa — kassaga qo\'shmang, direktorga olib boring. Qarzni direktor yopadi.')),
+          h('span', {}, 'Saqlagach QR chiqadi — mijoz skanerlab, botda qarzni tasdiqlaydi. To\'laganda — «To\'lov kiritish», pulni kassaga qo\'shmang, direktorga bering.')),
         xato.umumiy ? h('div', { class: 'msg xato', role: 'alert' }, xato.umumiy) : null].filter(Boolean));   // Element.append(null) «null» yozadi
       const d3 = davom(band ? 'Saqlanmoqda…' : t.limit ? 'Direktordan ruxsat so\'rash' : 'Qarzni saqlash', saqla);
       past.append(orqa(), d3);
@@ -182,10 +186,10 @@ export function qarzUsta(ctx) {
       if (band) return;
       xato.ism = ismXato(); xato.tel = telXato(); xato.summa = summaXato(); xato.umumiy = '';
       if (xato.ism || xato.tel || xato.summa) { haptik('xato'); qadam = xato.ism || xato.tel ? 1 : 2; chiz(); return; }
-      const forma = { ism: f.ism, tel: f.tel, summa: f.summa, muddatKun: f.muddatKun };
+      const forma = { ism: f.ism, tel: f.tel, summa: f.summa, muddatKun: f.muddatKun, dorilar: String(f.dorilar).trim() };
       let joylandi = false;
       band = true; chiz();
-      Promise.resolve(ctx.amalX((m) => { joylandi = true; return xatoQoy(m); }, 'qarzYozish', forma)).then((r) => {
+      Promise.resolve(ctx.amalX((m) => { joylandi = true; return xatoQoy(m); }, 'qarzBer', forma)).then((r) => {
         band = false;
         if (!r) {
           if (!joylandi) xato.umumiy = 'Saqlanmadi — internetni tekshirib, «Qarzni saqlash»ni qayta bosing.';
@@ -195,6 +199,7 @@ export function qarzUsta(ctx) {
         close();
         // Takrorda natija yo'q — xabar yangi holatdagi shu qarzdan (eski oyna bilan bir xil).
         ctx.toast(...qarzXabari(r, ctx.S(), x.id, forma));
+        if (ctx.keyin) ctx.keyin(r, forma);   // 09.11: QR (mijoz botda tasdiqlaydi) yoki «so'rov botga ketdi»
       });
     }
 
