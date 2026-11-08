@@ -106,7 +106,7 @@ function yukla(ctx, chiz, majbur = false) {
     .then((j) => {
       if (!j || !Array.isArray(j.qatorlar)) throw new Error('Server javobi tushunarsiz');
       A.j = j; A.kalit = kalit; A.xato = null; A.xatoKalit = '';
-    }, (e) => { A.xato = (e && e.message) || 'Jurnal olinmadi'; A.xatoKalit = kalit; })
+    }).catch((e) => { A.xato = (e && e.message) || 'Jurnal olinmadi'; A.xatoKalit = kalit; })
     .finally(() => { A.vaqt = Date.now(); A.yuklanmoqda = null; if (A.jadval + '|' + A.kun !== kalit) yukla(ctx, chiz); chiz(); });
 }
 

@@ -57,7 +57,7 @@ const ATTR = ['placeholder', 'aria-label', 'title'];
 export function kirillDom(el) {
   if (!el || el.nodeType !== 1 && el.nodeType !== 3) return;
   if (el.nodeType === 3) {
-    if (!(el.parentElement && el.parentElement.closest('[data-asl], script, style, textarea')) && /[A-Za-z]/.test(el.data)) el.data = kirill(el.data);
+    if (/[A-Za-z]/.test(el.data) && !(el.parentElement && el.parentElement.closest('[data-asl], script, style, textarea'))) el.data = kirill(el.data);
     return;
   }
   if (el.closest('[data-asl], script, style')) return;

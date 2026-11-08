@@ -80,7 +80,8 @@ export function yozuvTugma(rerender, id) {
 let tasdiqOchiq = false;
 export function tasdiqlash(matn) {
   if (tasdiqOchiq) return Promise.resolve(false);
-  if (document.documentElement.classList.contains(KIRILL)) matn = kirill(matn);
+  // Audit 09.11: «…» ichidagi dori/odam nomlari asl holicha qoladi (Cefazolin → Сефазолин bo'lib ketmasin).
+  if (document.documentElement.classList.contains(KIRILL)) matn = String(matn).split(/(«[^»]*»)/).map((s, i) => (i % 2 ? s : kirill(s))).join('');
   const tg = window.Telegram && window.Telegram.WebApp;
   tasdiqOchiq = true;
   const yop = (v) => { tasdiqOchiq = false; return v; };
@@ -209,18 +210,31 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window.
     if (t.closest('[data-klav="qoldir"]')) return;
     setTimeout(() => { if (document.activeElement === a) a.blur(); }, 0);
   });
+  // 09.11 (egasi: "yozganda, klaviatura chiqqanda hamma joyda qotish bor"): klaviatura ochilayotganda visualViewport har kadrda
+  // resize/scroll beradi — har birida oyna o'lchami yozilib, maydon surilib (majburiy layout) qotardi. Endi hodisalar
+  // jamlanadi: harakat to'xtagach (120 ms) bir marta. Sahifa balandligi (#app) — px'da, faqat ekran burilganda/klaviatura
+  // yopiq paytda yangilanadi (100vh klaviatura har qadamida butun sahifani qayta hisoblatardi).
+  const appH = () => {
+    const a = document.activeElement;
+    if (a && a.matches && a.matches(YOZISH)) return;   // klaviatura ochiq — sahifa balandligi o'zgarmasin
+    const v = window.innerHeight + 'px';
+    if (document.documentElement.style.getPropertyValue('--app-h') !== v) document.documentElement.style.setProperty('--app-h', v);
+  };
+  appH();
+  window.addEventListener('orientationchange', () => setTimeout(appH, 300));
   const vv = window.visualViewport;
   if (vv) {
-    const vvYangi = () => { try { vvQoy(); } catch (e) { /* o'lcham berilmasa ham oyna ishlaydi */ } };
-    vv.addEventListener('resize', () => { vvYangi(); korsatKeyin(); });
-    vv.addEventListener('scroll', vvYangi);
+    let vvT = 0, vsT = 0;
+    const qoy = () => { try { vvQoy(); } catch (e) { /* o'lcham berilmasa ham oyna ishlaydi */ } };
+    vv.addEventListener('resize', () => { clearTimeout(vvT); vvT = setTimeout(() => { qoy(); korsatKeyin(); appH(); }, 120); });
+    // Siljish — faqat oyna o'lchami (audit 09.11: iPhone'da natijalarga surilganda maydonga qaytarib tortmasin).
+    vv.addEventListener('scroll', () => { clearTimeout(vsT); vsT = setTimeout(qoy, 120); });
   }
   // Yozish maydoni bosilganda: klaviatura chiqqach maydon ko'rinadigan joyga suriladi (iPhone Telegram'da o'zi surmasdi — 28.10).
+  // Bir marta — klaviatura chiqib bo'lgach (qolganini jamlangan resize qiladi).
   document.addEventListener('focusin', (e) => {
     if (!e.target.matches || !e.target.matches(YOZISH)) return;
-    korsatKeyin();
-    setTimeout(korsatKeyin, 350);
-    setTimeout(korsatKeyin, 700);
+    setTimeout(korsatKeyin, 400);
   });
   document.addEventListener('focusout', () => setTimeout(() => {
     const a = document.activeElement;

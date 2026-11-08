@@ -59,8 +59,8 @@ function nYukla(ctx, chiz, majbur = false) {
   if (N.yuklanmoqda) return;
   if (!majbur && (N.j || N.xato) && Date.now() - N.vaqt < 60000) return;
   N.yuklanmoqda = Promise.all([ctx.oqi('narxFarq'), ctx.oqi('narxXodim').catch(() => null), ctx.oqi('narxChegara').catch(() => null)])
-    .then(([j, y, c]) => { if (!j || !Array.isArray(j.qatorlar)) throw new Error('Server javobi tushunarsiz'); N.j = j; N.y = y; N.c = c; N.xato = null; },
-      (e) => { N.xato = (e && e.message) || 'Ma\'lumot olinmadi'; })
+    .then(([j, y, c]) => { if (!j || !Array.isArray(j.qatorlar)) throw new Error('Server javobi tushunarsiz'); N.j = j; N.y = y; N.c = c; N.xato = null; })
+      .catch((e) => { N.xato = (e && e.message) || 'Ma\'lumot olinmadi'; })
     .finally(() => { N.vaqt = Date.now(); N.yuklanmoqda = null; chiz(); });
 }
 
@@ -205,8 +205,8 @@ function kYukla(ctx, chiz, majbur = false) {
   if (!majbur && ((K.jKalit === K.kunlar && K.j) || K.xatoKalit === K.kunlar) && Date.now() - K.vaqt < 60000) return;
   const n = K.kunlar;
   K.yuklanmoqda = ctx.oqi('kassaOson', n)
-    .then((j) => { if (!j || !Array.isArray(j.filiallar)) throw new Error('Server javobi tushunarsiz'); K.j = j; K.jKalit = n; K.xato = null; K.xatoKalit = 0; },
-      (e) => { K.xato = (e && e.message) || 'Ma\'lumot olinmadi'; K.xatoKalit = n; })
+    .then((j) => { if (!j || !Array.isArray(j.filiallar)) throw new Error('Server javobi tushunarsiz'); K.j = j; K.jKalit = n; K.xato = null; K.xatoKalit = 0; })
+      .catch((e) => { K.xato = (e && e.message) || 'Ma\'lumot olinmadi'; K.xatoKalit = n; })
     .finally(() => { K.vaqt = Date.now(); K.yuklanmoqda = null; chiz(); });
 }
 const HOLAT = {
@@ -274,8 +274,8 @@ function xYukla(ctx, chiz, majbur = false) {
   if (X.yuklanmoqda) return;
   if (!majbur && (X.j || X.xato) && Date.now() - X.vaqt < 120000) return;
   X.yuklanmoqda = ctx.oqi('narxXodim')
-    .then((j) => { if (!j || !Array.isArray(j.tuzat)) throw new Error('Server javobi tushunarsiz'); X.j = j; X.xato = null; },
-      (e) => { X.xato = (e && e.message) || 'Olinmadi'; })
+    .then((j) => { if (!j || !Array.isArray(j.tuzat)) throw new Error('Server javobi tushunarsiz'); X.j = j; X.xato = null; })
+      .catch((e) => { X.xato = (e && e.message) || 'Olinmadi'; })
     .finally(() => { X.vaqt = Date.now(); X.yuklanmoqda = null; chiz(); });
 }
 // Hech narsa bo'lmasa — null (Bosh sahifada joy egallamaydi).
