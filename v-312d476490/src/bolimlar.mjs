@@ -116,14 +116,15 @@ export function kelganKarta(S, o = {}) {
 // Prays yuklangan bo'lsa — dori ro'yxatdan tanlanadi (bitta dori har xil nom bilan yozilmasin): praysdan yoki
 // defekturada allaqachon bor nomdan. Praysda umuman yo'q dori — "Ro'yxatda yo'q" tugmasi yoki «Qo'shish», tasdiq bilan.
 let defTanlangan = null;
-export function defekturaXodim(m, ctx, x) {
+// Defekturaga yozish formasi — xodim sahifasida (karta) va direktor Defekturasida («+ Dori yozish» oynasi, 08.11:
+// "Defektura direktor ham yoza olishi kerak"). Server defektura_yoz — yozgan odamning (samarali) filialiga.
+export function defekturaYozKarta(ctx, o = {}) {
   const { S } = ctx;
   const praysBor = !!(S.prays && S.prays.soni);
-  // Hamma filiallar; "Keldi"lar — "Keldi" bo'limida alohida.
   const g = H.defekturaGuruh((S.defektura || []).filter((d) => d.holat !== 'keldi'));
   const izoh = input('Izoh (ixtiyoriy)', { inputmode: 'text', placeholder: 'Masalan: mijoz so\'radi', k: 'def-izoh' });
   const yoz = (nom) => ctx.amalX(xatoJoyla([[q.f, /dori|nom|ro'yxatda/i]]), 'defekturaYoz', nom, izoh.i.value)
-    .then((ok) => { if (ok) { defTanlangan = null; ctx.toast('Ro\'yxatga qo\'shildi ✓'); } });
+    .then((ok) => { if (ok) { defTanlangan = null; ctx.toast('Ro\'yxatga qo\'shildi ✓'); if (o.yozildi) o.yozildi(); } });
   const q = praysMaydon(ctx, {
     yorliq: 'Qaysi dori kam qoldi?', cheklov: 6, k: 'def-nom', misol: 'парацетамол',
     tanlansa: (nom) => { defTanlangan = H.defNom(nom); q.f.xato(''); },
@@ -134,9 +135,9 @@ export function defekturaXodim(m, ctx, x) {
       tasdiqlash('«' + v + '» — prays-listda yo\'q dori sifatida yozilsinmi? Nomini to\'liq va dozasi bilan yozganingizni tekshiring.').then((ha) => ha && yoz(v));
     } }, 'Ro\'yxatda yo\'q — «' + H.defNom(soz) + '» deb yozish') : null
   });
-  m.append(h('div', { class: 'card' }, kartaSarlavha('Defektura — kam qolgan dori'),
+  const card = h('div', { class: 'card' + (o.oynada ? ' def-yoz' : '') }, o.oynada ? null : kartaSarlavha('Defektura — kam qolgan dori'),
     h('div', { class: 'muted' }, praysBor ? 'Nomini yoza boshlang: ro\'yxatda bo\'lsa — tanlang (hamma bir xil nom bilan yozsin). Aptekada yo\'q dori bo\'lsa — to\'liq yozib «Qo\'shish»ni bosing. Son kerak emas.'
-      : 'Nomini to\'liq yozing (dozasi bilan). Son kerak emas. Direktor buyurtma beradi.'),
+      : 'Nomini to\'liq yozing (dozasi bilan). Son kerak emas.' + (o.oynada ? '' : ' Direktor buyurtma beradi.')),
     q.el, q.natija, izoh.el,
     h('button', { class: 'p', onclick: () => {
       const v = H.defNom(q.f.i.value);
@@ -146,7 +147,7 @@ export function defekturaXodim(m, ctx, x) {
       // ko'rsatiladi; hech biri bo'lmasa — o'zi yozgani, tasdiq bilan (aptekada umuman bo'lmagan dori ham yoziladi — 28.10).
       if (v !== defTanlangan) { shumi(v); return; }
       yoz(v);
-    } }, 'Qo\'shish')));
+    } }, 'Qo\'shish'));
   let shumiKetyapti = false;
   function shumi(v) {
     if (shumiKetyapti) return;   // qayta audit: «Qo'shish» ikki marta bosilsa — bitta oyna
@@ -169,6 +170,15 @@ export function defekturaXodim(m, ctx, x) {
       }, { fokus: false });
     });
   }
+  return card;
+}
+
+export function defekturaXodim(m, ctx, x) {
+  const { S } = ctx;
+  const praysBor = !!(S.prays && S.prays.soni);
+  // Hamma filiallar; "Keldi"lar — "Keldi" bo'limida alohida.
+  const g = H.defekturaGuruh((S.defektura || []).filter((d) => d.holat !== 'keldi'));
+  m.append(defekturaYozKarta(ctx));
   const fil = (id) => (S.filiallar.find((f) => f.id === id) || {}).nom || id;
   const qator = (d) => {
     const [l, c] = DEF_HOLAT[d.holat];
