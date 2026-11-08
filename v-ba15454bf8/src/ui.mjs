@@ -329,9 +329,14 @@ export function sheet(title, build, o2 = {}) {
     if (!oynalar.length) document.removeEventListener('keydown', oynaTugmasi);
     orqagaYangila();
     if (typeof tozala === 'function') { try { tozala(); } catch (e) { /* tozalash xatosi oynani yopishga xalal bermasin */ } }
-    if (oynalar.length && !(opener && opener.isConnected)) {
-      const f = [...oynalar[oynalar.length - 1].box.querySelectorAll(FOKUSLANADI)].filter(korinadi)[0];
-      if (f) f.focus();
+    // Audit 08.11: oyna yopilganda ustida boshqa oyna qolsa — fokus o'sha oynada qoladi (ochuvchi orqa sahifada bo'lsa ham;
+    // masalan xodim oynasidan «Oylik» — yangi oyna ochilib, keyin eskisi yopiladi: klaviatura yangi oynadagi maydonda qolsin).
+    if (oynalar.length) {
+      const ust = oynalar[oynalar.length - 1].box;
+      if (!ust.contains(document.activeElement)) {
+        if (opener && opener.isConnected && ust.contains(opener)) fokusQaytar(opener, iz);
+        else { const f = [...ust.querySelectorAll(FOKUSLANADI)].filter(korinadi)[0]; if (f) f.focus(); }
+      }
     } else fokusQaytar(opener, iz);
     if (!oynalar.length && hammasiYopildi) { try { hammasiYopildi(); } catch (e) { /* oynani yopishga xalal bermasin */ } }
   };
@@ -619,6 +624,8 @@ let otishda = false, otishId = 0;
 export const otishdami = () => otishda;
 export function sahifaOtish(fn) {
   const d = typeof document !== 'undefined' ? document : null;
+  // Audit 08.11: yopilayotgan oyna (pastga sirg'alayotgan) yangi sahifa rasmiga tushmasin — darhol olinadi.
+  if (d) d.querySelectorAll('.sheet-bg.yopilmoqda').forEach((b) => b.remove());
   if (!d || typeof d.startViewTransition !== 'function' || otishda || oynalar.length || d.visibilityState === 'hidden' || !harakatMumkin()) { fn(); return; }
   otishda = true;
   const men = ++otishId;
