@@ -153,8 +153,14 @@ export function normTel(t) {
   return d.length === 12 && d.startsWith('998') ? '+' + d : null;
 }
 
-export const qarzQoldiq = (q) => q.summa - (q.tolovlar || []).reduce((a, t) => a + t.summa, 0);
-export const muddatKuni = (q) => q.berildi + q.muddatKun * 864e5;
+// 09.11: qoldiq — qabul qilingan to'lovlar (tolovlar) va xodimdagi to'lovlar (pullar, holat «xodimda») ayriladi (SQL qarz_qoldiq).
+export const qarzQoldiq = (q) => q.summa - (q.tolovlar || []).reduce((a, t) => a + t.summa, 0)
+  - (q.pullar || []).filter((p) => p.holat === 'xodimda').reduce((a, p) => a + p.summa, 0);
+// Bo'lib to'lashda yangi muddat (q.muddat); bo'lmasa — berilgan kun + muddat kunlari.
+export const muddatKuni = (q) => (q.muddat ? q.muddat : q.berildi + q.muddatKun * 864e5);
+// Xodim olgan, direktor hali qabul qilmagan qarz pullari: [{ qarz, pul }], yangisi oxirida.
+export const xodimdagiPullar = (qarzlar, xodimId) => (qarzlar || []).flatMap((q) => (q.pullar || [])
+  .filter((p) => p.holat === 'xodimda' && (!xodimId || p.xodimId === xodimId)).map((p) => ({ qarz: q, pul: p }))).sort((a, b) => a.pul.ts - b.pul.ts);
 export const muddatiOtgan = (q, now = Date.now()) => qarzQoldiq(q) > 0 && now > muddatKuni(q);
 export const mijozOchiq = (qarzlar, tel) => qarzlar.filter((q) => q.tel === tel).reduce((a, q) => a + Math.max(0, qarzQoldiq(q)), 0);
 export const xodimOchiq = (qarzlar, xodimId) => qarzlar.filter((q) => q.xodimId === xodimId).reduce((a, q) => a + Math.max(0, qarzQoldiq(q)), 0);
@@ -600,6 +606,12 @@ export function kunXulosa(s, kun, now = Date.now()) {
       : ['Seyfda: ' + som(kassa), ...(uyga > 0 ? ['Uyga olib ketildi: ' + som(uyga)] : [])]),
     'Ochiq smenalar: ' + (ochiq.length ? ochiq.join(', ') : 'yo\'q'),
     'Qabul qilinmagan pul: ' + (kutil.length ? kutil.join(', ') : 'yo\'q'),
+    // 09.11 (audit): xodimlardagi qarz puli (bo'lsa) — SQL kun_xulosa bilan bir xil (birinchi to'lov vaqti tartibida).
+    ...(() => {
+      const g = new Map();
+      xodimdagiPullar(s.qarzlar).forEach((z) => g.set(z.pul.xodimId, (g.get(z.pul.xodimId) || 0) + z.pul.summa));
+      return g.size ? ['Xodimlarda qarz puli: ' + [...g].map(([id, n]) => ((s.xodimlar || []).find((x) => x.id === id) || {}).ism + ' ' + som(n)).join(', ')] : [];
+    })(),
     'Kassa farqlari: ' + (kam.length ? kam.join(', ') : 'yo\'q'),
     'Muddati o\'tgan qarzlar: ' + otgan.length + ' ta, ' + som(otgan.reduce((a, q) => a + qarzQoldiq(q), 0)),
     'Ruxsat kutayotgan qarzlar: ' + s.qarzlar.filter((q) => q.holat === 'ruxsat').length

@@ -271,11 +271,85 @@ export function qarzUndirish(s, qarzId, summaStr, hamyon, direktorId) {
   hamyonTekshir(hamyon);
   const q = s.qarzlar.find((z) => z.id === qarzId);
   if (!q || q.holat !== 'ochiq') throw new Error('Ochiq qarz topilmadi');
+  // 09.11 (audit): xodimdagi to'lov bor — avval o'sha pul qabul qilinsin (SQL qarz_undirish bilan bir xil).
+  if ((q.pullar || []).some((p) => p.holat === 'xodimda')) throw new Error("Bu qarz bo'yicha xodimda qabul qilinmagan to'lov bor — avval «Qarz pullari»ni qabul qiling");
   const t = H.undirishTekshir(q, summaStr);
   if (t.xato) throw new Error(t.xato);
   const h = harakat(s, { tur: 'kirim', izoh: 'Qarz qaytdi: ' + q.ism, summa: t.summa, d: { [hamyon]: t.summa }, qarzId }, direktorId);
   q.tolovlar.push({ summa: t.summa, ts: Date.now(), hamyon, harakatId: h.id });
   if (t.toliq) { q.holat = 'undirildi'; q.hal = Date.now(); }
+}
+
+// 09.11: mijoz qarzi (sinov rejimi — server qoidalari bilan bir xil, botsiz: mijoz tasdig'i va QR yo'q).
+export function qarzBer(s, xodimId, forma, now = Date.now()) {
+  const r = qarzYozish(s, xodimId, forma, now);
+  r.qarz.dorilar = String(forma.dorilar || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  r.qarz.pullar = [];
+  return { ...r, chatBor: false };
+}
+export function qarzQrYoq() { throw new Error('QR faqat Telegram ilovasida (serverda) ishlaydi'); }
+// Xodim: mijoz to'ladi — pul xodimda; qisman bo'lsa qolganiga yangi muddat (3/7/14/30 kun).
+export function qarzTolov(s, xodimId, qarzId, summaStr, muddatKun, now = Date.now()) {
+  const q = s.qarzlar.find((z) => z.id === qarzId);
+  if (!q || q.xodimId !== xodimId) throw new Error("Qarz topilmadi — faqat o'zingiz yozgan qarzga to'lov kiritiladi");
+  if (q.holat !== 'ochiq') throw new Error('Ochiq qarz topilmadi');
+  const summa = H.pul(summaStr);
+  if (!summa || summa <= 0) throw new Error('Summani kiriting');
+  const qol = H.qarzQoldiq(q);
+  if (qol <= 0) throw new Error("Bu qarz to'liq to'langan");
+  if (summa > qol) throw new Error("Summa qoldiqdan ko'p — qoldiq " + H.som(qol));
+  let yangiMuddat = null;
+  const eskiMuddat = q.muddat || null;
+  if (qol - summa > 0) {
+    if (![3, 7, 14, 30].includes(Number(muddatKun))) throw new Error("Qolganini qachon to'lashini tanlang (muddat)");
+    yangiMuddat = now + Number(muddatKun) * 864e5;
+    q.muddat = yangiMuddat;
+  }
+  q.pullar = q.pullar || [];
+  const pul = { id: yangiId('p'), summa, ts: now, holat: 'xodimda', mijoz: null, xodimId, qabulTs: null, yangiMuddat, eskiMuddat };
+  q.pullar.push(pul);
+  return { id: pul.id, qoldiq: qol - summa, toliq: qol === summa, chatBor: false };
+}
+export function qarzPulBekor(s, xodimId, pulId) {
+  const x = xodim(s, xodimId);
+  for (const q of s.qarzlar) {
+    const p = (q.pullar || []).find((z) => z.id === pulId);
+    if (!p) continue;
+    if (!x || (x.rol !== 'direktor' && p.xodimId !== xodimId)) break;
+    if (p.holat !== 'xodimda') throw new Error("Direktor qabul qilgan yoki bekor qilingan to'lov — o'zgartirib bo'lmaydi");
+    if (p.mijoz === 'tasdiqladi' && x.rol !== 'direktor') throw new Error("Mijoz bu to'lovni botda tasdiqlagan — bekor qilishni faqat direktor qiladi");
+    if (p.yangiMuddat && q.muddat === p.yangiMuddat) q.muddat = p.eskiMuddat || null;
+    p.holat = 'bekor';
+    q.pullar = q.pullar.filter((z) => z !== p);
+    return { qoldiq: H.qarzQoldiq(q) };
+  }
+  throw new Error("To'lov topilmadi");
+}
+// Direktor: xodimdagi hamma qarz pulini qabul qiladi — har to'lov alohida kirim.
+export function qarzPulQabul(s, direktorId, xodimId, hamyon, jami0) {
+  hamyonTekshir(hamyon);
+  const z = xodim(s, xodimId);
+  if (!z) throw new Error('Xodim topilmadi');
+  const r = H.xodimdagiPullar(s.qarzlar, xodimId);
+  if (H.pul(jami0) !== r.reduce((a, x) => a + x.pul.summa, 0)) throw new Error("Xodimdagi qarz puli o'zgardi (yangi to'lov yozilgan yoki bekor qilingan) — ro'yxatni qayta ko'ring");
+  if (!r.length) throw new Error("Qabul qilinadigan qarz puli yo'q");
+  let jami = 0;
+  r.forEach(({ qarz: q, pul: p }) => {
+    const h = harakat(s, { tur: 'kirim', izoh: 'Qarz qaytdi: ' + q.ism + ' (' + z.ism + ' topshirdi)', summa: p.summa, d: { [hamyon]: p.summa }, qarzId: q.id }, direktorId);
+    q.tolovlar.push({ summa: p.summa, ts: p.ts, hamyon, harakatId: h.id });
+    p.holat = 'qabul'; p.qabulTs = Date.now();
+    jami += p.summa;
+  });
+  new Set(r.map((z2) => z2.qarz)).forEach((q) => {
+    if (q.holat === 'ochiq' && H.qarzQoldiq(q) <= 0 && !(q.pullar || []).some((p) => p.holat === 'xodimda')) { q.holat = 'undirildi'; q.hal = Date.now(); }
+  });
+  return { soni: r.length, summa: jami };
+}
+export function qarzBekor(s, qarzId, now = Date.now()) {
+  const q = s.qarzlar.find((z) => z.id === qarzId);
+  if (!q || (q.holat !== 'ochiq' && q.holat !== 'ruxsat')) throw new Error('Ochiq qarz topilmadi');
+  if ((q.tolovlar || []).length || (q.pullar || []).some((p) => p.holat !== 'bekor')) throw new Error("To'lovi bor qarzni bekor qilib bo'lmaydi — avval to'lovlarni bekor qiling");
+  q.holat = 'rad'; q.hal = now; q.izoh = 'Direktor bekor qildi';
 }
 
 export function avansBerish(s, xodimId, summaStr, hamyon, direktorId, oy) {
