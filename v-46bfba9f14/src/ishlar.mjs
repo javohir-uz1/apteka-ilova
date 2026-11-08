@@ -130,6 +130,9 @@ export const ISHLAR = {
   osonTugayapti: [() => A.osonYoq(), () => ['oson_tugayapti', []]],
   osonDefekturaga: [() => A.osonYoq(), (b, pr) => ['oson_defekturaga', [m(b), m(pr)]]],
   osonKerakEmas: [() => A.osonYoq(), (b, pr, ha) => ['oson_kerak_emas', [m(b), m(pr), !!ha]]],
+  // 08.11: ta'minotchi tahlili — faqat serverda (Oson qoldig'i va sotuvi kerak).
+  taminotTahlil: [() => A.osonYoq(), (kun) => ['taminot_tahlil', [Number(kun) || 30]]],
+  taminotDoriOson: [() => A.osonYoq(), (t, nom, oson) => ['taminot_dori_oson', [t, m(nom), String(oson || '')]]],
   osonChegara: [() => A.osonYoq(), (n) => ['oson_chegara', [n]]],
   osonFilial: [() => A.osonYoq(), (b, f) => ['oson_filial', [m(b), f == null ? '' : String(f)]]],
   osonMuddat: [() => A.osonYoq(), (oy) => ['oson_muddat', [oy]]],

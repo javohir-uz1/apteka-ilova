@@ -29,12 +29,13 @@ import { funksiyalarView, ochiqSoni } from './funksiya.mjs';
 import { auditView } from './audit.mjs';
 import { harakatOyna, sorovKarta, sorovOyna } from './filial-sorov.mjs';
 import { hisobKarta, qisqaSana } from './taminot-hisob.mjs';
+import { taDorilarKarta, tahlilTa, tahlilView } from './taminot-tahlil.mjs';
 
 // Sahifalar nomi (sarlavha va global qidiruv — 07.11 tun, `globalQidir`).
 export const SAHIFA_NOM = { bosh: 'Direktor paneli', daftar: 'Kunlik daftar', smena: 'Savdo', tamin: 'Ta\'minotchilar', more: 'Bo\'limlar',
   qarz: 'Mijozlar qarzi', oylik: 'Oyliklar', stat: 'Statistika', oqim: 'Kirim va chiqim', xulosa: 'Kechki xulosa', sozlama: 'Sozlamalar', xabar: 'Bot xabarlari',
   uy: 'Uy puli', defektura: 'Defektura', prays: 'Prays-list', shtrix: 'Shtrix-kodlar', retsept: 'Retseptlar', punktlar: 'Punktlar', oyin: 'Bilimdon o\'yini', davomat: 'Davomat', firmalar: 'Firma prayslari', qoldiq: 'Oson qoldig\'i', pul: 'Pul nazorati', buyurtma: 'Aqlli buyurtma', kochirish: 'Ko\'chirish', inventar: 'Inventar', narx: 'Narx farqi', kassa: 'Kassa ↔ Oson',
-  hamyon: 'Hamyonlar', funksiyalar: 'Funksiyalar', chiqarish: 'Hisobdan chiqarilganlar', audit: 'O\'zgarishlar tarixi', xodimlar: 'Xodimlar ro\'yxati' };
+  hamyon: 'Hamyonlar', funksiyalar: 'Funksiyalar', chiqarish: 'Hisobdan chiqarilganlar', audit: 'O\'zgarishlar tarixi', xodimlar: 'Xodimlar ro\'yxati', taTahlil: 'Ta\'minotchilar tahlili' };
 
 let tab = 'bosh';
 // Yangi ko'rinish (07.11, variant A): pastki menyuda 4 bo'lim; ichki sahifalar — eski ekranlar (tab/sub), menyusiz, «orqaga» bilan.
@@ -370,6 +371,11 @@ export function renderDirektor(root, ctx) {
     m.append(h('div', { class: 'card hero' }, h('span', { class: 'muted' }, 'Biz qarzdormiz, jami'), h('b', { class: 'big' }, H.som(S.taminotchilar.reduce((a, t) => a + H.bizBoyicha(t), 0))),
       h('span', { class: 'muted' }, S.taminotchilar.length + ' ta ta\'minotchi' + (kutT ? ' · ' + kutT + ' ta yozuv tasdiq kutmoqda' : ''))));
     if (!S.taminotchilar.length) m.append(h('div', { class: 'card muted' }, 'Hali ta\'minotchi yo\'q. "+ Ta\'minotchi qo\'shish" bilan qo\'shing va hozirgi qarzimizni yozing.'));
+    // 08.11: tahlil — qaysi ta'minotchining dorisi tez / sekin sotilyapti, qaysi biri ko'p foyda keltiryapti (faqat serverda).
+    else if (ctx.server) {
+      m.append(h('div', { class: 'card yb-r' }, qator({ ikon: 'stat', rang: 'binafsha', l: 'Tahlil', izoh: 'Qaysi dori tez / sekin sotilyapti, qaysi ta\'minotchi foydali',
+        onclick: () => { tahlilTa(null); go('more', 'taTahlil'); } })));
+    }
     S.taminotchilar.forEach((t) => {
       // 04.11: sizdan kutilayotgan (ta'minotchi yozgan), e'tirozlar va ta'minotchidan kutilayotgan — alohida.
       const siz = t.amallar.filter((a) => a.holat === 'ular' && !a.bekor).length, et = H.taEtirozlar(t).length;
@@ -427,6 +433,9 @@ export function renderDirektor(root, ctx) {
     };
     m.append(hisobKarta(t, 'dir', { onYozuv: yozuvOch,
       excel: ctx.server ? () => ctx.amal('taminotExcel', t.id).then((r) => { if (r) ctx.toast('Excel Telegram\'ga yuborildi ✓'); }) : null }));
+    // 08.11 (egasi: "ta'minotchiga kirilganda uning dorilari bizda qancha qolgani"): Oson'dagi jami qoldiq va sotuv.
+    const tk = taDorilarKarta({ ...ctx.retseptCtx(), rerender: ctx.rerender }, t, () => ctx.rerender(), () => go('more', 'taTahlil'));
+    if (tk) m.append(tk);
     const list = h('div', { class: 'card list' }, kartaSarlavha('Har bir yozuv (yangisi tepada)'));
     if (t.boshlangichQarz) list.append(h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', {}, 'Boshlang\'ich qarz'), h('b', {}, H.som(t.boshlangichQarz)))));
     // Har yozuv — bitta qator; bosilsa oyna (yozuvOch). Tasdiq kutayotgani — qator tagida tugma.
@@ -618,6 +627,7 @@ export function renderDirektor(root, ctx) {
   if (sub === 'shtrix') shtrixDirektor(m, ctx);
   if (sub === 'sozlama') sozlamaView(m, ctx, x, fil, go);
   if (tab === 'more' && sub === 'xodimlar') xodimRoyxatView(m, ctx, x, fil);
+  if (tab === 'more' && sub === 'taTahlil') tahlilView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender }, () => ctx.rerender());
   if (sub === 'oqim') oqimView(m, ctx, fil);
   if (sub === 'oyin') oyinView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender });
   if (sub === 'davomat') davomatView(m, ctx.retseptCtx(), S);
@@ -854,6 +864,7 @@ const KATALOG = [
   ['oyin', ['more', 'oyin'], 'oyin', 'Xodimlar', 'bilimdon test oyin'],
   ['funksiyalar', ['more', 'funksiyalar'], 'sozlama', 'Xodimlar', 'yoqish ochirish imkoniyat'],
   ['audit', ['more', 'audit'], 'daftar', 'Xodimlar', 'tarix jurnal kim ozgartirdi'],
+  ['taTahlil', ['more', 'taTahlil'], 'stat', 'Pul · qarzlar', 'taminotchi tahlil foyda tez sotiladi sekin qoldiq', true],
   ['xodimRoyxat', ['more', 'xodimlar'], 'xodimlar', 'Xodimlar', 'hodim royxat havola oylik filial bo\'shatish'],
   ['xulosa', ['more', 'xulosa'], 'xulosa', 'Xodimlar · xabarlar', 'ertalabki hisobot kechki'],
   ['xabar', ['more', 'xabar'], 'xabar', 'Xodimlar · xabarlar', 'bot telegram'],
@@ -863,7 +874,7 @@ export function sahifaKatalog(ctx, go, bolim) {
   return KATALOG.filter(([k, , , , , sv]) => (!sv || ctx.server) && (k !== 'uy' || UY_PULI)).map(([k, yol, ik, izoh, soz]) => ({
     k, ikon: ik, izoh, soz,
     nom: yol === 'b' ? Y_NOM[k] : SAHIFA_NOM[yol[1] || yol[0]] || k,
-    och: yol === 'b' ? () => bolim(k) : () => { if (yol[0] === 'retsept') retseptBosh(); if (yol[1] === 'defektura') DEF_TAB.v = 'kerak'; go(yol[0], yol[1]); }
+    och: yol === 'b' ? () => bolim(k) : () => { if (yol[0] === 'retsept') retseptBosh(); if (yol[1] === 'defektura') DEF_TAB.v = 'kerak'; if (yol[1] === 'taTahlil') tahlilTa(null); go(yol[0], yol[1]); }
   }));
 }
 

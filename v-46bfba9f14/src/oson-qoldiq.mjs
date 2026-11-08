@@ -135,8 +135,15 @@ export function osonKarta(ctx, fil, chiz, o = {}) {
   }
   // Eskirgan — fonda yangilanadi; qayta chizish faqat ma'lumot o'zgarsa va qidiruv ochiq bo'lmasa (yozayotganda klaviatura yopilmasin).
   if (Date.now() - O.vaqt > 60000 && !O.yuklanmoqda) {
-    const oldin = O.j.vaqt + ':' + O.j.qatorlar.length + ':' + O.j.rad;
-    yukla(ctx).then(() => { if (!yozyapti() && O.j && O.j.vaqt + ':' + O.j.qatorlar.length + ':' + O.j.rad !== oldin) chiz(); });
+    // Audit 08.11: «defekturada» belgisi va «hech qayerda» ham o'zgarishi mumkin (qator soni o'zgarmasa ham) — imzoga kiradi.
+    const imzo = () => O.j.vaqt + ':' + O.j.qatorlar.length + ':' + O.j.rad + ':' + O.j.qatorlar.map((q) => (q.def ? 1 : 0) + (q.hammada ? 2 : 0)).join('')
+      + ':' + ((O.j.kerakEmas || []).length);
+    const oldin = imzo(), boshi = Date.now();
+    yukla(ctx).then(() => {
+      // So'rovdan oldin qo'yilgan lokal ✓ (10 daqiqalik) — server javobi endi o'zi aytadi.
+      O.defda.forEach((t, k2) => { if (t !== true && t < boshi) O.defda.delete(k2); });
+      if (!yozyapti() && O.j && imzo() !== oldin) chiz();
+    });
   }
   const j = O.j, fNom = filNomi(fil);
   if (!j.vaqt) {
@@ -157,7 +164,7 @@ export function osonKarta(ctx, fil, chiz, o = {}) {
     .forEach((f) => k.append(h('div', { class: 'oson-otgan' }, '⚠ ', filBelgi(fNom, f.id), ' ' + sana(f.korildi) + ' dan beri Oson\'dan ma\'lumot kelmadi')));
   if (j.rad) radKarta(k, ctx, chiz);
   if (!ctx.qidiruvYoq) k.append(osonQidiruv(ctx, fil, { ichida: true, ixcham: true }));   // 07.11: direktor «Dori qidirish»ni o'chirgan (xodim)
-  if (!['tugadi', 'kam', 'kochir', 'muddat'].includes(O.rejim)) O.rejim = 'tugadi';
+  if (!['tugadi', 'hammada', 'kam', 'kochir', 'muddat'].includes(O.rejim)) O.rejim = 'tugadi';
   const san = (j.sanoq && j.sanoq[O.filial || '']) || { t: 0, k: 0 };
   const kochir = j.qatorlar.filter((q) => (!O.filial || q.b === O.filial) && boshqaBor(q).length).length;
   const M = O.muddat;
@@ -167,21 +174,86 @@ export function osonKarta(ctx, fil, chiz, o = {}) {
   const tab = (rejim, cls, son, nom) => h('button', { type: 'button', class: 'oq-tab ' + cls, 'aria-pressed': String(O.rejim === rejim),
     onclick: () => { O.rejim = rejim; chiz(); } }, h('b', {}, son == null ? '…' : String(son)), h('span', {}, nom));
   k.append(h('div', { class: 'oq-tablar', role: 'group', 'aria-label': 'Ro\'yxat' },
-    tab('tugadi', 'qizil', san.t, 'Tugadi'), tab('kam', 'sariq', san.k, 'Kam qoldi'), tab('kochir', 'kok', kochir, 'Ko\'chirsa'),
+    tab('tugadi', 'qizil', san.t, 'Tugadi'), tab('hammada', 'qizil', j.hammadaJami != null ? j.hammadaJami : hammadaGuruh(j.qatorlar).length, 'Hech qayerda'),
+    tab('kam', 'sariq', san.k, 'Kam qoldi'), tab('kochir', 'kok', kochir, 'Ko\'chirsa'),
     tab('muddat', 'yashil', muddatSoni, 'Muddati yaqin')));
   let ikkinchi;
   if (O.rejim === 'muddat') {
     ikkinchi = tanlovTugma('Muddat', M.oy + ' oy ichida', [[1, '1 oy ichida'], [3, '3 oy ichida'], [6, '6 oy ichida']], M.oy,
       (v) => { M.oy = v; M.j = null; M.xato = null; chiz(); });
   } else {
-    const variant = TARTIBLAR[O.rejim === 'tugadi' ? 'tugadi' : 'boshqa'];
+    const variant = TARTIBLAR[O.rejim === 'tugadi' || O.rejim === 'hammada' ? 'tugadi' : 'boshqa'];
     const joriy = variant.find(([v]) => v === (O.tartib[O.rejim] || '')) || variant[0];
     ikkinchi = tanlovTugma('Tartib', joriy[1], variant, joriy[0], (v) => { O.tartib[O.rejim] = v; chiz(); });
   }
-  k.append(h('div', { class: 'oq-tanlovlar' }, filialTugma(fNom, chiz), ikkinchi));
+  k.append(h('div', { class: 'oq-tanlovlar' }, O.rejim === 'hammada' ? null : filialTugma(fNom, chiz), ikkinchi));
   if (O.rejim === 'muddat') muddatView(k, ctx, fil, chiz);
+  else if (O.rejim === 'hammada') hammadaView(k, ctx, fil, chiz);
   else tugayaptiView(k, ctx, fil, chiz);
   return k;
+}
+
+// 08.11 (egasi: "firmamizda umuman qolmagan — 3 ta filialda ham yo'q dorini ko'rsat; tugagan dorini hech qachon unutmasin"):
+// server har qatorga 'hammada' beradi (shu nomli/katalogdagi dori hech bir filialda qoldig'i yo'q). Bir dori — bitta qator
+// (talaffuz kaliti bo'yicha), filiallar tanlovidan qat'i nazar; eng oxirgi tugagani tepada.
+export function hammadaGuruh(qatorlar) {
+  const m = new Map();
+  (qatorlar || []).filter((q) => q.hammada).forEach((q) => {
+    const k = q.kalit || q.nom;
+    const g = m.get(k);
+    if (!g) m.set(k, { k, nom: q.nom, qatorlar: [q], tugadi: q.tugadi || 0, def: !!q.def });
+    else { g.qatorlar.push(q); g.tugadi = Math.max(g.tugadi, q.tugadi || 0); g.def = g.def || !!q.def; }
+  });
+  return [...m.values()].sort((a, b) => (b.tugadi - a.tugadi) || a.nom.localeCompare(b.nom, 'ru', { sensitivity: 'base', numeric: true }));
+}
+function hammadaView(k, ctx, fil, chiz) {
+  const fNom = filNomi(fil);
+  let gs = hammadaGuruh(O.j.qatorlar);
+  if (O.tartib.hammada === 'alif') gs = gs.slice().sort((a, b) => a.nom.localeCompare(b.nom, 'ru', { sensitivity: 'base', numeric: true }));
+  const ro = h('div', { class: 'oq-royxat' }, h('div', { class: 'oq-bolim qizil' }, h('span', {}, 'Hech bir filialda yo\'q'), h('span', {}, String(gs.length))));
+  if (!gs.length) ro.append(h('div', { class: 'muted', style: 'padding:8px 0 12px' }, '✓ Hamma tugagan dori kamida bitta filialda bor (yoki shu nomli boshqa ishlab chiqaruvchiniki) — qaysi filialda ekanini «Qaysi filialda bor?» qidiruvida ko\'ring.'));
+  else ro.append(h('div', { class: 'muted', style: 'padding:2px 0 8px' }, 'Bu dorilar firmamizda umuman qolmagan — faqat buyurtma bilan keladi. Oson\'da qaytib kelguncha shu yerda turadi.'));
+  const kor = O.ochiq.hammada ? gs : gs.slice(0, KORINADI * 2);
+  const ozim = ctx.x && ctx.x.filialId;
+  const asosiy = ((ctx.S && ctx.S.filiallar) || []).filter((f) => f.asosiy || f.id === 'osnovnoy').map((f) => f.id)[0];
+  kor.forEach((g) => {
+    // «+» (audit 08.11) — avval shu odamning filiali, keyin asosiy filial, keyin oxirgi tugagan filial qatori.
+    const q = g.qatorlar.find((z) => ozim && bizFilial(z.b) === ozim) || g.qatorlar.find((z) => asosiy && bizFilial(z.b) === asosiy) || g.qatorlar[0];
+    const def = g.def || g.qatorlar.some((z) => defda(z));
+    ro.append(h('div', { class: 'oq-r', 'data-rk': 'h|' + g.k },
+      h('button', { type: 'button', class: 'oq-m', 'aria-label': g.nom + ' — batafsil', onclick: () => doriSheet(ctx, q, fNom, chiz, g.qatorlar) },
+        h('span', { class: 'oq-n', 'data-asl': '' }, g.nom),
+        izohEl([...g.qatorlar.filter((z, i, l) => l.findIndex((v) => fNom(v.b) === fNom(z.b)) === i).map((z) => filBelgi(fNom, z.b)),
+          g.tugadi ? sana(g.tugadi) + ' tugagan' : null], 'oq-i'),
+        def ? h('span', { class: 'oq-def' }, '✓ Defekturaga yozilgan') : null),
+      h('div', { class: 'oq-q qizil' }, '0', h('small', {}, 'hammada')),
+      def ? h('span', { class: 'oq-plus bor', role: 'img', 'aria-label': 'Defekturada bor' }, '✓')
+        : h('button', { type: 'button', class: 'oq-plus', 'aria-label': 'Defekturaga qo\'shish: ' + g.nom, onclick: () => defekturaga(ctx, q, chiz) }, '+')));
+  });
+  if (gs.length > KORINADI * 2) {
+    ro.append(h('button', { type: 'button', class: 'oq-yana', onclick: () => { O.ochiq.hammada = !O.ochiq.hammada; chiz(); } },
+      O.ochiq.hammada ? 'Yig\'ish ▴' : 'Yana ' + (gs.length - kor.length) + ' ta ▾'));
+  }
+  k.append(ro);
+  if (O.j.hammadaJami != null && O.j.hammadaJami > gs.length) k.append(h('div', { class: 'muted' }, 'Ro\'yxatda ' + gs.length + ' tasi (jami ' + O.j.hammadaJami + ').'));
+  royxatHarakat(ro, 'oq:hammada:' + (O.tartib.hammada || ''));
+}
+
+// «Kerak emas» deb belgilanganlar (08.11): yo'qolib ketmasin — Tugadi bo'limi pastida yig'iq ro'yxat, direktor qaytaradi.
+function kerakEmasEl(ctx, fil, chiz) {
+  const j = O.j, l = (j.kerakEmas || []).filter((q) => !O.filial || q.b === O.filial);
+  if (!l.length) return null;
+  const fNom = filNomi(fil);
+  const jami = !O.filial && j.kerakEmasJami > l.length ? j.kerakEmasJami : l.length;
+  const det = h('details', { class: 'oq-kerakemas' }, h('summary', {}, '«Kerak emas» deb belgilanganlar (' + jami + ')'));
+  l.forEach((q) => det.append(h('div', { class: 'line' },
+    h('span', {}, h('span', { 'data-asl': '' }, q.nom), h('small', { class: 'muted', style: 'display:block' }, filBelgi(fNom, q.b), q.tugadi ? ' · tugagan' : ' · ' + qoldiqMatn(q.soni, q.dona) + ' qoldi')),
+    j.direktor ? h('button', { type: 'button', class: 's', onclick: () => ctx.amal('osonKerakEmas', q.b, q.p, false).then((r) => {
+      if (r == null) return;
+      ctx.toast('Ro\'yxatga qaytdi ✓');
+      yukla(ctx, true).then(chiz, chiz);
+    }) }, 'Qaytarish') : null)));
+  return det;
 }
 
 // Server oxirgi ro'yxatni qabul qilmadi (birdan ko'p dori yo'qoldi) — sababi; direktor o'tkazib yuborishi mumkin.
@@ -282,6 +354,7 @@ function tugayaptiView(k, ctx, fil, chiz) {
         izohEl([filBelgi(fNom, q.b),
           q.tugadi ? sana(q.tugadi) + ' ' + vaqt(q.tugadi) + ' tugadi' : q.firma ? asl(q.firma) : null], 'oq-i'),
         ozidaEl(q),
+        q.tugadi && q.hammada ? h('span', { class: 'oq-hech' }, 'Hech bir filialda yo\'q') : null,
         b.length ? h('span', { class: 'oq-k' }, '↔ ', filBelgi(fNom, b[0].b), ' da ' + qoldiqMatn(b[0].soni, b[0].dona) + ' bor' + (b.length > 1 ? ' (+' + (b.length - 1) + ' filial)' : '') + ' — ko\'chirsa bo\'ladi') : null),
       qoldiq,
       defda(q) ? h('span', { class: 'oq-plus bor', role: 'img', 'aria-label': 'Defekturada bor' }, '✓')
@@ -292,6 +365,7 @@ function tugayaptiView(k, ctx, fil, chiz) {
       O.ochiq[O.rejim] ? 'Yig\'ish ▴' : 'Yana ' + (qatorlar.length - kor.length) + ' ta ▾'));
   }
   k.append(ro);
+  if (O.rejim === 'tugadi' || O.rejim === 'kam') { const ke = kerakEmasEl(ctx, fil, chiz); if (ke) k.append(ke); }
   // 07.11 tun: dori tugasa/qaytsa (fondagi yangilanish) — qatorlar yumshoq suriladi; bo'lim/filial/tartib almashsa — boshqa ro'yxat.
   royxatHarakat(ro, 'oq:' + O.rejim + ':' + (O.filial || '') + ':' + (O.tartib[O.rejim] || ''));
   // ⚙︎ faqat direktorda (audit 03.11: xodimga yo'q tugmani aytmaslik).
@@ -300,7 +374,7 @@ function tugayaptiView(k, ctx, fil, chiz) {
 }
 
 // Dori bosilganda: hamma filialdagi qoldiq, firma, narx va amallar (+ Defekturaga, Kerak emas — direktor).
-function doriSheet(ctx, q, fNom, chiz) {
+function doriSheet(ctx, q, fNom, chiz, guruh = null) {
   const j = O.j;
   sheet('Dori', (box, close) => {
     const fil = [[q.b, q.tugadi ? null : q], ...boshqaBor(q).map((b) => [b.b, b])];
@@ -337,10 +411,12 @@ function doriSheet(ctx, q, fNom, chiz) {
       !q.tugadi && q.soni > 0 && chiqarishRuxsat(ctx, bizFilial(q.b))
         ? h('button', { type: 'button', class: 's chiq-tugma', onclick: () => { close(); chiqarishOyna(ctx, { b: q.b, p: q.p, nom: q.nom, ishlab: q.ishlab, soni: q.soni, dona: q.dona, firma: q.firma, fn: fNom(q.b) }); } },
           'Hisobdan chiqarish / Firmaga qaytarish') : null,
-      j.direktor ? h('button', { class: 's', onclick: () => tasdiqlash('«' + q.nom + '» kerak emasmi? Dori yana yetarli qoldiq bilan kelguncha bu ro\'yxatda ko\'rinmaydi.')
-        .then((ha) => ha && ctx.amal('osonKerakEmas', q.b, q.p, true).then((r) => {
-          if (r == null) return;
-          j.qatorlar = j.qatorlar.filter((z) => z !== q);
+      j.direktor ? h('button', { class: 's', onclick: () => tasdiqlash('«' + q.nom + '» kerak emasmi?' + (guruh && guruh.length > 1 ? ' (' + guruh.length + ' ta filialda)' : '')
+        + ' Dori «Kerak emas» ro\'yxatiga o\'tadi (Tugadi bo\'limi pastida) — u yerdan qaytarish mumkin.')
+        .then((ha) => ha && (guruh && guruh.length ? guruh : [q]).reduce((p, z) => p.then((ok) => ok && ctx.amal('osonKerakEmas', z.b, z.p, true).then((r) => r != null)), Promise.resolve(true)).then((ok) => {
+          if (!ok) { yukla(ctx, true).then(chiz, chiz); return; }
+          const olindi = new Set(guruh && guruh.length ? guruh : [q]);
+          j.qatorlar = j.qatorlar.filter((z) => !olindi.has(z));
           ctx.toast('Ro\'yxatdan olindi');
           close();
           chiz();
