@@ -32,7 +32,8 @@ function zipKatalog(b) {
 const OCHIQ_MAX = 80e6;
 async function inflate(data) {
   if (typeof DecompressionStream !== 'function') throw new Error('Telefoningizdagi Telegram eskirgan — yangilang (fayl ochilmadi)');
-  const ds = new DecompressionStream('deflate-raw');
+  let ds;   // audit 09.11: 'deflate-raw' eski WebView'da yo'q — inglizcha xato o'rniga tushunarli matn
+  try { ds = new DecompressionStream('deflate-raw'); } catch (e) { throw new Error('Telefoningizdagi Telegram eskirgan — yangilang (fayl ochilmadi)'); }
   const w = ds.writable.getWriter();
   w.write(data).catch(() => {}); w.close().catch(() => {});
   const r = ds.readable.getReader(), qism = [];

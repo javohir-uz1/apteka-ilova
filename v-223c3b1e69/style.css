@@ -25,7 +25,7 @@
 html, body, * { touch-action: manipulation; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
-#app { max-width: 560px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+#app { max-width: 560px; margin: 0 auto; min-height: var(--app-h, 100vh); display: flex; flex-direction: column; }
 h1, h2, h3 { margin: 0; }
 
 /* ---- Sarlavha (katta sarlavha, iOS uslubida) ---- */
@@ -1653,3 +1653,40 @@ html.matn-katta .tt-tavsiya, html.matn-katta .tt-b { font-size: 16px; } html.mat
 .qm-xulosa { font-weight: 600; min-height: 1.4em; margin: 6px 0; }
 .qm-muddat { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
 .card.list > .qm-qator:first-child { border-top: 0; }
+/* 09.11 kech: defektura — bizdagi qoldiq */
+.dq { font-size: 15px; line-height: 1.4; }
+.dq-bor { color: var(--accent-txt); }
+.dq-yoq { color: var(--warn); font-weight: 600; }
+.dq-nomalum { color: var(--muted); }
+.dq .dq-bogla { min-height: 44px; padding: 0 6px; }
+.dq-taxmin { color: var(--ink); }
+.dq-yoq .dq-k { color: var(--muted); font-weight: 400; }
+
+/* 09.11 kech (egasi: "defektura va aqlli buyurtma — tartibli, tushunarli"): qoldiq bloki filial → ishlab chiqaruvchi;
+   buyurtma hisobi — jadval. */
+.def-k .def-holat { padding: 3px 10px; border-radius: 999px; background: var(--soft); font-weight: 600; font-size: 14px; white-space: nowrap; }
+.def-alt { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.def-alt .def-kim { margin: 0; }
+.def-tuzat { min-height: 44px; padding: 0 2px; font-size: 15px; font-weight: 600; }
+.dq.dq-blok { border-top: 0; margin-top: 4px; padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+.dq-sar { font-size: 16px; }
+.dq-blok .dq-k { margin-top: 2px; font-size: 14px; color: var(--muted); }
+.dq-fil { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.dq-fq { display: flex; justify-content: space-between; gap: 10px; font-weight: 600; color: var(--ink); }
+.dq-fq b, .dq-iq span:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dq-iq { display: flex; justify-content: space-between; gap: 10px; padding-left: 14px; font-size: 14px; color: var(--muted); }
+.dq-iq span:first-child { overflow-wrap: anywhere; }
+.dq-iq span:first-child::before { content: '· '; }
+.dq-maslahat { margin-top: 8px; font-size: 14px; font-weight: 600; color: var(--info); }
+.buy-q .buy-nom { font-weight: 600; }
+.buy-holat { margin-top: 2px; font-size: 15px; font-weight: 600; color: var(--ink); }
+.buy-holat.oson-otgan { color: var(--warn); }
+.buy-firma { margin-top: 6px; }
+.buy-firma .buy-narx { font-variant-numeric: tabular-nums; }
+.buy-jadval { margin-top: 8px; padding: 8px 12px; border-radius: 12px; background: var(--bg); font-variant-numeric: tabular-nums; }
+.buy-jsar { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
+.buy-jq { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 15px; }
+.buy-jq b { white-space: nowrap; font-weight: 600; }
+.buy-jq.jami { margin-top: 3px; padding-top: 6px; border-top: 1px solid var(--sep); }
+.buy-jq.jami b { color: var(--kirim); }
+html.matn-katta .buy-jq, html.matn-katta .dq-fq { font-size: 17px; } html.matn-katta .dq-iq { font-size: 16px; }

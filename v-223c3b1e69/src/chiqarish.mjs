@@ -103,8 +103,8 @@ function yukla(ctx, chiz, majbur = false) {
   if (!majbur && CB.kalit === CB.kun && (CB.j || CB.xato) && Date.now() - CB.vaqt < 60000) return;
   const kun = CB.kun;
   CB.yuklanmoqda = ctx.oqi('chiqarishRoyxat', kun)
-    .then((j) => { if (!j || !Array.isArray(j.qatorlar)) throw new Error('Server javobi tushunarsiz'); if (CB.kun === kun) { CB.j = j; CB.xato = null; } },
-      (e) => { if (CB.kun === kun) CB.xato = (e && e.message) || 'Ro\'yxat olinmadi'; })
+    .then((j) => { if (!j || !Array.isArray(j.qatorlar)) throw new Error('Server javobi tushunarsiz'); if (CB.kun === kun) { CB.j = j; CB.xato = null; } })
+      .catch((e) => { if (CB.kun === kun) CB.xato = (e && e.message) || 'Ro\'yxat olinmadi'; })
     .finally(() => { CB.kalit = kun; CB.vaqt = Date.now(); CB.yuklanmoqda = null; chiz(); });
 }
 

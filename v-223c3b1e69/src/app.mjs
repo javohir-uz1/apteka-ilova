@@ -116,6 +116,9 @@ async function bajar(nom, args, xatoQoy) {
     haptik('xato');
     // Maydon tagiga — faqat qoida xatosi; tarmoq/server/kirish xatosi — umumiy xabar.
     if (!(xatoQoy && qoidaXatosi(e) && xatoQoy(e.message))) toast(e.message, 'xato');
+    // Audit 09.11: qoida xatosi ko'pincha «holat o'zgardi» (boshqa xodim yozdi, mijoz botda tasdiqladi) — ekran fonda yangilansin,
+    // aks holda har qayta urinish eski ma'lumot bilan yana yiqiladi.
+    if (SERVER && e && e.status === 400) setTimeout(() => { serverdanYukla().catch(() => {}); }, 0);
     return null;
   } finally {
     if (band) { band = false; document.body.classList.remove('band'); }
@@ -395,7 +398,7 @@ function qarzView(m, x) {
       th ? h('div', { class: 'qm-tasdiq ' + th.rang }, th.matn) : null,
       q.holat !== 'ochiq' ? null : h('div', { class: 'qm-tugmalar' },
         qol > 0 ? h('button', { type: 'button', class: 'p s', onclick: () => tolovOyna(ctx, q) }, '💵 To\'lov kiritish') : null,
-        SERVER && qrKerak(q) ? h('button', { type: 'button', class: 's', onclick: () => qrOyna(ctx, q) }, 'QR ko\'rsatish') : null,
+        SERVER && qol > 0 && qrKerak(q) ? h('button', { type: 'button', class: 's', onclick: () => qrOyna(ctx, q) }, 'QR ko\'rsatish') : null,
         qol > 0 ? h('a', { class: 'btn', href: 'tel:' + q.tel, 'aria-label': 'Qo\'ng\'iroq qilish: ' + q.tel }, '📞 ' + q.tel) : null)));
   });
   m.append(list);
@@ -473,7 +476,7 @@ function xOrqaga() {
   sahifaOtish(() => render(true));
 }
 // 09.11: mijoz qarzi — saqlangach QR (mijoz botda tasdiqlaydi) yoki «so'rov botga ketdi».
-const qarzCtx = (x) => ({ S: () => S, x, amal, amalX, toast, tg, server: SERVER, keyin: (r, f) => yozilgandan(qarzCtx(x), r, f) });
+const qarzCtx = (x) => ({ S: () => S, x, amal, amalX, toast, tg, server: SERVER, yangila: () => (SERVER ? serverdanYukla().catch(() => {}) : null), keyin: (r, f) => yozilgandan(qarzCtx(x), r, f) });
 const qarzYoz = (x) => (eskiKorinishmi() ? qarzSheet(x) : qarzUsta(qarzCtx(x)));
 
 function renderXodimYangi(x) {

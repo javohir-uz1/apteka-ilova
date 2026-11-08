@@ -9,7 +9,7 @@ import { oddiyRejimmi, rejimQoy, renderOddiy } from './oddiy.mjs';
 import { yozuvKirillmi, yozuvQoy } from './kirill.mjs';
 import { doira, RANGLAR } from './diagramma.mjs';
 import { BOT_USERNAME, UY_PULI } from './config.mjs';
-import { DEF_HOLAT, aslNomEl, defekturaYozKarta, keldiTasdiq, kelganKarta, nomTuzatOyna, praysQidiruv, yozganEl, yozganlar } from './bolimlar.mjs';
+import { DEF_HOLAT, aslNomEl, defQoldiqEl, defQoldiqYukla, defekturaYozKarta, keldiTasdiq, kelganKarta, nomTuzatOyna, praysQidiruv, yozganEl, yozganlar } from './bolimlar.mjs';
 import { shtrixDirektor } from './shtrix.mjs';
 import { punktlarView, retseptBosh, retseptIchida, retseptView } from './retsept.mjs';
 import { sanashXabari } from './xabar.mjs';
@@ -2148,20 +2148,22 @@ function qabulSheet(ctx, z, xodimIsm) {
 // Defektura qatori (direktor): nom, holat, filiallar, sana; narx — faqat Defekturada, firma narxlari ochiq bo'lsa.
 function defQator(ctx, fil, d, narx) {
   const [l, c] = DEF_HOLAT[d.holat];
-  return h('div', { class: 'item', 'data-rk': d.nom },   // data-rk — ro'yxat harakati kaliti (ui.royxatHarakat)
-    h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '' }, d.nom), h('span', { style: 'color:' + c + ';white-space:nowrap;font-weight:600' }, l)),
+  // 09.11 kech (egasi: "ko'rinishi tartibli, tushunarli bo'lsin"): holat — belgi; «Nomni to'g'irlash» — «Yozdi» qatorida o'ngda
+  // (alohida qator va bo'sh joy yo'q); qoldiq — alohida blokda, filial va ishlab chiqaruvchilar bo'yicha.
+  return h('div', { class: 'item def-k', 'data-rk': d.nom },   // data-rk — ro'yxat harakati kaliti (ui.royxatHarakat)
+    h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '' }, d.nom), h('span', { class: 'def-holat', style: 'color:' + c }, l)),
     h('div', { class: 'muted' }, d.filiallar.map(fil).join(', ') + (d.soni > 1 ? ' · ' + d.soni + ' marta yozilgan' : '') + ' · '
       + (d.holat === 'buyurtma' && d.holatTs ? 'buyurtma ' + sana(d.holatTs) : sana(d.ts)) + (d.izohlar.length ? ' · ' + d.izohlar.join('; ') : '')),
-    yozganEl(ctx.S, d),   // 06.11: kim yozgan
+    h('div', { class: 'def-alt' }, yozganEl(ctx.S, d) || h('span', {}),   // 06.11: kim yozgan
+      h('button', { type: 'button', class: 'link def-tuzat', onclick: () => nomTuzatOyna(ctx, d) }, '✏️ Nomni to\'g\'irlash')),
     aslNomEl(d),   // 09.11: to'g'irlangan bo'lsa — xodim yozgani
+    d.holat !== 'keldi' && ctx.server ? defQoldiqEl(ctx.retseptCtx(), d, fil, (t) => nomTuzatOyna(ctx, d, t)) : null,   // 09.11 kech: bizdagi qoldiq
     narx && ctx.server && firmaOchiq() ? defNarxQator(d.nom) : null,
     ctx.server ? mijozBelgi(d) : null,   // 06.11 kech: direktorda faqat «N mijoz kutmoqda» (tugma — xodimlarda)
     h('div', { class: 'row' },
       d.holat === 'yangi' ? h('button', { class: 'p s', onclick: () => ctx.amal('defekturaHolat', d.nom, 'buyurtma') }, 'Buyurtma berdim') : null,
       h('button', { class: d.holat === 'buyurtma' ? 'p s' : 's', onclick: () => keldiTasdiq(d).then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'keldi')) }, 'Keldi'),
-      h('button', { class: 's', onclick: () => tasdiqlash(d.nom + ' ro\'yxatdan olib tashlansinmi?').then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'bekor')) }, 'Kerak emas')),
-    // 09.11: nomni Oson / prays-listdagi to'g'ri nomga (xodim o'zicha yozgan bo'lsa).
-    h('button', { type: 'button', class: 'link', style: 'align-self:flex-start', onclick: () => nomTuzatOyna(ctx, d) }, 'Nomni to\'g\'irlash'));
+      h('button', { class: 's', onclick: () => tasdiqlash('«' + d.nom + '» ro\'yxatdan olib tashlansinmi?').then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'bekor')) }, 'Kerak emas')));
 }
 
 // Defektura: hamma filiallar ro'yxati birlashgan ("2 marta yozilgan"). Ota buyurtma beradi → "Buyurtma berdim" → kelganda "Keldi".
@@ -2170,6 +2172,7 @@ function defQator(ctx, fil, d, narx) {
 const DEF_TAB = { v: 'kerak' };
 function defekturaDirektor(m, ctx, fil, ochFirmalar) {
   const { S } = ctx;
+  if (ctx.server) defQoldiqYukla(ctx.retseptCtx(), S);   // 09.11 kech: bizdagi qoldiq
   const g = H.defekturaGuruh(S.defektura || []);
   const kerak = g.filter((d) => d.holat === 'yangi'), keldi = g.filter((d) => d.holat === 'keldi');
   const berilgan = g.filter((d) => d.holat === 'buyurtma').sort((a, b) => b.holatTs - a.holatTs);
@@ -2233,7 +2236,7 @@ function uyView(m, ctx, uy) {
   // Bekor qilish yozuvi (tuzatish) o'z asl guruhidan ayiriladi.
   uyli.forEach((r) => { const k = nomi(r), v = r.d.uy, asl = r.tur === 'tuzatish' ? -v : v; if (asl > 0) kirdi[k] = (kirdi[k] || 0) + v; else ketdi[k] = (ketdi[k] || 0) - v; });
   const jami = (o) => Object.values(o).reduce((a, b) => a + b, 0);
-  const sanash = S.harakatlar.filter((r) => /sanashda/i.test(r.izoh || '') && r.d && r.d.uy).at(-1);
+  const sanash = S.harakatlar.filter((r) => /sanashda/i.test(r.izoh || '') && r.d && r.d.uy).slice(-1)[0];
   m.append(h('div', { class: 'card hero' }, h('div', { class: 'line', style: 'border:0' }, h('h2', { class: 'muted', style: 'font-size:15px;font-weight:600' }, 'Uyda (hisob bo\'yicha)'), h('b', { class: 'big' }, H.som(uy))),
     h('div', { class: 'muted' }, sanash ? 'Oxirgi sanash: ' + sana(sanash.ts) : 'Hali sanalmagan — haftada bir marta sanang'),
     h('div', { class: 'row' }, h('button', { class: 's', onclick: () => sanashSheet(ctx, 'uy') }, 'Uyni sanash'),

@@ -85,6 +85,7 @@ export const ISHLAR = {
   shtrixQosh: [(S, men, g, t, k) => A.shtrixQosh(S, men.id, g, t, k), (g, t, k) => ['shtrix_qosh', [m(g), t || '', m(k)]]],
   shtrixOchir: [(S, men, id) => A.shtrixOchir(S, men.id, id), (id) => ['shtrix_ochir', [id]]],
   defekturaOchir: [(S, men, id) => A.defekturaOchir(S, id, men.id), (id) => ['defektura_ochir', [id]]],
+  defekturaQoldiq: [() => A.osonYoq(), () => ['defektura_qoldiq', []]],
   defekturaNom: [(S, men, eski, yangi) => A.defekturaNom(S, eski, yangi, men.id), (eski, yangi) => ['defektura_nom', [m(eski), m(yangi)]]],
   praysKalitYarat: [() => { throw new Error('Sinov rejimida kalit yo\'q'); }, () => ['prays_kalit_yarat', []]],
   kengaytmaKalitYarat: [() => { throw new Error('Sinov rejimida kalit yo\'q'); }, () => ['kengaytma_kalit_yarat', []]],
