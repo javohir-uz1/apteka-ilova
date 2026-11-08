@@ -1470,7 +1470,6 @@ button.card.yx-men { border-radius: var(--r-card); }
 .yn-nav button:active { background: transparent; opacity: 1; }
 .yn-nav button:active .ikon { transform: scale(.88); }
 .nav button { font-size: 12px; font-weight: 500; color: #8E8E93; }
-html.matn-katta .yn-nav button { font-size: 14px; }
 
 /* ---- Pastdan chiqadigan oyna (iOS sheet) ---- */
 .sheet-bg { background: var(--scrim); }
@@ -1555,3 +1554,60 @@ html.matn-katta .soz-g details.ochil.karta > summary .ochil-s > span:first-child
    bo'shagan joy sarlavhaga: «Xodimlar ro'yxati», «Aqlli buyurtma» bitta qatorga sig'adi. */
 .top.yh:has(.yh-orqa) .yozuv-tugma { display: none; }
 .top.yh:has(.yh-orqa) .t h1 { overflow-wrap: normal; }
+/* ---- Audit 08.11 (2 mustaqil tekshiruv): kontrast, maydon chegarasi, teginish ≥ 44 px, katta harf, uzun matn ----
+   Raqamlar WCAG formulasi bilan, aralash ranglar haqiqiy fonga qo'yib hisoblangan. */
+:root { --accent-txt: #09695C; }   /* och yashil fon (--tint) ustida oq, kulrang va sariq kartada ham ≥ 5:1 */
+button, .btn, button.katta:not(.p), .yozuv-tugma, button.link { color: var(--accent-txt); }
+button.p, .card.hero button.hero-qator, .card.hero button.x-oylik { color: #FFFFFF; }
+.card.hero button { color: var(--accent-txt); }
+.yn-nav button, .nav button { color: #636366; }                       /* tanlanmagan bo'lim: 5,7:1 (avval 3,1:1) */
+.yn-nav button[aria-current="page"], .nav button[aria-current="page"] { color: var(--accent); }
+/* Yozish maydoni chegarasi ≥ 3:1 oq va kulrang fonda (avval 1,6:1); fokusda — 2 px urg'u halqasi. */
+label.f input, textarea, select { box-shadow: inset 0 0 0 1px #767680; }
+label.f input:focus, textarea:focus, select:focus { box-shadow: inset 0 0 0 2px var(--accent); }
+label.f input[aria-invalid="true"], textarea[aria-invalid="true"] { box-shadow: inset 0 0 0 2px var(--red); }
+/* Belgilar va ikonkalar */
+.yq-son.diqqat { background: #D70015; }                               /* oq son 5,4:1 */
+.yq-d.sariq { background: #B25000; }                                  /* oq belgi ≥ 4,5:1 (avval 2,1:1) */
+.ysh-kut { background: rgba(0, 0, 0, .22); }
+.ysh-q { opacity: 1; }
+.x { color: #636366; }
+details.ochil > summary::after { border-color: #8E8E93; }
+/* Teginish joylari */
+.pill { min-height: 44px; }
+.soz-g .ochil-ich .line button.s { min-height: 44px; font-size: 15px; }
+html.matn-katta .soz-g .ochil-ich .line button.s { min-height: 48px; font-size: 17px; }
+/* Ta'minotchi xaridi: dori tugmasidagi «✕» — oynani yopish tugmasining uslubini olmasin. */
+.ta-dori .x { width: auto; height: auto; min-height: 0; margin: 0 0 0 6px; padding: 0; border-radius: 0; background: none; font-size: inherit; line-height: inherit; color: var(--red); position: static; }
+.ta-dori .x::after { content: none; }
+/* Oddiy rejim: katta kartalar fondan ajralib tursin, «diqqat» — aniq sariq halqa. */
+.o-karta, .o-tugma { box-shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 4px 14px rgba(0, 0, 0, .06); }
+.o-diqqat { box-shadow: inset 0 0 0 2px var(--warn), 0 4px 14px rgba(0, 0, 0, .06); }
+/* Uzun matn: «yozuv — qiymat» qatorida qiymat (b) ko'pi bilan 62% joy oladi, qisqa son bo'linmaydi, uzun izoh o'raladi. */
+.line > :first-child { min-width: 0; overflow-wrap: anywhere; }
+.line > b:last-child { white-space: normal; flex-shrink: 0; max-width: 62%; text-align: right; overflow-wrap: anywhere; }
+.line > b.pul-kerak, .card.hero .line > b.big { white-space: nowrap; max-width: none; }
+.yq-m b { overflow-wrap: anywhere; }
+.xq .yq-v { max-width: 34%; font-size: 15px; }
+.top.yh:has(.yh-orqa) .t h1 { overflow-wrap: break-word; }
+/* Katta harf: yangi yozuvlar ham kattalashadi; bosh sahifa sarlavhasi kichraymasin. */
+html.matn-katta .top.yh .t h1 { font-size: 34px; }
+html.matn-katta .top.yh:has(.yh-orqa) .t h1 { font-size: 26px; }
+html.matn-katta .soz-g details.ochil > summary .ochil-s .muted { font-size: 16px; }
+html.matn-katta .xq-info, html.matn-katta .buy-hisob { font-size: 16px; }
+html.matn-katta .xq-holat { font-size: 15px; }
+html.matn-katta .pul-kerak { font-size: 18px; } html.matn-katta .pul-kerak small { font-size: 15px; }
+html.matn-katta button.yd-yana, html.matn-katta .yd-bosh-holat { font-size: 17px; }
+html.matn-katta .xq .yq-v { font-size: 17px; }
+@media (max-width: 374px) { .xq .yq-v { max-width: 30%; font-size: 14px; } }
+@media (prefers-reduced-motion: reduce) { button:active, .btn:active { transform: none !important; } }
+/* 08.11: Qoldiq — «Hech qayerda» (firmada umuman qolmagan) tabi, belgilar va «Kerak emas» ro'yxati. */
+.oq-tablar { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.oq-tab span { overflow-wrap: anywhere; hyphens: auto; }
+@media (max-width: 389px) { .oq-tab span { font-size: 12px; } .oq-tab b { font-size: 19px; } }
+.oq-hech { display: inline-block; align-self: flex-start; margin-top: 2px; font-size: 13px; font-weight: 600; color: var(--red); }
+.oq-def { display: inline-block; margin-top: 2px; font-size: 13px; font-weight: 600; color: var(--kirim); }
+.oq-kerakemas { margin-top: 10px; background: var(--card); border-radius: var(--r-card); padding: 0 16px; }
+.oq-kerakemas > summary { min-height: 48px; display: flex; align-items: center; color: var(--muted); font-weight: 500; }
+.oq-kerakemas .line { align-items: center; padding: 8px 0; }
+html.matn-katta .oq-hech, html.matn-katta .oq-def { font-size: 15px; }
