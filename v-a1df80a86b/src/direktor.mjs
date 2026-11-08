@@ -21,6 +21,7 @@ import { globalQidiruvOyna } from './qidiruv.mjs';
 import { tanishuvAvto, tanishuvOch } from './tanishuv.mjs';
 import { mijozBelgi } from './mijoz.mjs';
 import { buyurtmaView, ertalabKarta, kochirishView, pulKirish, pulView } from './pul.mjs';
+import { filialMijozOyna } from './filial-mijoz.mjs';
 import { inventarOrqaga, inventarView } from './inventar.mjs';
 import { chiqarishView } from './chiqarish.mjs';
 import { kassaView, narxFarqSoni, narxView } from './nazorat.mjs';
@@ -908,30 +909,31 @@ function ishlarOyna(nom, l) {
   }, { fokus: false });
 }
 
-// Defektura bloki (Bugun sahifasining boshi): sonlar, oxirgi «kerak» dorilar, ikki katta tugma.
-const DEF_KORINADI = 4;   // «kerak» dorilardan eng yangilari (spec: 3–5)
+// Defektura bloki (07.11 dizayn: "defekturani savdo kartasi tagiga, butun ekranni egallab olgan"): ixcham guruhlangan
+// ro'yxat — sarlavha qatori (sonlar, bosilsa Defektura), eng yangi 3 ta «kerak» dori, «Aqlli buyurtma» qatori.
+const DEF_KORINADI = 3;
 function defekturaBlok(ctx, go) {
   const { S } = ctx;
   const g = H.defekturaGuruh(S.defektura || []);
   const kerak = g.filter((d) => d.holat === 'yangi'), berilgan = g.filter((d) => d.holat === 'buyurtma');
   const och = (v) => { DEF_TAB.v = v; go('more', 'defektura'); };
-  const k = h('section', { class: 'card yd', 'aria-labelledby': 'yd-sarlavha' },
-    h('div', { class: 'yd-bosh' }, kvadrat('defektura', 'sariq'),
-      h('span', { class: 'yd-bosh-m' }, h('h2', { id: 'yd-sarlavha' }, 'Defektura'),
-        h('span', { class: 'yd-son' }, h('span', {}, 'Kerak: ', h('b', {}, String(kerak.length))), ' · ',
-          h('span', {}, 'Buyurtma berilgan: ', h('b', {}, String(berilgan.length)))))));
+  const k = h('section', { class: 'card yb-r yd', 'aria-label': 'Defektura' },
+    h('button', { type: 'button', class: 'yq yd-bosh', onclick: () => och('kerak') }, kvadrat('defektura', 'sariq'),
+      h('span', { class: 'yq-m' }, h('b', {}, 'Defektura'),
+        h('span', { class: 'muted yd-son' }, h('span', {}, 'Kerak: ', h('b', {}, String(kerak.length))), ' · ',
+          h('span', {}, 'Buyurtma berilgan: ', h('b', {}, String(berilgan.length))))),
+      kerak.length ? h('span', { class: 'yq-son' }, String(kerak.length)) : null,
+      h('span', { class: 'yq-o' }, ikon('oldinga'))));
   if (!kerak.length) k.append(h('div', { class: 'yd-bosh-holat' }, ikon('check'), h('span', {}, berilgan.length ? 'Hammasiga buyurtma berilgan' : 'Hozir kerak dori yo\'q')));
   else {
     k.append(royxatHarakat(h('div', { class: 'yd-r' }, ...kerak.slice(0, DEF_KORINADI).map((d) => h('button', { type: 'button', class: 'yd-q', 'data-rk': d.nom, onclick: () => och('kerak') },
       h('span', { class: 'yd-q-m' }, h('b', { 'data-asl': '' }, d.nom),
-        h('span', { class: 'muted' }, d.filiallar.map((id) => filNomi(S, id)).join(', ') + (d.soni > 1 ? ' · ' + d.soni + ' marta' : '') + ' · ' + sana(d.ts))),
-      ikon('oldinga')))), 'yd'));
-    if (kerak.length > DEF_KORINADI) k.append(h('div', { class: 'muted yd-yana' }, 'Yana ' + (kerak.length - DEF_KORINADI) + ' ta — «Defekturani ochish»'));
+        h('span', { class: 'muted' }, d.filiallar.map((id) => filNomi(S, id)).join(', ') + (d.soni > 1 ? ' · ' + d.soni + ' marta' : '') + ' · ' + sana(d.ts)))))), 'yd'));
+    if (kerak.length > DEF_KORINADI) k.append(h('button', { type: 'button', class: 'yd-yana', onclick: () => och('kerak') }, 'Yana ' + (kerak.length - DEF_KORINADI) + ' ta dori'));
   }
-  k.append(h('div', { class: 'yd-tugmalar' },
-    h('button', { type: 'button', class: 'p katta', onclick: () => och('kerak') }, 'Defekturani ochish'),
-    h('button', { type: 'button', class: 'katta', onclick: () => (ctx.server ? go('qoldiq', 'buyurtma') : ctx.toast('Aqlli buyurtma faqat Telegram ilovasida (serverda) ishlaydi', 'xato')) },
-      ikon('aqlli'), 'Aqlli buyurtma')));
+  k.append(h('button', { type: 'button', class: 'yq yd-aqlli', onclick: () => (ctx.server ? go('qoldiq', 'buyurtma') : ctx.toast('Aqlli buyurtma faqat Telegram ilovasida (serverda) ishlaydi', 'xato')) },
+    kvadrat('aqlli', 'binafsha'), h('span', { class: 'yq-m' }, h('b', {}, 'Aqlli buyurtma'), h('span', { class: 'muted' }, 'Nima va qancha olish kerak')),
+    h('span', { class: 'yq-o' }, ikon('oldinga'))));
   return k;
 }
 
@@ -953,10 +955,10 @@ function savdoHero(ctx, go, bugun) {
     h('span', { class: 'ysh-b' }, 'Filiallar bo\'yicha', ikon('oldinga')));
 }
 
-// «Bugun» — tartib: Defektura → bugungi savdo → 4 ta dumaloq tugma → «Diqqat qiling».
+// «Bugun» — tartib: bugungi savdo → Defektura (07.11 dizayn: savdo kartasi tagida) → dumaloq tugmalar → «Diqqat qiling».
 function bugunView(m, ctx, go, bugun) {
-  m.append(defekturaBlok(ctx, go));
   m.append(savdoHero(ctx, go, bugun));
+  m.append(defekturaBlok(ctx, go));
   m.append(dumaloqlar([
     ['savdo', 'Savdo', 'yashil', () => savdoSheet(ctx)],
     ['xarajat', 'Xarajat', 'qizil', () => (UY_PULI ? yozuvSheet(ctx, { soha: 'apteka' }) : pulChiqdiSheet(ctx, 'xarajat'))],
@@ -973,7 +975,7 @@ function bugunView(m, ctx, go, bugun) {
   const bl = boshlashKarta(ctx, go);
   if (bl) m.append(bl);
   // «Bilimdon» o'yini ketayotgan bo'lsa — kuzatishga qaytish kartasi (Defekturadan keyin: Defektura doim birinchi).
-  if (ctx.server) { const ob = oyinBanner(ctx.retseptCtx(), () => go('more', 'oyin')); if (ob) m.insertBefore(ob, m.children[1] || null); }
+  if (ctx.server) { const ob = oyinBanner(ctx.retseptCtx(), () => go('more', 'oyin')); if (ob) m.insertBefore(ob, m.children[2] || null); }
 }
 
 // «Pul» — Telegram sozlamalari kabi guruhlar: har qatorda o'ngda asosiy raqam.
@@ -1284,8 +1286,10 @@ function sozlamaView(m, ctx, x, fil) {
       saqla(xatoJoyla([[n]]), n.i.value).then((ok) => ok && (close(), ctx.toast('Saqlandi ✓')));
     } }, 'Saqlash'));
   });
-  S.filiallar.forEach((z) => fl.append(h('div', { class: 'line', style: 'align-items:center' }, h('span', {}, z.nom + (z.asosiy || z.id === 'osnovnoy' ? ' · asosiy' : '')),
-    h('button', { class: 's', style: 'flex:none', onclick: () => nomSheet('Filial nomi', z.nom, (j, v) => ctx.amalX(j, 'filialNomla', z.id, v)) }, 'Nomini o\'zgartirish'))));
+  // 08.11: «Mijozlar uchun» — mijoz botida ko'rinadigan nom, manzil, xarita, surat (filial-mijoz.mjs; faqat serverda).
+  S.filiallar.forEach((z) => fl.append(h('div', { class: 'line', style: 'align-items:center;flex-wrap:wrap;gap:6px' }, h('span', { style: 'flex:1 1 100%' }, z.nom + (z.asosiy || z.id === 'osnovnoy' ? ' · asosiy' : '')),
+    h('button', { class: 's', style: 'flex:none', onclick: () => nomSheet('Filial nomi', z.nom, (j, v) => ctx.amalX(j, 'filialNomla', z.id, v)) }, 'Nomini o\'zgartirish'),
+    ctx.server ? h('button', { class: 's', style: 'flex:none', onclick: () => filialMijozOyna({ ...ctx.retseptCtx(), firma: ctx.firma }, z) }, '📍 Mijozlar uchun') : null)));
   fl.append(h('button', { onclick: () => nomSheet('Yangi filial', '', (j, v) => ctx.amalX(j, 'filialQosh', v)) }, '+ Filial qo\'shish'));
   m.append(fl);
 
