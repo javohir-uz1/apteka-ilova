@@ -269,7 +269,15 @@ function sonOyna(ctx, chiz, d, aniq, oldin = null, izohMatn = null) {
       qosh(ctx, chiz, d, quti, dona, aniq, inv);
     };
     [q.i, dn && dn.i].forEach((i) => i && i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saqla(); } }));
+    // 10.11 (egasi: "dori sanamoqchi bo'lsam — qaysi filialda qancha borligini ko'rsat"): Oson qoldig'i filiallar bo'yicha.
+    // Sanalayotgan filialning o'z soni faqat direktorga keladi (server) — xodim ko'rgan sonni yozib qo'ymasin.
+    const fl = Array.isArray(d.filiallar) ? d.filiallar : null;
+    const filEl = fl && fl.length ? h('div', { class: 'inv-fil' },
+      h('div', { class: 'muted' }, fl.some((f) => f.shu) ? 'Oson qoldig\'i (filiallar):' : 'Boshqa filiallarda (Oson):'),
+      h('div', { class: 'tt-fil' }, ...fl.map((f) => h('span', { class: 'tt-f' + (Number(f.soni) > 0 ? '' : ' yoq') },
+        h('span', { 'data-asl': '' }, f.b), f.shu ? ' (shu)' : '', ' ', h('b', {}, Number(f.soni) > 0 ? f.matn : 'yo\'q'))))) : null;
     box.append(d.ishlab ? h('div', { class: 'muted', 'data-asl': '' }, d.ishlab) : null,
+      filEl,
       oldin && oldin.xato ? h('div', { class: 'msg xato', role: 'alert' }, oldin.xato) : null,
       !aniq && sanaldi > 0 ? h('div', { class: 'msg info' },
         h('div', {}, 'Allaqachon sanalgan: ', h('b', {}, qoldiqMatn(sanaldi, d.dona)), r && r.kim ? ' (' + r.kim + (r.vaqt ? ', ' + vaqt(r.vaqt) : '') + ')' : '', '.'),
@@ -424,12 +432,39 @@ function natijaView(m, ctx, chiz) {
       h('div', {}, h('b', { class: 'pul-kam' }, String(n.ortiq.length)), h('span', { class: 'muted' }, 'ortiq' + pul(n.ortiq_summa)))),
     h('div', { class: 'muted' }, (n.kam_summa != null ? 'Pul — tannarxda (kirim narxi bo\'lmasa — sotuv narxida). ' : '')
       + 'Sanash paytida sotilgan yoki kelgan dorilar ham farq ko\'rsatishi mumkin.')));
+  // 10.11 (egasi: "to'g'irlash uchun Oson'ga kirib sonini to'g'irlashim kerak; sanagan dorim keyin sotilsa ham to'g'ri bo'lsin"):
+  // har farqli dori — Oson'da nima qilish kerak: (A) «Инвентаризация»da — hozirgi son + farq; (B) farqni kirim/spisaniye.
+  // Farq sanagan paytdagi Oson soniga nisbatan — keyingi sotuv uni buzmaydi; «hozir» — oxirgi o'qilgan Oson qoldig'i.
+  const direktor = ctx.x && ctx.x.rol === 'direktor';
+  const tuzatEl = (x) => {
+    const f = Number(x.farq) || 0;
+    if (!f) return null;
+    const hozir = x.hozir == null ? null : Number(x.hozir);
+    const qoy = hozir == null ? null : Math.max(0, Math.round((hozir + f) * 1e6) / 1e6);
+    const t = x.tuzatildi;
+    return h('div', { class: 'inv-tuzat' + (t ? ' bajarildi' : '') },
+      h('div', {}, '🛠 Oson\'da: ', hozir == null ? 'hozirgi soni noma\'lum' : ['hozir ', h('b', {}, qoldiqMatn(hozir, x.dona)), ' → ', h('b', {}, qoldiqMatn(qoy, x.dona) + ' qilib qo\'ying')]),
+      h('div', { class: 'muted' }, 'yoki ' + (f < 0 ? qoldiqMatn(-f, x.dona) + ' spisaniye qiling' : qoldiqMatn(f, x.dona) + ' kirim qiling')
+        + (hozir != null && Number(x.oson) !== hozir ? ' · sanagandan keyin Oson\'da o\'zgargan (' + qoldiqMatn(x.oson, x.dona) + ' → ' + qoldiqMatn(hozir, x.dona) + ')' : '')),
+      t ? h('div', { class: 'inv-tuzat-t' }, '✓ To\'g\'irlandi' + (t.kim ? ' — ' + t.kim : '') + (t.vaqt ? ', ' + sana(t.vaqt) + ' ' + vaqt(t.vaqt) : '')) : null,
+      direktor ? h('button', { type: 'button', class: t ? 's' : 'p s', onclick: (e) => {
+        const tugma = e.currentTarget;
+        tugma.disabled = true;
+        ctx.amal('inventarTuzatildi', I.natijaId, x.p, !t).then((r) => {
+          if (r == null) { tugma.disabled = false; return; }
+          x.tuzatildi = r.tuzatildi ? { kim: ctx.x.ism, vaqt: Date.now() } : null;
+          chiz();
+        });
+      } }, t ? 'Belgini olib tashlash' : '✓ Oson\'da to\'g\'irladim') : null);
+  };
   const ruyxat = (sar, arr, cls) => {
     if (!arr.length) return;
-    const k = h('div', { class: 'card list' }, kartaSarlavha(sar + ' — ' + arr.length + ' xil'));
+    const tayyor = arr.filter((x) => x.tuzatildi).length;
+    const k = h('div', { class: 'card list' }, kartaSarlavha(sar + ' — ' + arr.length + ' xil' + (tayyor ? ' · ' + tayyor + ' tasi Oson\'da to\'g\'irlandi' : '')));
     arr.forEach((x) => k.append(h('div', { class: 'item' },
       h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, x.nom), h('b', { class: cls }, farqMatn(x.farq, x.dona))),
-      h('div', { class: 'muted' }, 'sanaldi ' + qoldiqMatn(x.sanaldi, x.dona) + ' · Oson\'da ' + qoldiqMatn(x.oson, x.dona) + (x.summa != null && Number(x.summa) ? ' · ' + H.som(Math.abs(Number(x.summa))) : '')))));
+      h('div', { class: 'muted' }, 'sanaldi ' + qoldiqMatn(x.sanaldi, x.dona) + ' · sanaganda Oson\'da ' + qoldiqMatn(x.oson, x.dona) + (x.summa != null && Number(x.summa) ? ' · ' + H.som(Math.abs(Number(x.summa))) : '')),
+      tuzatEl(x))));
     m.append(k);
   };
   ruyxat('Kam', n.kam, 'pul-zarar');

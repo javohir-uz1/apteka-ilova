@@ -301,9 +301,18 @@ export function defQoldiqEl(rctx, d, fil, bogla) {
   const filiallarEl = (filiallar) => {
     const bor = (filiallar || []).filter((f) => Number(f.soni) > 0);
     if (!bor.length) return null;
-    return h('div', { class: 'dq-fil' }, ...bor.map((f) => h('div', { class: 'dq-f' },
-      h('div', { class: 'dq-fq' }, h('span', {}, f.f ? fil(f.f) : f.b), h('b', {}, f.matn)),
-      ...(Array.isArray(f.ish) ? f.ish : []).map((x) => h('div', { class: 'dq-iq' }, h('span', { 'data-asl': '' }, x.i), h('span', {}, x.matn))))));
+    // A maket (09.11 tun): ishlab chiqaruvchi bitta — filial bilan bir qatorda («4-filial · Дальхимфарм — 2 quti 8 dona»,
+    // son ikki marta yozilmaydi); bir nechta — filial ostida alohida qatorlar.
+    return h('div', { class: 'dq-fil' }, ...bor.map((f) => {
+      const ish = Array.isArray(f.ish) ? f.ish : [];
+      const nom = f.f ? fil(f.f) : f.b;
+      if (ish.length === 1) {
+        return h('div', { class: 'dq-f' }, h('div', { class: 'dq-fq' },
+          h('span', {}, nom, h('span', { class: 'dq-ish1' }, ' · ', h('span', { 'data-asl': '' }, ish[0].i))), h('b', {}, f.matn)));
+      }
+      return h('div', { class: 'dq-f' }, h('div', { class: 'dq-fq' }, h('span', {}, nom), h('b', {}, f.matn)),
+        ...ish.map((x) => h('div', { class: 'dq-iq' }, h('span', { 'data-asl': '' }, x.i), h('b', {}, x.matn))));
+    }));
   };
   const boshqadaEl = (filiallar) => {
     const yozilgan = (d.filiallar || []).filter(Boolean);
@@ -313,16 +322,16 @@ export function defQoldiqEl(rctx, d, fil, bogla) {
     return h('div', { class: 'dq-maslahat' }, '↪ ' + yoqF.map(fil).join(', ') + 'da yo\'q — boshqa filialdan olish mumkin');
   };
   if (z.holat === 'bor') {
-    return h('div', { class: 'dq dq-bor dq-blok' }, h('div', { class: 'dq-sar' }, '📦 Bizda: ', h('b', {}, z.jami || ''), eski),
+    return h('div', { class: 'dq dq-bor dq-blok' }, h('div', { class: 'dq-sar' }, h('span', {}, '📦 Bizda jami', eski), h('b', {}, z.jami || '')),
       filiallarEl(z.filiallar), boshqadaEl(z.filiallar));
   }
-  if (z.holat === 'tugagan') return h('div', { class: 'dq dq-yoq' }, '📦 Bizda: hamma filialda tugagan' + eski);
+  if (z.holat === 'tugagan') return h('div', { class: 'dq dq-yoq dq-blok' }, h('div', { class: 'dq-sar' }, h('span', {}, '📦 Bizda' + eski), h('b', {}, 'hamma filialda tugagan')));
   const t = z.taklif;
   // Yagona to'liq mos variant (faqat «п/о», «№» kabi farq) — qoldiq «≈» bilan va Oson'dagi nomi; direktor bog'lab qo'yadi.
   // Filiallar bo'yicha (Энап 10мг /KRKA/ → «4-filial 3 ta, 1-filial 1 ta»).
   if (t && t.aniq) {
     return h('div', { class: 'dq dq-taxmin dq-blok' },
-      h('div', { class: 'dq-sar' }, '📦 Bizda ≈ ', h('b', {}, Number(t.soni) > 0 ? t.matn : 'tugagan'), eski),
+      h('div', { class: 'dq-sar' }, h('span', {}, '📦 Bizda ≈', eski), h('b', {}, Number(t.soni) > 0 ? t.matn : 'tugagan')),
       h('div', { class: 'dq-k' }, 'Oson\'da: ', h('span', { 'data-asl': '' }, t.nom)),
       filiallarEl(t.filiallar), boshqadaEl(t.filiallar),
       bogla ? h('button', { type: 'button', class: 'link dq-bogla', onclick: () => bogla(t.nom) }, 'Bog\'lash (nomini shunga o\'zgartirish)') : null);

@@ -2146,24 +2146,37 @@ function qabulSheet(ctx, z, xodimIsm) {
 }
 
 // Defektura qatori (direktor): nom, holat, filiallar, sana; narx — faqat Defekturada, firma narxlari ochiq bo'lsa.
+// 09.11 tun (egasi A maketni tanladi: docs/maket/defektura-karta.png): har dori — alohida karta, chapda holat rangi (sariq —
+// «Kerak», ko'k — «Buyurtma berilgan»); bitta ma'lumot qatori (filial · sana · kim yozdi · izoh); qoldiq bloki filial va ishlab
+// chiqaruvchi bo'yicha; asosiy amal — katta tugma, qolganlari ostida, «Nomni to'g'irlash» — «⋯» ichida.
+const DEF_IZOH = { 'Oson: tugadi': 'Oson\'da tugagan edi' };
 function defQator(ctx, fil, d, narx) {
-  const [l, c] = DEF_HOLAT[d.holat];
-  // 09.11 kech (egasi: "ko'rinishi tartibli, tushunarli bo'lsin"): holat — belgi; «Nomni to'g'irlash» — «Yozdi» qatorida o'ngda
-  // (alohida qator va bo'sh joy yo'q); qoldiq — alohida blokda, filial va ishlab chiqaruvchilar bo'yicha.
-  return h('div', { class: 'item def-k', 'data-rk': d.nom },   // data-rk — ro'yxat harakati kaliti (ui.royxatHarakat)
-    h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '' }, d.nom), h('span', { class: 'def-holat', style: 'color:' + c }, l)),
-    h('div', { class: 'muted' }, d.filiallar.map(fil).join(', ') + (d.soni > 1 ? ' · ' + d.soni + ' marta yozilgan' : '') + ' · '
-      + (d.holat === 'buyurtma' && d.holatTs ? 'buyurtma ' + sana(d.holatTs) : sana(d.ts)) + (d.izohlar.length ? ' · ' + d.izohlar.join('; ') : '')),
-    h('div', { class: 'def-alt' }, yozganEl(ctx.S, d) || h('span', {}),   // 06.11: kim yozgan
-      h('button', { type: 'button', class: 'link def-tuzat', onclick: () => nomTuzatOyna(ctx, d) }, '✏️ Nomni to\'g\'irlash')),
+  const [l] = DEF_HOLAT[d.holat];
+  const yoz = yozganlar(ctx.S, d);
+  const meta = [d.filiallar.map(fil).join(', '), d.soni > 1 ? d.soni + ' marta yozilgan' : null,
+    d.holat === 'buyurtma' && d.holatTs ? 'buyurtma ' + sana(d.holatTs) : sana(d.ts), yoz ? 'yozdi: ' + yoz : null,
+    ...d.izohlar.map((z) => DEF_IZOH[z] || z)].filter(Boolean).join(' · ');
+  const keldi = () => keldiTasdiq(d).then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'keldi'));
+  const keraksiz = () => tasdiqlash('«' + d.nom + '» ro\'yxatdan olib tashlansinmi?').then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'bekor'));
+  const boshqa = () => sheet('Boshqa amallar', (box, close) => {
+    box.append(h('div', { class: 'tt-kim' }, h('b', { 'data-asl': '' }, d.nom)),
+      h('button', { type: 'button', class: 's', onclick: () => { close(); nomTuzatOyna(ctx, d); } }, '✏️ Nomni to\'g\'irlash'),
+      h('div', { class: 'muted' }, 'Xodim o\'zicha yozgan nomni Oson yoki prays-listdagi to\'g\'ri nomga almashtiradi — keyin qoldig\'i aniq ko\'rinadi va kelganda o\'zi «Keldi» bo\'ladi.'));
+  }, { fokus: false });
+  return h('div', { class: 'item def-k def-' + d.holat, 'data-rk': d.nom },   // data-rk — ro'yxat harakati kaliti (ui.royxatHarakat)
+    h('div', { class: 'def-bosh' }, h('b', { class: 'def-nom', 'data-asl': '' }, d.nom), h('span', { class: 'def-holat def-h-' + d.holat }, l)),
+    h('div', { class: 'muted def-meta' }, meta),
     aslNomEl(d),   // 09.11: to'g'irlangan bo'lsa — xodim yozgani
-    d.holat !== 'keldi' && ctx.server ? defQoldiqEl(ctx.retseptCtx(), d, fil, (t) => nomTuzatOyna(ctx, d, t)) : null,   // 09.11 kech: bizdagi qoldiq
+    d.holat !== 'keldi' && ctx.server ? defQoldiqEl(ctx.retseptCtx(), d, fil, (t) => nomTuzatOyna(ctx, d, t)) : null,   // bizdagi qoldiq
     narx && ctx.server && firmaOchiq() ? defNarxQator(d.nom) : null,
     ctx.server ? mijozBelgi(d) : null,   // 06.11 kech: direktorda faqat «N mijoz kutmoqda» (tugma — xodimlarda)
-    h('div', { class: 'row' },
-      d.holat === 'yangi' ? h('button', { class: 'p s', onclick: () => ctx.amal('defekturaHolat', d.nom, 'buyurtma') }, 'Buyurtma berdim') : null,
-      h('button', { class: d.holat === 'buyurtma' ? 'p s' : 's', onclick: () => keldiTasdiq(d).then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'keldi')) }, 'Keldi'),
-      h('button', { class: 's', onclick: () => tasdiqlash('«' + d.nom + '» ro\'yxatdan olib tashlansinmi?').then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'bekor')) }, 'Kerak emas')));
+    d.holat === 'yangi'
+      ? h('button', { class: 'p def-asosiy', onclick: () => ctx.amal('defekturaHolat', d.nom, 'buyurtma') }, 'Buyurtma berdim')
+      : h('button', { class: 'p def-asosiy', onclick: keldi }, 'Keldi'),
+    h('div', { class: 'def-tugmalar' + (d.holat === 'yangi' ? '' : ' ikki') },
+      d.holat === 'yangi' ? h('button', { class: 's', onclick: keldi }, 'Keldi') : null,
+      h('button', { class: 's', onclick: keraksiz }, 'Kerak emas'),
+      h('button', { class: 's def-kop', type: 'button', 'aria-label': 'Boshqa amallar: nomni to\'g\'irlash', onclick: boshqa }, '⋯')));
 }
 
 // Defektura: hamma filiallar ro'yxati birlashgan ("2 marta yozilgan"). Ota buyurtma beradi → "Buyurtma berdim" → kelganda "Keldi".
@@ -2191,7 +2204,7 @@ function defekturaDirektor(m, ctx, fil, ochFirmalar) {
   }
   if (DEF_TAB.v === 'buyurtma') {
     m.append(h('div', { class: 'muted' }, 'Kelganda «Keldi» bosing — fakturada yoki xaridda kelsa o\'zi o\'tadi.'));
-    const list = h('div', { class: 'card list' }, kartaSarlavha('Buyurtma berilganlar (' + berilgan.length + ')'));
+    const list = h('div', { class: 'def-kartalar' }, h('h3', { class: 'def-sar' }, 'Buyurtma berilganlar (' + berilgan.length + ')'));
     if (!berilgan.length) list.append(h('div', { class: 'muted' }, 'Hozir buyurtma berilgan dori yo\'q. «Kerak» bo\'limida «Buyurtma berdim» bosilgan dorilar shu yerga o\'tadi.'));
     berilgan.forEach((d) => list.append(defQator(ctx, fil, d, false)));
     m.append(list);
@@ -2205,7 +2218,7 @@ function defekturaDirektor(m, ctx, fil, ochFirmalar) {
   // Firmalar narxi (30.10; 03.11 — yopiq, «Firmani tanlash» bilan ochiladi): ochiq bo'lsa — har dori ostida eng arzon firma.
   const fk = defFirmaKarta({ ...ctx.retseptCtx(), rerender: ctx.rerender, firma: ctx.firma }, kerak, () => ctx.rerender(), ochFirmalar);
   if (fk) m.append(fk);
-  const list = h('div', { class: 'card list' }, kartaSarlavha('Kerak (' + kerak.length + ')'));
+  const list = h('div', { class: 'def-kartalar' }, h('h3', { class: 'def-sar' }, 'Kerak (' + kerak.length + ')'));
   if (!kerak.length) list.append(h('div', { class: 'muted' }, berilgan.length ? 'Hammasiga buyurtma berilgan ✓' : 'Hozircha hech narsa yozilmagan'));
   kerak.forEach((d) => list.append(defQator(ctx, fil, d, true)));
   m.append(list);
