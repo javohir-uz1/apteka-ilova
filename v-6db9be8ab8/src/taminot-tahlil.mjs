@@ -23,6 +23,7 @@ function yukla(ctx, chiz, majbur = false) {
   return T.yuk;
 }
 
+const kunQisqa = (k) => String(k).slice(8, 10) + '.' + String(k).slice(5, 7);
 const son = (n) => String(Math.round(Number(n || 0) * 10) / 10).replace('.', ',');
 // Bir dori: kunlik sotuv, necha kunga yetadi, daromad va foyda (birlik — quti; ta'minotchi narxi Oson narxidan 2 baravar ko'p bo'lsa —
 // birlik boshqa deb hisoblanadi va foyda chiqarilmaydi), holat va tavsiya.
@@ -46,6 +47,12 @@ export function doriHisob(d, davr0) {
     const kerak = Math.ceil(kunlik * 14 - qoldiq);
     if (kerak > 0) r.tavsiya = 'Keyingi xaridda ~' + kerak + ' quti oling';
   } else if (qoldiq > 0 && davr >= 14) r.tavsiya = 'Hozircha olmang — ' + son(qoldiq) + ' quti turibdi';
+  // 10.11 (egasi: "Ginesept 44 ta keldi, lekin yana «oling» chiqib turibdi"; "oling tavsiyasini Oson qoldig'idan olishi kerak"):
+  // xaridda yozilgan, Oson'ga hali kiritilmagan dori — qoldiq Oson'dan qoladi, lekin «oling» chiqmaydi (Oson'ga kiritilgach hisoblanadi).
+  if (Number(d.kutish) > 0) {
+    r.kutish = d.kutish + ' ta keldi' + (d.kutishKun ? ' (' + kunQisqa(d.kutishKun) + ')' : '') + ' — Oson\'ga hali kiritilmagan';
+    if (r.tavsiya && !/olmang/.test(r.tavsiya)) r.tavsiya = null;
+  }
   return r;
 }
 // Bir ta'minotchi bo'yicha jamlar: daromad, foyda (narxi ma'lum dorilar), sotilgan quti, tez / tugagan / sotilmayotgan soni.
@@ -82,6 +89,7 @@ function doriQator(ctx, ta, d, x, chiz) {
     d.topildi && Array.isArray(d.filiallar) && d.filiallar.length ? h('span', { class: 'tt-fil', 'aria-label': 'Filiallar bo\'yicha' },
       ...d.filiallar.map((f) => h('span', { class: 'tt-f' + (Number(f.soni) > 0 ? '' : ' yoq') },
         h('span', { 'data-asl': '' }, f.b), ' ', h('b', {}, Number(f.soni) > 0 ? f.matn : 'yo\'q')))) : null,
+    x.kutish ? h('span', { class: 'kut-belgi' }, x.kutish) : null,
     x.tavsiya ? h('span', { class: 'tt-tavsiya' }, x.tavsiya) : null,
     d.ulush ? h('span', { class: 'muted tt-oson' }, 'Boshqa ta\'minotchidan ham olinadi — sotuv umumiy, reytingga kirmaydi') : null,
     belgi(x)),

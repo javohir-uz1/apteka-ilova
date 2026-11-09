@@ -163,6 +163,7 @@ export function osonKarta(ctx, fil, chiz, o = {}) {
   j.filiallar.filter((f) => f.korildi && j.vaqt - f.korildi > ESKI_MS)
     .forEach((f) => k.append(h('div', { class: 'oson-otgan' }, '⚠ ', filBelgi(fNom, f.id), ' ' + sana(f.korildi) + ' dan beri Oson\'dan ma\'lumot kelmadi')));
   if (j.rad) radKarta(k, ctx, chiz);
+  kutishKarta(k, j, chiz);
   if (!ctx.qidiruvYoq) k.append(osonQidiruv(ctx, fil, { ichida: true, ixcham: true }));   // 07.11: direktor «Dori qidirish»ni o'chirgan (xodim)
   if (!['tugadi', 'hammada', 'kam', 'kochir', 'muddat'].includes(O.rejim)) O.rejim = 'tugadi';
   const san = (j.sanoq && j.sanoq[O.filial || '']) || { t: 0, k: 0 };
@@ -327,6 +328,27 @@ function tartibla(qatorlar, t, tugadi) {
   return tugadi ? qatorlar : qatorlar.slice().sort((a, b) => (a.soni - b.soni) || nomTartib(a, b));
 }
 
+// 10.11 (egasi: "Ginesept 44 ta keldi, lekin Oson qoldig'ida ko'rinmayabdi"): xaridda yozilgan, Oson'ga hali kiritilmagan dorilar
+// (server 'kutish', kalit — Oson nomining talaffuz kaliti). Qoldiq baribir Oson'dan; bu — «kirim qilinmay qolgan» eslatma.
+const kunQisqa = (k) => String(k || '').slice(8, 10) + '.' + String(k || '').slice(5, 7);
+const kutishMatn = (z) => z.soni + ' ta keldi (' + kunQisqa(z.kun) + ') — Oson\'ga kiritilmagan';
+export function kutishEl(j, q) {
+  const z = (j.kutish || []).find((x) => x.kalit === q.kalit);
+  return z ? h('span', { class: 'kut-belgi' }, kutishMatn(z)) : null;
+}
+function kutishKarta(k, j, chiz) {
+  const ro = Array.isArray(j.kutish) ? j.kutish : [];
+  if (!ro.length) return;
+  const kor = O.kutOchiq ? ro : ro.slice(0, 3);
+  k.append(h('div', { class: 'kut-karta', role: 'region', 'aria-label': 'Keldi, Oson\'ga kiritilmagan' },
+    h('div', { class: 'kut-s' }, h('b', {}, 'Keldi, Oson\'ga kiritilmagan'), h('span', {}, String(ro.length))),
+    ...kor.map((z) => h('div', { class: 'kut-q' }, h('span', { 'data-asl': '' }, z.nom),
+      h('span', { class: 'muted' }, z.soni + ' ta · ' + kunQisqa(z.kun) + (z.ta ? ' · ' : ''), z.ta ? asl(z.ta) : null))),
+    ro.length > 3 ? h('button', { type: 'button', class: 'oq-yana', onclick: () => { O.kutOchiq = !O.kutOchiq; chiz(); } },
+      O.kutOchiq ? 'Yig\'ish ▴' : 'Yana ' + (ro.length - kor.length) + ' ta ▾') : null,
+    h('div', { class: 'muted' }, 'Xaridda yozilgan, lekin Oson\'da hali kirim qilinmagan. Oson\'ga kirim qiling — 30 daqiqa ichida qoldiq shu yerda yangilanadi.')));
+}
+
 // Ro'yxat (A ko'rinishi): har dori — bitta qator: nomi, bir qator izoh, «↔ boshqa filialda bor», o'ngda rangli qoldiq va «+».
 // Tafsilot va «Kerak emas» — qator bosilganda ochiladigan oynada (ro'yxat toza qoladi).
 function tugayaptiView(k, ctx, fil, chiz) {
@@ -355,6 +377,7 @@ function tugayaptiView(k, ctx, fil, chiz) {
           q.tugadi ? sana(q.tugadi) + ' ' + vaqt(q.tugadi) + ' tugadi' : q.firma ? asl(q.firma) : null], 'oq-i'),
         ozidaEl(q),
         q.tugadi && q.hammada ? h('span', { class: 'oq-hech' }, 'Hech bir filialda yo\'q') : null,
+        kutishEl(j, q),
         b.length ? h('span', { class: 'oq-k' }, '↔ ', filBelgi(fNom, b[0].b), ' da ' + qoldiqMatn(b[0].soni, b[0].dona) + ' bor' + (b.length > 1 ? ' (+' + (b.length - 1) + ' filial)' : '') + ' — ko\'chirsa bo\'ladi') : null),
       qoldiq,
       defda(q) ? h('span', { class: 'oq-plus bor', role: 'img', 'aria-label': 'Defekturada bor' }, '✓')

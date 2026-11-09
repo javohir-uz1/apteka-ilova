@@ -183,6 +183,7 @@ export const ISHLAR = {
   reyestrRad: [() => A.osonYoq(), (g) => ['reyestr_rad', [m(g)]]],
   inventarYop: [() => A.osonYoq(), (id) => ['inventar_yop', [id]]],
   inventarNatija: [() => A.osonYoq(), (id) => ['inventar_natija', [id]]],
+  inventarTuzatildi: [() => A.osonYoq(), (id, p, belgi) => ['inventar_tuzatildi', [id, String(p || ''), belgi !== false]]],
   // 07.11 kech (20261107200000_ombor_aqlli): muddat siyosati (direktor), bugungi sanash (kunlik inventarizatsiya) — faqat serverda.
   muddatSiyosat: [() => A.osonYoq(), (ogoh, javon) => ['muddat_siyosat', [Math.trunc(Number(ogoh) || 0), Math.trunc(Number(javon) || 0)]]],
   kunlikSanash: [() => A.osonYoq(), (b) => ['kunlik_sanash', [m(b)]]],

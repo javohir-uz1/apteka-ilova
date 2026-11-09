@@ -356,7 +356,12 @@ function bemorlarKarta(tp, ctx, qil, qilX) {
 // Dori nomi — ta'sir etuvchi modda va doza ("Asetilsalitsil kislotasi 150 mg"; foydalanuvchi: "Trombopol emas"). Kengaytma xpn'da
 // shuni yuboradi; xpn bo'lmasa — "Modda nomi yo'q" (savdo nomi emas). Savdo nomi (bergan dorimiz) hech qayerda ko'rsatilmaydi.
 const doriNomi = (d) => (d.xpn && String(d.xpn).trim().length > 1 ? String(d.xpn).trim() : 'Modda nomi yo\'q');
-const doriMatni = (d) => doriNomi(d) + (d.berilmadi ? ' — berilmadi' : d.soni != null ? ' — ' + d.soni + ' dona' : '');
+const doriMatni = (d) => doriNomi(d) + (d.berilmadi ? ' — berilmadi' : d.soni != null ? ' — ' + d.soni + ' dona' : '')
+  // 10.11: reimbursatsiya partiyalarida yo'q modda — oddiy retsept (kassa orqali sotiladi), Oson'dan chiqarishga qo'shilmaydi.
+  + (d.oddiy && !d.berilmadi ? ' · oddiy retsept — Oson\'dan chiqarilmaydi' : '');
+// Oson'dan chiqariladigan dorilar: berilgan va reimbursatsiya dorisi (oddiy retsept emas).
+const chiqarDori = (d) => !d.berilmadi && !d.oddiy;
+const faqatOddiy = (z) => Array.isArray(z.dorilar) && z.dorilar.length > 0 && !z.dorilar.some(chiqarDori);
 const JONLI = 5e3;
 let jonli = null;          // setInterval
 let jonliCtx = null;
@@ -649,7 +654,7 @@ function orashView(m, ctx, tp) {
 // «Метформин 500 mg» va «Metformin 500 mg» ikki qator bo'lib, son bo'linib ko'rinardi).
 function doriJami(bemorlar) {
   const j = new Map();
-  bemorlar.forEach((z) => (Array.isArray(z.dorilar) ? z.dorilar : []).filter((d) => !d.berilmadi).forEach((d) => {
+  bemorlar.forEach((z) => (Array.isArray(z.dorilar) ? z.dorilar : []).filter(chiqarDori).forEach((d) => {
     const nom = doriNomi(d), k = H.xpnGuruh(nom), e = j.get(k);
     j.set(k, { nom: H.xpnAfzal(e && e.nom, nom), soni: (e ? e.soni : 0) + (Number(d.soni) || 0) });
   }));
@@ -660,7 +665,8 @@ function doriJami(bemorlar) {
 // hisoblanib ketmasin, punktlar qo'shilmasin"): faqat ichki punkt (aptekadagi mijozlar), berilgan va hali Oson belgisi yo'qlar,
 // «berilmadi» dorisiz; davr tanlovidan qat'i nazar — yuklangan hamma kunlar (server 7 kun beradi).
 export function mijozOsonJami(bemorlar, ichki) {
-  const qolgan = ichki ? (bemorlar || []).filter((z) => z.punktId === ichki && (z.holat === 'berildi' || z.holat === 'olindi') && !z.oson) : [];
+  // 10.11: faqat oddiy retsept dorisi berilgan mijoz — Oson'dan chiqarilmaydi (ro'yxatga ham, belgiga ham kirmaydi).
+  const qolgan = ichki ? (bemorlar || []).filter((z) => z.punktId === ichki && (z.holat === 'berildi' || z.holat === 'olindi') && !z.oson && !faqatOddiy(z)) : [];
   return { qolgan, dorisiz: qolgan.filter((z) => !(Array.isArray(z.dorilar) && z.dorilar.length)).length, jami: doriJami(qolgan) };
 }
 // «Hammasi Oson'dan chiqarildi» — tasdiq oynasida aynan belgilanadigan mijozlar jadvali (Oson'dan chiqarilgan miqdor bilan solishtirish
@@ -762,7 +768,7 @@ function mijozView(m, ctx) {
         h('button', { class: 's', onclick: () => nusxaOl(nusxa, ctx.toast, 'Jadval nusxalandi ✓') }, 'Jadvalni nusxalash'))));
   } else m.append(h('div', { class: 'card', style: 'color:var(--kirim);font-weight:600' }, '✓ Hammasi Oson\'dan chiqarilgan'));
   m.append(pills([['hammasi', 'Hammasi · ' + hammasi.length], ['qolgan', 'Chiqarilmagan · ' + mj.qolgan.length]], osonKorinish, (v) => { osonKorinish = v; ctx.rerender(); }, 'Ko\'rsatish'));
-  const kor = osonKorinish === 'qolgan' ? hammasi.filter((z) => !z.oson) : hammasi;
+  const kor = osonKorinish === 'qolgan' ? hammasi.filter((z) => !z.oson && !faqatOddiy(z)) : hammasi;
   if (!kor.length) { m.append(h('div', { class: 'card muted' }, 'Chiqarilmagan mijoz yo\'q ✓')); return; }
   m.append(h('div', { class: 'card list' }, ...kor.slice().sort((a, c) => c.ts - a.ts).map((z) => h('div', { class: 'item', style: z.oson ? 'background:#F1F4F2' : '' },
     h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '' }, z.ism || 'Mijoz'), h('span', { class: 'muted' }, sana(z.ts) + ' ' + vaqt(z.ts))),
@@ -773,6 +779,7 @@ function mijozView(m, ctx) {
       ? h('div', { class: 'line', style: 'border:0;padding:0;align-items:center' }, h('span', { style: 'color:var(--accent);font-weight:600' }, osonBelgiMatni([z])),
         h('button', { class: 's', style: 'flex:none', onclick: () => tasdiqlash('"Oson\'dan chiqarildi" belgisi olib tashlansinmi?')
           .then((ha) => ha && qoy([z], false, () => ctx.amal('bemorOson', z.id, false))) }, 'Olib tashlash'))
+      : faqatOddiy(z) ? h('span', { class: 'muted' }, 'Oddiy retsept — Oson\'dan chiqarilmaydi')
       : h('button', { class: 'p s', style: 'align-self:flex-start', onclick: () => tasdiqlash((z.ism || 'Mijoz') + ' — dorilar Oson Apteka\'dan chiqarildimi?')
         .then((ha) => ha && qoy([z], true, () => ctx.amal('bemorOson', z.id, true))) }, 'Oson\'dan chiqardim')))));
 }

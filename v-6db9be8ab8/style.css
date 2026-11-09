@@ -1724,3 +1724,18 @@ html.matn-katta .buy-jq, html.matn-katta .dq-fq { font-size: 17px; } html.matn-k
 .tt-f b { font-weight: 700; font-variant-numeric: tabular-nums; }
 .tt-f.yoq { background: var(--warn-bg); color: var(--warn); }
 html.matn-katta .tt-f { font-size: 15px; }
+
+/* 10.11: inventarizatsiya — sanashda filiallar, natijada «Oson'da to'g'irlash». */
+.inv-fil { display: flex; flex-direction: column; gap: 4px; }
+.inv-tuzat { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: var(--bg); display: flex; flex-direction: column; gap: 4px; font-size: 15px; }
+.inv-tuzat b { font-variant-numeric: tabular-nums; }
+.inv-tuzat.bajarildi { background: var(--kirim-bg); }
+.inv-tuzat-t { color: var(--kirim); font-weight: 600; font-size: 14px; }
+.inv-tuzat > button { align-self: flex-start; min-height: 44px; }
+
+/* 10.11: «Keldi, Oson'ga kiritilmagan» — xaridda yozilgan, Oson'da hali kirim qilinmagan dori (kontrast #8A5300 / #FFF6E5 ≈ 6,3:1). */
+.kut-belgi { display: inline-block; align-self: flex-start; margin-top: 2px; font-size: 13px; font-weight: 600; color: #8A5300; }
+.kut-karta { display: flex; flex-direction: column; gap: 6px; padding: 12px; margin: 4px 0 8px; border-radius: 12px; background: #FFF6E5; border: 1px solid #F2D9A6; }
+.kut-s { display: flex; justify-content: space-between; align-items: center; color: #8A5300; }
+.kut-q { display: flex; flex-direction: column; gap: 1px; padding: 6px 0; border-top: 1px solid #F2D9A6; }
+html.matn-katta .kut-belgi { font-size: 15px; }
