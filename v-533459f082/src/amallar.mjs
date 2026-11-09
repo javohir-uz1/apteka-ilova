@@ -854,7 +854,7 @@ export function dorilarHisobot(s, dan, gacha) {
     const kun = H.kunKey(b.ts);
     if (kun < dan || kun > gacha) return;
     const p = rs(s).punktlar.find((x) => x.id === b.punktId) || { nom: 'Punkt' };
-    b.dorilar.filter((d) => !d.berilmadi && Number(d.soni) > 0).forEach((d) => {
+    b.dorilar.filter((d) => !d.berilmadi && !d.oddiy && Number(d.soni) > 0).forEach((d) => {
       const xpn = String(d.xpn || '').trim(), k = b.punktId + '|' + xpn;
       const r = g.get(k) || { punktId: b.punktId, punkt: p.nom, ichki: !!p.ichki, xpn, soni: 0, bemorlar: new Set() };
       r.soni += Number(d.soni) || 0; r.bemorlar.add(b.id);

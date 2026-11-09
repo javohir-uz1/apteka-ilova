@@ -1717,3 +1717,18 @@ html.matn-katta .buy-jq, html.matn-katta .dq-fq { font-size: 17px; } html.matn-k
 .def-tugmalar.ikki { grid-template-columns: 1fr 48px; }
 .def-tugmalar > button { min-height: 46px; width: 100%; padding: 0 6px; }
 .def-kop { font-size: 20px; letter-spacing: 1px; }
+
+/* 10.11: ta'minotchi dorilari — filiallar bo'yicha qoldiq. */
+.tt-fil { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.tt-f { font-size: 13px; padding: 2px 9px; border-radius: 999px; background: var(--soft); color: var(--accent-txt); white-space: nowrap; }
+.tt-f b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tt-f.yoq { background: var(--warn-bg); color: var(--warn); }
+html.matn-katta .tt-f { font-size: 15px; }
+
+/* 10.11: inventarizatsiya — sanashda filiallar, natijada «Oson'da to'g'irlash». */
+.inv-fil { display: flex; flex-direction: column; gap: 4px; }
+.inv-tuzat { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: var(--bg); display: flex; flex-direction: column; gap: 4px; font-size: 15px; }
+.inv-tuzat b { font-variant-numeric: tabular-nums; }
+.inv-tuzat.bajarildi { background: var(--kirim-bg); }
+.inv-tuzat-t { color: var(--kirim); font-weight: 600; font-size: 14px; }
+.inv-tuzat > button { align-self: flex-start; min-height: 44px; }

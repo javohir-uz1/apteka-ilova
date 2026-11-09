@@ -78,6 +78,10 @@ function doriQator(ctx, ta, d, x, chiz) {
     h('b', { 'data-asl': '' }, d.nom),
     d.topildi && d.osonNom && d.osonNom !== d.nom ? h('span', { class: 'muted tt-oson' }, 'Oson: ', h('span', { 'data-asl': '' }, d.osonNom)) : null,
     qism.length ? h('span', { class: 'muted' }, qism.join(' · ')) : null,
+    // 10.11 (egasi: "qaysi filialda nechta borligini ham ko'rsat"): filial — soni (tugagan — «yo'q»).
+    d.topildi && Array.isArray(d.filiallar) && d.filiallar.length ? h('span', { class: 'tt-fil', 'aria-label': 'Filiallar bo\'yicha' },
+      ...d.filiallar.map((f) => h('span', { class: 'tt-f' + (Number(f.soni) > 0 ? '' : ' yoq') },
+        h('span', { 'data-asl': '' }, f.b), ' ', h('b', {}, Number(f.soni) > 0 ? f.matn : 'yo\'q')))) : null,
     x.tavsiya ? h('span', { class: 'tt-tavsiya' }, x.tavsiya) : null,
     d.ulush ? h('span', { class: 'muted tt-oson' }, 'Boshqa ta\'minotchidan ham olinadi — sotuv umumiy, reytingga kirmaydi') : null,
     belgi(x)),
