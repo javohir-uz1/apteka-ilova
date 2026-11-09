@@ -105,7 +105,7 @@ export function kelganKarta(S, o = {}) {
     list.forEach((k) => {
       const def = defNomlar.has(String(k.nom).toLowerCase());
       det.append(h('div', { class: 'line', style: def ? 'background:var(--soft);border-radius:10px;padding:6px 8px' : '' },
-        h('span', {}, (def ? '✓ ' : '') + k.nom + (def ? ' (defekturada edi)' : '')), h('span', { class: 'muted', style: 'white-space:nowrap' }, k.soni != null ? k.soni + ' ta' : '')));
+        h('span', {}, def ? '✓ ' : '', h('span', { 'data-asl': '' }, k.nom), def ? ' (defekturada edi)' : ''), h('span', { class: 'muted', style: 'white-space:nowrap' }, k.soni != null ? k.soni + ' ta' : '')));
     });
     card.append(det);
   });
@@ -195,7 +195,7 @@ export function defekturaXodim(m, ctx, x) {
       x.daraja === 2 ? h('div', { class: 'row' },
         d.holat === 'yangi' ? h('button', { class: 'p s', onclick: () => ctx.amal('defekturaHolat', d.nom, 'buyurtma') }, 'Buyurtma berdim') : null,
         h('button', { class: 's', onclick: () => keldiTasdiq(d).then((ha) => ha && ctx.amal('defekturaHolat', d.nom, 'keldi')) }, 'Keldi')) : null,
-      meniki ? h('button', { class: 's', style: 'align-self:flex-start', onclick: () => tasdiqlash(d.nom + ' ro\'yxatdan o\'chirilsinmi?').then((ha) => ha && ctx.amal('defekturaOchir', meniki.id)) }, 'O\'chirish') : null);
+      meniki ? h('button', { class: 's', style: 'align-self:flex-start', onclick: () => tasdiqlash('«' + d.nom + '» ro\'yxatdan o\'chirilsinmi?').then((ha) => ha && ctx.amal('defekturaOchir', meniki.id)) }, 'O\'chirish') : null);
   };
   // 03.11: buyurtma berilganlar — alohida ro'yxatda (xodim yana yozib o'tirmasin).
   const kerak = g.filter((d) => d.holat === 'yangi');
@@ -224,6 +224,7 @@ export function nomTuzatOyna(ctx, d, boshQidiruv) {
     const asl = boshQidiruv || (d.asl && d.asl[0]) || d.nom;
     const q = input('Qidirish (Oson va prays-list)', { inputmode: 'text', placeholder: 'Masalan: Нош-Бра' });
     q.i.value = asl;
+    q.i.defaultValue = asl;   // audit 09.11: yozilmagan bo'lsa yopishda «Yozganlaringiz o'chadi» so'ralmasin
     const nat = h('div', { class: 'shumi' });
     let navbat = 0, taymer = null, band = false;
     // Audit 09.11: saqlanayotganda tugmalar o'chiq (ikkinchi bosish yolg'on xato bermasin).
@@ -294,21 +295,46 @@ export function defQoldiqEl(rctx, d, fil, bogla) {
   if (!z) return null;
   // Oson ma'lumoti 26 soatdan eski — qaysi vaqtdagi ekani aytiladi (kompyuterda Oson admin ochilmagan bo'lishi mumkin).
   const eski = DQ.eski && DQ.osonVaqt ? ' (Oson ' + sana(DQ.osonVaqt) + ' dagi)' : '';
+  // 09.11 kech (egasi: "qaysi geparin ekanligi ham yozilsin, hamma dorida; ko'rinishi tartibli, tushunarli bo'lsin"):
+  // har filial alohida qatorda, ostida ishlab chiqaruvchilar (Bayan Medical — 11 quti, NANO — 26 quti). Yozilgan filialda yo'q,
+  // boshqasida bor bo'lsa — shu aytiladi (ko'chirish mumkin).
+  const filiallarEl = (filiallar) => {
+    const bor = (filiallar || []).filter((f) => Number(f.soni) > 0);
+    if (!bor.length) return null;
+    // A maket (09.11 tun): ishlab chiqaruvchi bitta — filial bilan bir qatorda («4-filial · Дальхимфарм — 2 quti 8 dona»,
+    // son ikki marta yozilmaydi); bir nechta — filial ostida alohida qatorlar.
+    return h('div', { class: 'dq-fil' }, ...bor.map((f) => {
+      const ish = Array.isArray(f.ish) ? f.ish : [];
+      const nom = f.f ? fil(f.f) : f.b;
+      if (ish.length === 1) {
+        return h('div', { class: 'dq-f' }, h('div', { class: 'dq-fq' },
+          h('span', {}, nom, h('span', { class: 'dq-ish1' }, ' · ', h('span', { 'data-asl': '' }, ish[0].i))), h('b', {}, f.matn)));
+      }
+      return h('div', { class: 'dq-f' }, h('div', { class: 'dq-fq' }, h('span', {}, nom), h('b', {}, f.matn)),
+        ...ish.map((x) => h('div', { class: 'dq-iq' }, h('span', { 'data-asl': '' }, x.i), h('b', {}, x.matn))));
+    }));
+  };
+  const boshqadaEl = (filiallar) => {
+    const yozilgan = (d.filiallar || []).filter(Boolean);
+    const borF = (filiallar || []).filter((f) => Number(f.soni) > 0 && f.f).map((f) => f.f);
+    const yoqF = yozilgan.filter((id) => !borF.includes(id));
+    if (!yoqF.length || !borF.some((id) => !yozilgan.includes(id))) return null;
+    return h('div', { class: 'dq-maslahat' }, '↪ ' + yoqF.map(fil).join(', ') + 'da yo\'q — boshqa filialdan olish mumkin');
+  };
   if (z.holat === 'bor') {
-    const bor = (z.filiallar || []).filter((f) => Number(f.soni) > 0);
-    return h('div', { class: 'dq dq-bor' }, '📦 Bizda: ', h('b', {}, z.jami || ''),
-      bor.length ? ' — ' + bor.map((f) => (f.f ? fil(f.f) : f.b) + ' ' + f.matn).join(', ') : '', eski);
+    return h('div', { class: 'dq dq-bor dq-blok' }, h('div', { class: 'dq-sar' }, h('span', {}, '📦 Bizda jami', eski), h('b', {}, z.jami || '')),
+      filiallarEl(z.filiallar), boshqadaEl(z.filiallar));
   }
-  if (z.holat === 'tugagan') return h('div', { class: 'dq dq-yoq' }, '📦 Bizda: hamma filialda tugagan' + eski);
+  if (z.holat === 'tugagan') return h('div', { class: 'dq dq-yoq dq-blok' }, h('div', { class: 'dq-sar' }, h('span', {}, '📦 Bizda' + eski), h('b', {}, 'hamma filialda tugagan')));
   const t = z.taklif;
   // Yagona to'liq mos variant (faqat «п/о», «№» kabi farq) — qoldiq «≈» bilan va Oson'dagi nomi; direktor bog'lab qo'yadi.
   // Filiallar bo'yicha (Энап 10мг /KRKA/ → «4-filial 3 ta, 1-filial 1 ta»).
   if (t && t.aniq) {
-    const bor = (t.filiallar || []).filter((f) => Number(f.soni) > 0);
-    return h('div', { class: 'dq dq-taxmin' }, '📦 Bizda ≈ ', h('b', {}, Number(t.soni) > 0 ? t.matn : 'tugagan'),
-      bor.length ? ' — ' + bor.map((f) => (f.f ? fil(f.f) : f.b) + ' ' + f.matn).join(', ') : '',
-      h('span', { class: 'dq-k' }, ' · Oson\'da: ', h('span', { 'data-asl': '' }, t.nom)), eski,
-      bogla ? h('button', { type: 'button', class: 'link dq-bogla', onclick: () => bogla(t.nom) }, 'Bog\'lash') : null);
+    return h('div', { class: 'dq dq-taxmin dq-blok' },
+      h('div', { class: 'dq-sar' }, h('span', {}, '📦 Bizda ≈', eski), h('b', {}, Number(t.soni) > 0 ? t.matn : 'tugagan')),
+      h('div', { class: 'dq-k' }, 'Oson\'da: ', h('span', { 'data-asl': '' }, t.nom)),
+      filiallarEl(t.filiallar), boshqadaEl(t.filiallar),
+      bogla ? h('button', { type: 'button', class: 'link dq-bogla', onclick: () => bogla(t.nom) }, 'Bog\'lash (nomini shunga o\'zgartirish)') : null);
   }
   // Oson'da o'xshashi ham yo'q, katalogda (Oson katalogi, prays-list, firma prayslari, davlat reyestri) bor. Kaliti aynan mos —
   // haqiqatan «yo'q»; faqat o'xshash — «ehtimol» (aniq «yo'q» demaymiz).

@@ -1661,3 +1661,66 @@ html.matn-katta .tt-tavsiya, html.matn-katta .tt-b { font-size: 16px; } html.mat
 .dq .dq-bogla { min-height: 44px; padding: 0 6px; }
 .dq-taxmin { color: var(--ink); }
 .dq-yoq .dq-k { color: var(--muted); font-weight: 400; }
+
+/* 09.11 kech (egasi: "defektura va aqlli buyurtma — tartibli, tushunarli"): qoldiq bloki filial → ishlab chiqaruvchi;
+   buyurtma hisobi — jadval. */
+.def-k .def-holat { padding: 3px 10px; border-radius: 999px; background: var(--soft); font-weight: 600; font-size: 14px; white-space: nowrap; }
+.def-alt { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.def-alt .def-kim { margin: 0; }
+.def-tuzat { min-height: 44px; padding: 0 2px; font-size: 15px; font-weight: 600; }
+.dq.dq-blok { border-top: 0; margin-top: 4px; padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+.dq-sar { font-size: 16px; }
+.dq-blok .dq-k { margin-top: 2px; font-size: 14px; color: var(--muted); }
+.dq-fil { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.dq-fq { display: flex; justify-content: space-between; gap: 10px; font-weight: 600; color: var(--ink); }
+.dq-fq b, .dq-iq span:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dq-iq { display: flex; justify-content: space-between; gap: 10px; padding-left: 14px; font-size: 14px; color: var(--muted); }
+.dq-iq span:first-child { overflow-wrap: anywhere; }
+.dq-iq span:first-child::before { content: '· '; }
+.dq-maslahat { margin-top: 8px; font-size: 14px; font-weight: 600; color: var(--info); }
+.buy-q .buy-nom { font-weight: 600; }
+.buy-holat { margin-top: 2px; font-size: 15px; font-weight: 600; color: var(--ink); }
+.buy-holat.oson-otgan { color: var(--warn); }
+.buy-firma { margin-top: 6px; }
+.buy-firma .buy-narx { font-variant-numeric: tabular-nums; }
+.buy-jadval { margin-top: 8px; padding: 8px 12px; border-radius: 12px; background: var(--bg); font-variant-numeric: tabular-nums; }
+.buy-jsar { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
+.buy-jq { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 15px; }
+.buy-jq b { white-space: nowrap; font-weight: 600; }
+.buy-jq.jami { margin-top: 3px; padding-top: 6px; border-top: 1px solid var(--sep); }
+.buy-jq.jami b { color: var(--kirim); }
+html.matn-katta .buy-jq, html.matn-katta .dq-fq { font-size: 17px; } html.matn-katta .dq-iq { font-size: 16px; }
+
+/* 09.11 tun — Defektura A maket (docs/maket/defektura-karta.png): har dori alohida karta, chapda holat rangi. */
+.def-kartalar { display: flex; flex-direction: column; gap: 12px; }
+.def-kartalar > .def-sar { margin: 4px 4px 0; font-size: 17px; font-weight: 600; color: var(--ink); }
+.def-kartalar > .muted { padding: 0 4px; }
+.def-kartalar > .item.def-k { background: var(--card); border: 1px solid var(--sep); border-left: 5px solid var(--sep); border-radius: 16px;
+  padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 9px; }
+.def-kartalar > .item.def-k + .item.def-k { border-top: 1px solid var(--sep); }
+.def-k.def-yangi { border-left-color: #E0A100 !important; }
+.def-k.def-buyurtma { border-left-color: var(--info) !important; }
+.def-bosh { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.def-nom { font-size: 17px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.def-k .def-holat { flex: none; font-size: 13px; padding: 3px 10px; }
+.def-k .def-h-yangi { background: var(--warn-bg); color: var(--warn); }
+.def-k .def-h-buyurtma { background: var(--info-bg); color: var(--info); }
+.def-meta { font-size: 14px; line-height: 1.4; margin-top: -4px; }
+.def-k .dq.dq-blok { margin-top: 0; background: var(--bg); }
+.dq-blok .dq-sar { display: flex; justify-content: space-between; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--sep); }
+.dq-blok .dq-sar b { color: var(--accent-txt); white-space: nowrap; }
+.dq-yoq.dq-blok .dq-sar b { color: var(--warn); }
+.dq-ish1 { color: var(--muted); font-weight: 400; }
+.dq-iq b { font-weight: 600; white-space: nowrap; color: var(--ink); }
+.def-asosiy { width: 100%; min-height: 48px; font-size: 16px; }
+.def-tugmalar { display: grid; grid-template-columns: 1fr 1fr 48px; gap: 8px; }
+.def-tugmalar.ikki { grid-template-columns: 1fr 48px; }
+.def-tugmalar > button { min-height: 46px; width: 100%; padding: 0 6px; }
+.def-kop { font-size: 20px; letter-spacing: 1px; }
+
+/* 10.11: ta'minotchi dorilari — filiallar bo'yicha qoldiq. */
+.tt-fil { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.tt-f { font-size: 13px; padding: 2px 9px; border-radius: 999px; background: var(--soft); color: var(--accent-txt); white-space: nowrap; }
+.tt-f b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tt-f.yoq { background: var(--warn-bg); color: var(--warn); }
+html.matn-katta .tt-f { font-size: 15px; }

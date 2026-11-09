@@ -47,8 +47,8 @@ function holatYukla(ctx, chiz, majbur = false) {
   if (I.holatYuk) return;
   if (!majbur && (I.holat || I.holatXato) && Date.now() - I.holatVaqt < 30000) return;
   I.holatYuk = ctx.oqi('inventarHolat')
-    .then((j) => { if (!j || !Array.isArray(j.filiallar)) throw new Error('Server javobi tushunarsiz'); I.holat = j; I.holatXato = null; },
-      (e) => { I.holatXato = (e && e.message) || 'Ma\'lumot olinmadi'; })
+    .then((j) => { if (!j || !Array.isArray(j.filiallar)) throw new Error('Server javobi tushunarsiz'); I.holat = j; I.holatXato = null; })
+      .catch((e) => { I.holatXato = (e && e.message) || 'Ma\'lumot olinmadi'; })
     .finally(() => { I.holatVaqt = Date.now(); I.holatYuk = null; chiz(); });
 }
 

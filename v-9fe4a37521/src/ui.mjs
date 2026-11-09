@@ -80,7 +80,8 @@ export function yozuvTugma(rerender, id) {
 let tasdiqOchiq = false;
 export function tasdiqlash(matn) {
   if (tasdiqOchiq) return Promise.resolve(false);
-  if (document.documentElement.classList.contains(KIRILL)) matn = kirill(matn);
+  // Audit 09.11: «…» ichidagi dori/odam nomlari asl holicha qoladi (Cefazolin → Сефазолин bo'lib ketmasin).
+  if (document.documentElement.classList.contains(KIRILL)) matn = String(matn).split(/(«[^»]*»)/).map((s, i) => (i % 2 ? s : kirill(s))).join('');
   const tg = window.Telegram && window.Telegram.WebApp;
   tasdiqOchiq = true;
   const yop = (v) => { tasdiqOchiq = false; return v; };

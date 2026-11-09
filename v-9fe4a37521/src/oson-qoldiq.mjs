@@ -704,6 +704,8 @@ export function analogOyna(ctx, fil, d) {
     };
     box.append(ichi);
     yukla();
+    // Audit 09.11: oyna yopilganda kutayotgan qidiruv bekor (yopilgan oynadan so'rov va xato xabari chiqmasin).
+    return () => { clearTimeout(taymer); avlod++; };
   }, { fokus: false });
 }
 

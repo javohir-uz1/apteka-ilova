@@ -28,7 +28,9 @@ export function qrOyna(ctx, q, urinish = 0) {
     if (r && r.takror && !urinish) return qrOyna(ctx, q, 1);   // takror javobi — natijasiz, yana bir bor
     if (!r || typeof r !== 'object' || !r.kod) return;
     sheet('Mijoz tasdiqlasin', (box, close) => {
-      box.append(h('div', { class: 'qm-kim' }, h('b', { 'data-asl': '' }, r.ism), h('span', {}, ' · ' + H.som(r.summa))));
+      // Audit 09.11: qisman to'langan qarzda — qoldiq (asl summa emas).
+      const qol = H.qarzQoldiq ? H.qarzQoldiq(q) : r.summa;
+      box.append(h('div', { class: 'qm-kim' }, h('b', { 'data-asl': '' }, r.ism), h('span', {}, ' · ' + H.som(qol))));
       if (!r.havola) { box.append(h('div', { class: 'msg warn' }, 'Bot sozlanmagan — QR yaratib bo\'lmadi. Direktorga ayting.')); return; }
       box.append(h('ol', { class: 'qm-qadam' },
         h('li', {}, 'Mijoz telefon kamerasi bilan QR kodni skanerlasin — Telegram ochiladi, «Start» ni bossin.'),
@@ -43,6 +45,8 @@ export function qrOyna(ctx, q, urinish = 0) {
         tg && tg.openTelegramLink ? h('button', { type: 'button', class: 's', onclick: () => tg.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(r.havola)
           + '&text=' + encodeURIComponent('Qarzni tasdiqlash uchun bosing')) }, 'Havolani yuborish') : null,
         h('button', { type: 'button', class: 'p', onclick: close }, 'Tayyor')));
+      // Audit 09.11: oyna yopilganda ro'yxat yangilansin — mijoz tasdiqlagan bo'lsa «✅» darhol ko'rinsin.
+      return () => { if (ctx.yangila) ctx.yangila(); };
     }, { fokus: false });
   });
 }

@@ -68,8 +68,8 @@ function yukla(ctx, chiz, majbur = false) {
   if (P.yuklanmoqda) return;
   if (!majbur && (P.j || P.xato) && Date.now() - P.vaqt < 60000) return;
   P.yuklanmoqda = ctx.oqi('osonPul')
-    .then((j) => { if (!j || !j.muddat) throw new Error('Server javobi tushunarsiz'); P.j = j; P.xato = null; },
-      (e) => { P.xato = (e && e.message) || 'Ma\'lumot olinmadi'; })
+    .then((j) => { if (!j || !j.muddat) throw new Error('Server javobi tushunarsiz'); P.j = j; P.xato = null; })
+      .catch((e) => { P.xato = (e && e.message) || 'Ma\'lumot olinmadi'; })
     .finally(() => { P.vaqt = Date.now(); P.yuklanmoqda = null; chiz(); });
 }
 
@@ -201,8 +201,8 @@ function bYukla(ctx, chiz, majbur = false) {
   if (B.yuklanmoqda) return;
   if (!majbur && ((B.j && B.kalit === kalit) || (B.xato && B.xatoKalit === kalit)) && Date.now() - B.vaqt < 60000) return;
   B.yuklanmoqda = ctx.oqi('osonBuyurtma', B.zaxira, B.yetkazish)
-    .then((j) => { if (!j || !Array.isArray(j.qatorlar)) throw new Error('Server javobi tushunarsiz'); if (kalit === B.zaxira + ':' + B.yetkazish) { B.j = j; B.kalit = kalit; B.xato = null; } },
-      (e) => { B.xato = (e && e.message) || 'Ma\'lumot olinmadi'; B.xatoKalit = kalit; })
+    .then((j) => { if (!j || !Array.isArray(j.qatorlar)) throw new Error('Server javobi tushunarsiz'); if (kalit === B.zaxira + ':' + B.yetkazish) { B.j = j; B.kalit = kalit; B.xato = null; } })
+      .catch((e) => { B.xato = (e && e.message) || 'Ma\'lumot olinmadi'; B.xatoKalit = kalit; })
     .finally(() => { B.vaqt = Date.now(); B.yuklanmoqda = null; chiz(); });
 }
 
@@ -317,6 +317,20 @@ export function buyHisob(x) {
   if (!q.length) return null;
   return 'Nega ' + x.kerak + ' quti: ' + q.join(' ') + (sotuv > 0 ? '' : ' (sotuv ko\'rinmadi)');
 }
+// 09.11 kech (egasi: "aqlli buyurtmani tushunarli va tartibli qil"): hisob — jadval (har qator alohida: sotuv, so'ralgan, bor,
+// = olish), tenglama satri o'rniga. Formula tekshiruvi buyHisob bilan bir xil (mos kelmasa — null).
+export function buyHisobQator(x) {
+  if (!buyHisob(x)) return null;
+  const sotuv = Number(x.kunlik) * Number(x.jamiKun), bor = Number(x.kutilgan != null ? x.kutilgan : x.qoldiq) || 0, talab = Number(x.talab) || 0;
+  const kutilganmi = x.kutilgan != null && (Number(x.yolda) > 0 || Number(x.bron) > 0);
+  const r = [];
+  if (sotuv > 0) r.push([x.jamiKun + ' kunda sotiladi', kasr(sotuv) + ' quti']);
+  if (talab > 0) r.push(['Xodimlar so\'ragan', '+ ' + talab + ' quti']);
+  if (bor > 0) r.push([kutilganmi ? 'Bor + yo\'lda (kutilgan)' : 'Hozir bor', '− ' + kasr(bor) + ' quti']);
+  if (bor < 0) r.push(['Bron qilingan', '+ ' + kasr(-bor) + ' quti']);
+  r.push(['Olish kerak', x.kerak + ' quti']);
+  return r;
+}
 export function buyHolat(x) {
   const yet = x.yetadi != null ? kasr(x.yetadi) : null;
   if (x.tugadi || !(Number(x.qoldiq) > 0)) return 'tugagan';
@@ -324,15 +338,21 @@ export function buyHolat(x) {
 }
 function bQator(x, fil) {
   const kam = x.yetadi != null && x.yetadi < 3;
-  const hisob = buyHisob(x);
+  const jadval = buyHisobQator(x);
   const narx = x.eng && Number(x.eng.yuz) > 0 ? H.som(x.eng.yuz) + (x.kerak > 1 ? ' × ' + x.kerak + ' = ' + H.som(x.eng.yuz * x.kerak) : '') : null;
-  return h('div', { class: 'item buy-q' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, x.nom),
+  // 09.11 kech: tartib — (1) nomi va «Olish: N quti», (2) qayerda/qancha qoldi, (3) firma va narx, (4) hisob jadvali, (5) belgilar.
+  return h('div', { class: 'item buy-q' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '', class: 'buy-nom' }, x.nom),
     h('b', { class: 'pul-kerak', title: 'Shu firmadan nechta quti buyurtma qilish kerak' }, h('small', {}, 'Olish: '), x.kerak + ' quti')),
-    h('div', { class: x.tugadi || kam ? 'oson-otgan' : 'muted' }, asl(filNom(fil, x)), ': ' + buyHolat(x)),
-    hisob ? h('div', { class: 'buy-hisob' }, hisob) : izohEl(['kuniga ' + kasr(x.kunlik) + ' quti sotiladi', x.def ? 'defekturada bor' : null]),
+    h('div', { class: 'buy-holat' + (x.tugadi || kam ? ' oson-otgan' : '') }, '🏪 ', asl(filNom(fil, x)), ': ' + buyHolat(x)),
+    x.eng ? h('div', { class: 'firma-nomi buy-firma' },
+      h('div', {}, '🛒 ', h('span', { 'data-asl': '' }, x.eng.firma), x.eng.aniq ? '' : ' (taxminiy)', narx ? h('b', { class: 'buy-narx' }, ' · ' + narx) : null),
+      h('div', { class: 'muted', 'data-asl': '' }, x.eng.nom)) : null,
+    jadval ? h('div', { class: 'buy-jadval', role: 'table', 'aria-label': 'Nega ' + x.kerak + ' quti' },
+      h('div', { class: 'buy-jsar' }, 'Nega ' + x.kerak + ' quti?'),
+      ...jadval.map(([a, b], i) => h('div', { class: 'buy-jq' + (i === jadval.length - 1 ? ' jami' : ''), role: 'row' }, h('span', {}, a), h('b', {}, b))))
+      : izohEl(['kuniga ' + kasr(x.kunlik) + ' quti sotiladi', x.def ? 'defekturada bor' : null]),
     kutilganEl(x),
-    buyBelgilar(x),
-    x.eng ? h('div', { class: 'firma-nomi' }, h('span', { 'data-asl': '' }, x.eng.firma + ': ' + x.eng.nom), narx ? ' — ' + narx : '', x.eng.aniq ? '' : ' (taxminiy)') : null);
+    buyBelgilar(x));
 }
 
 // Kutilgan qoldiq (07.11 tun, server 20261107260000): «Bor 3 · yo'lda 10 · bron 1 → kutilgan 12» — yo'lda (defekturada «Buyurtma
@@ -383,8 +403,8 @@ function kYukla(ctx, chiz, majbur = false) {
   if (K.yuklanmoqda) return;
   if (!majbur && (K.j || K.xato) && Date.now() - K.vaqt < 60000) return;
   K.yuklanmoqda = ctx.oqi('osonKochirish')
-    .then((j) => { if (!j || !Array.isArray(j.qatorlar)) throw new Error('Server javobi tushunarsiz'); K.j = j; K.xato = null; },
-      (e) => { K.xato = (e && e.message) || 'Ma\'lumot olinmadi'; })
+    .then((j) => { if (!j || !Array.isArray(j.qatorlar)) throw new Error('Server javobi tushunarsiz'); K.j = j; K.xato = null; })
+      .catch((e) => { K.xato = (e && e.message) || 'Ma\'lumot olinmadi'; })
     .finally(() => { K.vaqt = Date.now(); K.yuklanmoqda = null; chiz(); });
 }
 const tomon = (fil, t) => (t.f ? fil(t.f) : t.fn || '');
@@ -511,8 +531,8 @@ function eYukla(ctx, chiz, majbur = false) {
   if (E.yuklanmoqda) return;
   if (!majbur && (E.j || E.xato) && Date.now() - E.vaqt < 60000) return;
   E.yuklanmoqda = ctx.oqi('ertalab')
-    .then((j) => { if (!j || typeof j !== 'object') throw new Error('Server javobi tushunarsiz'); E.j = j; E.xato = null; },
-      (e) => { E.xato = (e && e.message) || 'Ma\'lumot olinmadi'; })
+    .then((j) => { if (!j || typeof j !== 'object') throw new Error('Server javobi tushunarsiz'); E.j = j; E.xato = null; })
+      .catch((e) => { E.xato = (e && e.message) || 'Ma\'lumot olinmadi'; })
     .finally(() => { E.vaqt = Date.now(); E.yuklanmoqda = null; chiz(); });
 }
 export function ertalabKarta(ctx) {

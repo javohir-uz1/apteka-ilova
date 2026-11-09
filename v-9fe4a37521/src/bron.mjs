@@ -28,7 +28,7 @@ function yukla(ctx, chiz, majbur = false) {
       const imzo = JSON.stringify(j), ozgardi = imzo !== B.imzo || !!B.xato;
       B.j = j; B.imzo = imzo; B.xato = null;
       return ozgardi;
-    }, (e) => { B.xato = (e && e.message) || 'Bronlar olinmadi'; return 'xato'; })
+    }).catch((e) => { B.xato = (e && e.message) || 'Bronlar olinmadi'; return 'xato'; })
     .then((ozgardi) => {
       B.vaqt = Date.now(); B.yuklanmoqda = null;
       // Xatoda Bosh sahifa qayta chizilmaydi (eski ro'yxat qoladi); ochiq oyna «Yangilanmadi» ni ko'rsatadi.
