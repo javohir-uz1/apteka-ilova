@@ -127,6 +127,11 @@ export function chiqarishView(m, ctx, fil) {
     h('span', { class: 'muted' }, 'Hisobdan chiqarildi: ' + j.jami.hisobdan + ' · firmaga qaytarildi: ' + j.jami.qaytarish
       + (j.jami.sotuvNarx ? ' · * — kirim narxi yo\'q, sotuv narxida' : ''))));
   if (!j.qatorlar.length) { m.append(h('div', { class: 'card muted' }, '✓ Bu davrda hisobdan chiqarilgan yoki qaytarilgan dori yo\'q')); return; }
+  // 3-audit: Oson bilan solishtirish to'xtagan (hujjatlar 1 kundan beri kelmagan) — jim emas (direktor «✓» yo'qligini sezmasdi).
+  if (!j.osonTekshir && j.qatorlar.some((x) => !x.bekor && Date.now() - x.ts < 13 * 864e5)) {
+    m.append(h('div', { class: 'msg info' }, 'Oson hujjatlari bilan solishtirish hozir ishlamayapti — oxirgi kunda Oson\'dan hujjatlar kelmagan. '
+      + 'Aptekadagi kompyuterda kengaytma 0.9.20 o\'rnatilgan va Oson admin ochiq bo\'lsa, belgilar o\'zi qaytadi.'));
+  }
   if (j.oylar.length) {
     const k = h('section', { class: 'card list' }, kartaSarlavha('Oyma-oy'));
     j.oylar.forEach((o) => k.append(h('div', { class: 'line' }, h('span', {}, oyNomi(o.oy) + ' · ' + o.n + ' ta'),
@@ -161,7 +166,23 @@ function qatorEl(ctx, x, fil, chiz, dir) {
       x.tur === 'qaytarish' && x.firma ? [' · ', asl(x.firma)] : null,
       ' · ', asl(x.kim || ''), ' · ' + sana(x.ts) + ' ' + vaqt(x.ts),
       dir && x.summa != null ? ' · ' + som(x.summa, x.narxTur === 'sotuv') : null),
-    bekor ? h('div', { class: 'belgi ogoh', style: 'align-self:flex-start' }, 'Bekor qilingan: ', asl(x.bekor.sabab || '')) : null);
+    bekor ? h('div', { class: 'belgi ogoh', style: 'align-self:flex-start' }, 'Bekor qilingan: ', asl(x.bekor.sabab || '')) : null,
+    bekor ? null : osonBelgi(x));
+}
+// 10.11 tun (server 20261110210000): Oson'dagi hisobdan chiqarish / qaytarish hujjati bilan solishtirish. Server faqat Oson
+// hujjatlari oxirgi kunda kelgan bo'lsa belgi beradi: {raqam, sana} — Oson'da bor; false — hali yo'q (1 kundan keyin — sariq).
+export function osonBelgi(x) {
+  if (!x || !('oson' in x)) return null;
+  if (x.oson && typeof x.oson === 'object' && x.oson.qoralama) {
+    return h('div', { class: 'belgi oson-b ogoh' }, 'Oson\'da №' + (x.oson.raqam == null ? '?' : x.oson.raqam) + ' hujjat bor, lekin faollashtirilmagan — Oson\'da «Faollashtirish»ni bosing');
+  }
+  if (x.oson && typeof x.oson === 'object') return h('div', { class: 'belgi ok oson-b' }, '✓ Oson\'da ' + (x.tur === 'qaytarish' ? 'qaytarilgan' : 'chiqarilgan') + ' (№' + (x.oson.raqam == null ? '?' : x.oson.raqam) + ')');
+  if (x.oson === false) {
+    const kech = Date.now() - (Number(x.ts) || 0) > 864e5;
+    return h('div', { class: 'belgi oson-b ' + (kech ? 'ogoh' : 'muted') },
+      kech ? '⚠ Oson\'da ' + (x.tur === 'qaytarish' ? 'qaytarish' : 'hisobdan chiqarish') + ' hujjati topilmadi — tekshiring' : 'Oson\'da hali ko\'rinmadi');
+  }
+  return null;
 }
 
 function tafsilot(ctx, x, fil, chiz, dir) {
@@ -172,7 +193,8 @@ function tafsilot(ctx, x, fil, chiz, dir) {
       x.tur === 'qaytarish' ? qator('Firma', asl(x.firma)) : null, qator('Izoh', x.izoh ? asl(x.izoh) : null),
       qator('Yozdi', [asl(x.kim || ''), ' · ' + sana(x.ts) + ' ' + vaqt(x.ts)]),
       dir ? qator('Summa (taxminiy)', som(x.summa, x.narxTur === 'sotuv')) : null,
-      x.muddat ? qator('Muddati', String(x.muddat).slice(0, 10).split('-').reverse().join('.')) : null);
+      x.muddat ? qator('Muddati', String(x.muddat).slice(0, 10).split('-').reverse().join('.')) : null,
+      x.bekor ? null : osonBelgi(x));
     if (x.bekor) {
       box.append(h('div', { class: 'msg warn' }, 'Bekor qilingan: ', asl(x.bekor.sabab || ''), ' (', asl(x.bekor.kim || ''), ', ' + sana(x.bekor.ts) + ')'));
       return;

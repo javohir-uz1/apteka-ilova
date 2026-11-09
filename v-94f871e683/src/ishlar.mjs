@@ -153,6 +153,21 @@ export const ISHLAR = {
   // 06.11: Pul nazorati, Aqlli buyurtma (direktor), mijozga «dori keldi» havolasi — faqat serverda.
   osonPul: [() => A.osonYoq(), () => ['oson_pul', []]],
   osonBuyurtma: [() => A.osonYoq(), (z, y) => ['oson_buyurtma', [z, y]]],
+  // 10.11 kech: Aqlli buyurtma savati — qatorlar [{b, p, s, fi}] (JSON matn), yashirish (Oson filiali, mahsulot, kun; 0 — qaytarish).
+  buyurtmaBerdim: [() => A.osonYoq(), (q) => ['buyurtma_berdim', [JSON.stringify(q)]]],
+  buyurtmaYashir: [() => A.osonYoq(), (b, pr, kun) => ['buyurtma_yashir', [m(b), m(pr), Number.isInteger(kun) ? kun : null]]],
+  // 10.11 tun: Oson kassasi smenalari bo'yicha savdo (kun YYYY-MM-DD) — «Savdo kiritish» oynasidagi taklif.
+  osonSavdo: [() => A.osonYoq(), (kun) => ['oson_savdo', [m(kun)]]],
+  // 10.11 tun: kassa nazorati — faqat serverda (sinov rejimida Oson kassasi yo'q).
+  otkazmaYoz: [() => A.osonYoq(), (f) => ['otkazma_yoz', [p(f.summa), m(f.turi), m(f.izoh), m(f.filial || '')]]],
+  otkazmaBekor: [() => A.osonYoq(), (id) => ['otkazma_bekor', [m(id)]]],
+  otkazmaJavob: [() => A.osonYoq(), (id, tushdi) => ['otkazma_javob', [m(id), !!tushdi]]],
+  otkazmaRoyxat: [() => A.osonYoq(), () => ['otkazma_royxat', []]],
+  otkazmaQaytar: [() => A.osonYoq(), (id, sabab) => ['otkazma_qaytar', [m(id), m(sabab)]]],
+  kassaFarq: [() => A.osonYoq(), (kun) => ['kassa_farq', [Number(kun) || 14]]],
+  kassaKun: [() => A.osonYoq(), (kun) => ['kassa_kun', [m(kun)]]],
+  kassaYop: [() => A.osonYoq(), (f, xodim, izoh, summa) => ['kassa_yop', [m(f), m(xodim || ''), m(izoh), Number.isSafeInteger(Number(summa)) ? Number(summa) : null]]],
+  kassaChegara: [() => A.osonYoq(), (bir, jami) => ['kassa_chegara', [p(bir), p(jami)]]],
   // 07.11: ertalabki hisobot (direktor), filiallar orasida ko'chirish, analog, inventarizatsiya — faqat serverda.
   ertalab: [() => A.osonYoq(), () => ['ertalab', []]],
   ertalabVaqti: [() => A.osonYoq(), (v) => ['ertalab_vaqti', [v == null ? '' : String(v)]]],

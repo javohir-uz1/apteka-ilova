@@ -1783,3 +1783,146 @@ html.matn-katta .kut-belgi { font-size: 15px; }
 .oq-yana { min-height: 44px; width: 100%; }
 .sorov-qholat:empty { display: none; }
 html.matn-katta .oson-vaqt, html.matn-katta .kut-eski { font-size: 16px; }
+
+/* =====================================================================================================================
+   AQLLI BUYURTMA — SAVAT (10.11 kech; egasi maketlarni ko'rib: "Ha qo'sh"; maketlar: claude.ai/artifact/4CwHG1syZ293fE6fuU9W9m).
+   Ro'yxat eng shoshilinchidan (tugagan — qizil, 3 kunda — sariq, keyinroq — urg'u), har qatorda belgi, nom, holat, kunlar chizig'i,
+   o'ngda necha quti. Ranglar: qizil #B42318 (oq fonda 6,5:1), sariq matn #8A5300 (6,1:1), urg'u #0B6156 / #0B7A6B; chiziq — matn bilan
+   birga (faqat rangga tayanmaydi). Teginish ≥ 44 px. Pastki panel — sahifa ichida yopishqoq.
+   ===================================================================================================================== */
+.buy-xulosa { gap: 12px; }
+.buy-x-bosh { display: flex; flex-direction: column; gap: 2px; }
+.buy-x-son { font-size: 22px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+.buy-tur { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+button.buy-tur-t { min-height: 64px; padding: 8px 10px; border-radius: 12px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+  gap: 2px; text-align: left; font-size: 13px; font-weight: 600; line-height: 1.2; }
+.buy-tur-t b { font-size: 24px; font-weight: 700; line-height: 1.1; }
+.buy-tur-t.tur-tugagan { background: #FDECEA; color: #B42318; }
+.buy-tur-t.tur-tez { background: var(--warn-bg); color: var(--warn); }
+.buy-tur-t.tur-keyin { background: var(--soft); color: #0B6156; }
+.buy-tur-t[aria-pressed="true"] { box-shadow: inset 0 0 0 2px currentColor; }
+.buy-tur-t:disabled { opacity: .45; }
+button.buy-soz-q { min-height: 44px; margin: 0 -4px; padding: 0 4px; border-radius: 0; border-top: .5px solid var(--sep); background: transparent; color: var(--ink);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15px; font-weight: 400; text-align: left; }
+.buy-soz-q b { font-weight: 600; }
+.buy-soz-o { display: inline-flex; align-items: center; gap: 2px; color: var(--accent); font-weight: 600; white-space: nowrap; }
+.buy-soz-o .ikon { width: 16px; height: 16px; }
+.buy-bolim { display: flex; flex-direction: column; gap: 6px; }
+.buy-bolim-sar { margin: 6px 4px 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.buy-bolim-sar.tur-tugagan { color: #B42318; } .buy-bolim-sar.tur-tez { color: var(--warn); } .buy-bolim-sar.tur-keyin { color: #0B6156; }
+.card.buy-royxat { padding: 0; gap: 0; overflow: hidden; }
+.buy-qator { display: flex; gap: 8px; align-items: flex-start; padding: 10px 14px 10px 6px; }
+.buy-qator + .buy-qator { border-top: .5px solid var(--sep); }
+/* Savatdan olingan qator: matn kontrasti saqlanadi (audit — xiralash 4,5:1 dan pastga tushirardi); faqat son va chiziq kulrang. */
+.buy-qator.olinmaydi .buy-son b { color: var(--muted); } .buy-qator.olinmaydi .buy-chiziq { opacity: .4; }
+button.buy-tick { flex: none; width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 22px; background: transparent; display: flex; align-items: center; justify-content: center; }
+button.buy-tick::before { content: ''; width: 26px; height: 26px; border-radius: 13px; box-sizing: border-box; border: 2px solid var(--field-line); }
+button.buy-tick[aria-pressed="true"]::before { display: none; }
+button.buy-tick .ikon { width: 26px; height: 26px; padding: 5px; box-sizing: border-box; border-radius: 13px; background: var(--accent); color: #FFFFFF; stroke-width: 3; }
+button.buy-q-asosiy { flex: 1; min-width: 0; min-height: 44px; padding: 0; border-radius: 0; background: transparent; color: var(--ink); display: flex; flex-direction: column;
+  align-items: stretch; gap: 5px; text-align: left; font-size: 16px; font-weight: 400; letter-spacing: -.01em; }
+.buy-qator .buy-nom { font-size: 16px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.buy-qator .buy-holat { margin: 0; font-size: 14px; font-weight: 500; }
+.buy-holat.tur-tugagan { color: #B42318; } .buy-holat.tur-tez { color: var(--warn); } .buy-holat.tur-keyin { color: #0B6156; }
+.buy-chiziq { display: block; height: 6px; border-radius: 3px; overflow: hidden; background: #E5E5EA; }
+.buy-chiziq.tur-tugagan { background: #F6D5D1; }
+.buy-chiziq > span { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.buy-chiziq.tur-tez > span { background: #C77700; } .buy-chiziq.tur-tugagan > span { background: #B42318; }
+.buy-ogoh { align-self: flex-start; font-size: 13px; font-weight: 600; line-height: 1.3; color: #B42318; background: #FDECEA; border-radius: 6px; padding: 2px 8px; }
+.buy-meta { font-size: 13px; color: var(--muted); }
+.buy-son { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; padding-top: 2px; font-variant-numeric: tabular-nums; }
+.buy-son b { font-size: 20px; font-weight: 700; line-height: 1.1; }
+.buy-son span { font-size: 13px; color: var(--muted); }
+.buy-son .buy-summa { margin-top: 3px; }
+.buy-yashir { align-items: center; gap: 10px; }
+.buy-bar { position: sticky; bottom: 0; z-index: 2; margin: 4px -16px 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, .97); border-top: .5px solid var(--sep); display: flex; align-items: center; gap: 12px; }
+html:not(.yangi-qobiq) .buy-bar { bottom: calc(61px + env(safe-area-inset-bottom)); padding-bottom: 12px; }
+.buy-bar-m { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 15px; }
+.buy-bar-m .muted { font-size: 14px; }
+.buy-bar button.p { flex: none; min-height: 50px; padding: 0 18px; }
+.buy-bar button.p:disabled { opacity: .45; }
+/* Oynalar: tafsilot, savat, sozlash */
+.buy-oyna { display: flex; flex-direction: column; gap: 12px; }
+.buy-oyna h3 { margin: 0; font-size: 17px; font-weight: 600; }
+.buy-javob { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 16px; background: var(--soft); }
+.buy-javob b { font-size: 22px; font-weight: 700; letter-spacing: -.02em; color: #0B6156; line-height: 1.2; }
+.buy-javob span { font-size: 15px; line-height: 1.4; }
+.buy-kunlar { gap: 10px; }
+.buy-kun-chiziq { display: flex; gap: 3px; height: 30px; }
+.buy-kun-chiziq > span { flex-basis: 0; border-radius: 4px; min-width: 6px; }
+.buy-k-bor { background: var(--accent); } .buy-k-yoq { background: #B42318; } .buy-k-yangi { background: #CDE7E2; }
+.buy-kun-izoh { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.buy-kun-izoh span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.buy-kun-izoh .bor::before { background: var(--accent); } .buy-kun-izoh .yoq::before { background: #B42318; } .buy-kun-izoh .yangi::before { background: #CDE7E2; box-shadow: inset 0 0 0 1px #8FC7BD; }
+.buy-kun-izoh b { color: var(--ink); font-weight: 600; }
+.buy-yoq-q { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 12px; background: #FDECEA; font-size: 15px; line-height: 1.4; }
+.buy-yoq-q b { color: #B42318; font-weight: 600; }
+.buy-yoq-q button.s { background: #FFFFFF; }
+.buy-nega .line { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; font-size: 15px; font-variant-numeric: tabular-nums; }
+.buy-nega .line b { white-space: nowrap; font-weight: 600; }
+.buy-nega .line.jami { border-top: 1.5px solid var(--ink); font-size: 17px; }
+.buy-nega .line.jami b { color: #0B6156; font-weight: 700; }
+.buy-fakt { font-size: 14px; line-height: 1.45; }
+label.buy-firma-q { display: flex; align-items: center; gap: 12px; min-height: 56px; font-size: 15px; cursor: pointer; }
+label.buy-firma-q + label.buy-firma-q { border-top: .5px solid var(--sep); }
+label.buy-firma-q input { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); flex: none; }
+.buy-firma-m { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.buy-firma-m .muted { font-size: 13px; }
+.buy-son-q { display: flex; align-items: center; gap: 12px; }
+.buy-stepper { display: flex; align-items: center; background: var(--fill); border-radius: 12px; flex: none; }
+.buy-stepper button { width: 48px; min-height: 48px; padding: 0; background: transparent; font-size: 24px; font-weight: 600; }
+.buy-stepper button:disabled { opacity: .35; }
+.buy-stepper span { min-width: 72px; text-align: center; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.buy-stepper.kichik button { width: 44px; min-height: 44px; font-size: 22px; }
+.buy-stepper.kichik span { min-width: 36px; font-size: 16px; }
+.buy-son-pul { flex: 1; display: flex; flex-direction: column; align-items: flex-end; text-align: right; font-variant-numeric: tabular-nums; }
+.buy-son-pul b { font-size: 17px; }
+.buy-son-pul .muted { font-size: 13px; }
+.buy-oyna-t button.p { flex: 1; }
+.buy-firma-bosh { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.buy-firma-bosh h3 { font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
+.buy-firma-bosh > b { font-size: 17px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.buy-s-q { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.buy-s-nom { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
+.buy-s-nom .muted { font-size: 13px; font-weight: 400; }
+.buy-firma-t button.p { flex: 1; }
+.buy-yub { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.buy-berdim { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 12px; background: var(--bg); font-size: 15px; line-height: 1.4; }
+button.buy-telefon { min-height: 44px; font-size: 15px; }
+html.matn-katta .buy-qator .buy-nom { font-size: 18px; } html.matn-katta .buy-meta, html.matn-katta .buy-ogoh, html.matn-katta .buy-kun-izoh { font-size: 15px; }
+html.matn-katta .buy-qator .buy-holat, html.matn-katta button.buy-tur-t { font-size: 16px; }
+
+/* =====================================================================================================================
+   OSON QO'SHIMCHA (10.11 tun): Aqlli buyurtmada so'nggi 8 hafta sotuvi ustunlari, «Savdo kiritish»da Oson kassasi taklifi,
+   hisobdan chiqarishda Oson belgisi. Ranglar — mavjud tokenlar (kontrast ≥ 4,5:1), teginish ≥ 44 px.
+   ===================================================================================================================== */
+.buy-haftalar { gap: 8px; }
+.buy-hafta { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; align-items: end; height: 96px; }
+.buy-hafta-u { display: flex; flex-direction: column; align-items: stretch; height: 100%; gap: 2px; min-width: 0; }
+.buy-hafta-y { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; min-height: 0; }
+.buy-hafta-s { font-size: 12px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.buy-hafta-b { display: block; border-radius: 4px 4px 2px 2px; background: #5E9E94; min-height: 4px; }   /* oq fonda 3,1:1 */
+.buy-hafta-b.oxirgi { background: var(--accent); }
+.buy-hafta-iz { display: flex; justify-content: space-between; font-size: 12px; }
+.savdo-oson:empty { display: none; }
+.card.savdo-oson-k { gap: 6px; background: var(--soft); box-shadow: none; }
+.card.savdo-oson-k button.s { align-self: flex-start; }
+.belgi.muted { color: var(--muted); background: var(--fill); }
+.chiq-q .belgi.oson-b { align-self: flex-start; }
+html.matn-katta .buy-hafta-s, html.matn-katta .buy-hafta-iz { font-size: 14px; }
+/* 10.11 tun: kassa nazorati (kassa.mjs) — kartaga o'tkazma so'rovi, javob, naqd/karta qatorlari, qoldiq. */
+.otk-q { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: .5px solid var(--sep); }
+.otk-s { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.otk-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.otk-summa { font-size: 19px; }
+.otk-javob .row { display: flex; gap: 10px; }
+.otk-javob .row > button { flex: 1; min-height: 48px; }
+.kassa-q { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-top: .5px solid var(--sep); }
+.kassa-q:first-of-type { border-top: 0; }
+.kassa-n { font-size: 14px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.kassa-t { display: inline-block; min-width: 52px; font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); }
+.kassa-o { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.line.kassa-qoldiq { align-items: center; }
+.savdo-naqd-k b { font-size: 17px; }
+.savdo-karta-k { padding-top: 6px; border-top: .5px solid var(--sep); }
