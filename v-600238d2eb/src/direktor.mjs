@@ -27,6 +27,7 @@ import { inventarOrqaga, inventarView } from './inventar.mjs';
 import { chiqarishView } from './chiqarish.mjs';
 import { kassaView, narxFarqSoni, narxView } from './nazorat.mjs';
 import { kassaKun, kassaKunJami, kassaKunXato, kassaNazoratView, kassaYangila, otkazmaKarta } from './kassa.mjs';
+import { kirimKarta } from './kirim.mjs';
 import { funksiyalarView, ochiqSoni } from './funksiya.mjs';
 import { auditView } from './audit.mjs';
 import { harakatOyna, sorovKarta, sorovOyna } from './filial-sorov.mjs';
@@ -237,6 +238,7 @@ export function renderDirektor(root, ctx) {
       ['tamin', 'Ta\'minot', '', () => go('tamin')]]));
     // 07.11 kech (foydalanuvchi: "dori so'rovi asosiy ekranda ajralib ko'rinsin"): tez tugmalar ostida — filiallararo so'rovlar.
     if (ctx.server) { const ok = otkazmaKarta(ctx.retseptCtx(), () => ctx.rerender()); if (ok) m.append(ok); }
+    if (ctx.server) { const kk = kirimKarta(ctx.retseptCtx(), () => ctx.rerender()); if (kk) m.append(kk); }
     if (ctx.server) m.append(sorovKarta(ctx.retseptCtx(), () => ctx.rerender(), { direktor: true }));
     // Bajarish kerak: pul qabuli, savdo tasdig'i, qarz ruxsati, ta'minotchi yozuvi, buyurtma kutayotgan dori.
     const ishlar = boshIshlar(ctx, go, bugun).map((i) => ishQator(i));
@@ -1062,6 +1064,7 @@ function bugunView(m, ctx, go, bugun) {
   // 07.11 kech: filiallararo dori so'rovlari — tugmalar ostida, ajralib turadi (filial-sorov.mjs).
   // 10.11 tun: «Kartaga tushdimi?» — xodim so'rovlari (Tushdi / Tushmadi), kassa.mjs.
   if (ctx.server) { const ok = otkazmaKarta(ctx.retseptCtx(), () => ctx.rerender()); if (ok) m.append(ok); }
+  if (ctx.server) { const kk = kirimKarta(ctx.retseptCtx(), () => ctx.rerender()); if (kk) m.append(kk); }
   if (ctx.server) m.append(sorovKarta(ctx.retseptCtx(), () => ctx.rerender(), { direktor: true }));
   const dq = diqqatQatorlari(ctx, go, bugun);
   m.append(h('section', { class: 'yb', 'aria-label': 'Diqqat qiling' }, h('h2', { class: 'yb-s' }, 'Diqqat qiling'),

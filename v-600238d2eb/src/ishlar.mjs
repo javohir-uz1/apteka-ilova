@@ -164,6 +164,11 @@ export const ISHLAR = {
   otkazmaJavob: [() => A.osonYoq(), (id, tushdi) => ['otkazma_javob', [m(id), !!tushdi]]],
   otkazmaRoyxat: [() => A.osonYoq(), () => ['otkazma_royxat', []]],
   otkazmaQaytar: [() => A.osonYoq(), (id, sabab) => ['otkazma_qaytar', [m(id), m(sabab)]]],
+  // 10.11 kunduz: Oson'dan filialga kelgan dorilar (kirim.mjs) — farq: [{n, s}] (haqiqatda kelgan soni).
+  kirimRoyxat: [() => A.osonYoq(), () => ['filial_kirim_royxat', []]],
+  // versiya — ro'yxat imzosi (oyna ochilgandan keyin Oson'da o'zgargan bo'lsa server rad etadi).
+  kirimJavob: [() => A.osonYoq(), (id, farq, izoh, versiya) => ['filial_kirim_javob', [m(id), JSON.stringify(Array.isArray(farq) ? farq : []), m(izoh), m(versiya)]]],
+  kirimHal: [() => A.osonYoq(), (id, izoh) => ['filial_kirim_hal', [m(id), m(izoh)]]],
   kassaFarq: [() => A.osonYoq(), (kun) => ['kassa_farq', [Number(kun) || 14]]],
   kassaKun: [() => A.osonYoq(), (kun) => ['kassa_kun', [m(kun)]]],
   kassaYop: [() => A.osonYoq(), (f, xodim, izoh, summa) => ['kassa_yop', [m(f), m(xodim || ''), m(izoh), Number.isSafeInteger(Number(summa)) ? Number(summa) : null]]],

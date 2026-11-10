@@ -21,6 +21,7 @@ import { narxXodimKarta } from './nazorat.mjs';
 import { bronKarta } from './bron.mjs';
 import { sorovKarta } from './filial-sorov.mjs';
 import { otkazmaKarta } from './kassa.mjs';
+import { kirimKarta } from './kirim.mjs';
 import { inventarOrqaga, inventarView } from './inventar.mjs';
 import { oyinBanner, oyinBosh, oyinView } from './oyin.mjs';
 import { menDavomat } from './davomat.mjs';
@@ -374,6 +375,8 @@ function boshView(m, x) {
   if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') rerender(); }));
   // 10.11 tun: «Kartaga tushdimi?» — mijoz o'tkazmasini direktorga so'rash (kassa.mjs).
   if (SERVER) { const ok = otkazmaKarta(ctx, () => { if (tab === 'bosh') rerender(); }); if (ok) m.append(ok); }
+  // 10.11 kunduz: Oson'da filialga ko'chirilgan dorilar — sanab tasdiqlash (kirim.mjs).
+  if (SERVER) { const kk = kirimKarta(ctx, () => { if (tab === 'bosh') rerender(); }); if (kk) m.append(kk); }
   const sk = shtrixKarta(S);
   if (sk) { sk.id = 'shtrix-karta'; sk.tabIndex = -1; m.append(sk); }
   // Bugun: kelgan dorilar va bugun yozgan qarzlar.
@@ -626,6 +629,8 @@ function xBosh(m, x) {
   if (SERVER) m.append(sorovKarta(ctx, () => { if (tab === 'bosh') rerender(); }));
   // 10.11 tun: «Kartaga tushdimi?» — mijoz o'tkazmasini direktorga so'rash (kassa.mjs).
   if (SERVER) { const ok = otkazmaKarta(ctx, () => { if (tab === 'bosh') rerender(); }); if (ok) m.append(ok); }
+  // 10.11 kunduz: Oson'da filialga ko'chirilgan dorilar — sanab tasdiqlash (kirim.mjs).
+  if (SERVER) { const kk = kirimKarta(ctx, () => { if (tab === 'bosh') rerender(); }); if (kk) m.append(kk); }
   const sk = shtrixKarta(S);
   if (sk) { sk.id = 'shtrix-karta'; sk.tabIndex = -1; m.append(sk); }
   // «Bugun»: kelgan dorilar va bugun yozgan qarzlar (ismsiz — kassa oldida begona ko'rmasin; audit 05.11).
