@@ -30,9 +30,11 @@ export function xatoMatni(x) {
   const tur = x && x.tur;
   if (tur === 'eskirdi') return 'Ilova eskirdi — yopib, Telegram\'dan qayta oching. Yozganlaringiz saqlanmadi.';
   if (tur === 'band') return 'Oldingi amal hali saqlanmoqda — bir soniyadan keyin «Qarzni saqlash»ni qayta bosing.';
-  if (tur === 'server') return 'Server javob bermadi — biroz kutib, «Qarzni saqlash»ni qayta bosing.';
+  // Audit 10.11: tarmoq/server xatosida qarz serverda saqlangan bo'lishi mumkin — hech narsani o'zgartirmasdan qayta bosilsa
+  // (bir xil kalit) ikki marta yozilmaydi; o'zgartirilsa — yangi qarz bo'lib qolardi.
+  if (tur === 'server') return 'Server javob bermadi — saqlangan-saqlanmaganini bilib bo\'lmadi. Hech narsani o\'zgartirmasdan, biroz kutib «Qarzni saqlash»ni qayta bosing (ikki marta yozilmaydi).';
   if (tur === 'qoida' && x.matn) return x.matn;
-  return 'Saqlanmadi — internetni tekshirib, «Qarzni saqlash»ni qayta bosing.';
+  return 'Javob kelmadi — saqlangan-saqlanmaganini bilib bo\'lmadi. Internetni tekshirib, hech narsani o\'zgartirmasdan «Qarzni saqlash»ni qayta bosing (ikki marta yozilmaydi).';
 }
 
 // Telefon o'qishga qulay: +998 90 111 22 33 (noto'g'ri bo'lsa — yozilganicha).
@@ -54,6 +56,12 @@ export function raqamQosh(summa, k) {
 export function qarzUsta(ctx) {
   const { x } = ctx;
   const f = { ism: '', tel: '', summa: '', muddatKun: 7, dorilar: '' };   // 09.11: dorilar nomi (ixtiyoriy) — mijoz botda ko'radi
+  // 11.11 (pul auditi): ikkinchi ish joyi bo'lsa — qarz qaysi filialda berildi (kassa nazorati shu filial savdosiga qo'shadi;
+  // «Kartaga tushdimi?» so'rovidagidek). Yo'q bo'lsa — tanlov ko'rinmaydi, forma avvalgidek (server asosiy ish joyini oladi).
+  const uy = x && x.filialId, qf = (x && x.qoshimchaFilial) || ((ctx.S() || {}).men || {}).qoshimchaFilial;
+  const tanlov = !!(uy && qf && qf !== uy);
+  const fNom = (id) => (((ctx.S() || {}).filiallar || []).find((z) => z.id === id) || {}).nom || id;
+  if (tanlov) f.filial = uy;
   const xato = { ism: '', tel: '', summa: '', muddat: '', umumiy: '' };
   let qadam = 1, band = false, chizish = null;
   const qarzlar = () => (ctx.S().qarzlar || []).filter((q) => q.holat !== 'rad');
@@ -99,6 +107,10 @@ export function qarzUsta(ctx) {
       ism.xato(xato.ism); tel.xato(xato.tel);
       maydon = xato.ism ? ism.i : xato.tel ? tel.i : null;
       el.append(savol('Kim qarzga oldi?'), ism.el, tel.el, dor.el);
+      if (tanlov) {
+        el.append(h('b', { class: 'qu-s' }, 'Qaysi filialda?'),
+          pills([[uy, h('span', { 'data-asl': '' }, fNom(uy))], [qf, h('span', { 'data-asl': '' }, fNom(qf))]], f.filial, (v) => { f.filial = v; }, 'Qaysi filialda?'));
+      }
       const old = oldingiMijozlar(ctx.S().qarzlar, x.id);
       if (old.length) {
         el.append(h('div', { class: 'qu-chiplar', role: 'group', 'aria-label': 'Oldingi mijozlar' }, h('span', { class: 'muted' }, 'Oldingi mijozlar — bosing:'),
@@ -165,6 +177,7 @@ export function qarzUsta(ctx) {
           satr('Mijoz', h('span', { 'data-asl': '' }, f.ism.trim()), 1),
           satr('Telefon', telMatn(f.tel), 1),
           String(f.dorilar).trim() ? satr('Dorilar', h('span', { 'data-asl': '' }, String(f.dorilar).trim()), 1) : null,
+          tanlov ? satr('Filial', h('span', { 'data-asl': '' }, fNom(f.filial)), 1) : null,
           satr('Summa', H.som(H.pul(f.summa) || 0), 2),
           satr('Qaytaradi', f.muddatKun + ' kunda · ' + qaytadi, 2)),
         t.limit ? h('div', { class: 'msg warn' }, t.limit + ' Ruxsat kelguncha dorini bermang.') : null,
@@ -196,7 +209,7 @@ export function qarzUsta(ctx) {
       if (band) return;
       xato.ism = ismXato(); xato.tel = telXato(); xato.summa = summaXato(); xato.umumiy = '';
       if (xato.ism || xato.tel || xato.summa) { haptik('xato'); qadam = xato.ism || xato.tel ? 1 : 2; chiz(); return; }
-      const forma = { ism: f.ism, tel: f.tel, summa: f.summa, muddatKun: f.muddatKun, dorilar: String(f.dorilar).trim() };
+      const forma = { ism: f.ism, tel: f.tel, summa: f.summa, muddatKun: f.muddatKun, dorilar: String(f.dorilar).trim(), ...(tanlov ? { filial: f.filial } : {}) };
       let joylandi = false;
       band = true; chiz();
       Promise.resolve(ctx.amalX((m) => { joylandi = true; return xatoQoy(m); }, 'qarzBer', forma)).then((r) => {
@@ -230,5 +243,6 @@ export function qarzUsta(ctx) {
     chizish = chiz;
     chiz();
     return asosiy;   // oyna yopilganda — Telegram tugmasi yashiriladi va bosish ulanishi olinadi
-  }, { toliq: true, orqaga: () => { if (qadam > 1 && !band && chizish) { qadam -= 1; chizish(); return true; } return false; } });
+  // Audit 10.11: saqlanayotganda «orqaga» oynani yopmaydi (aks holda xato kelsa yozilganlar yo'qolardi).
+  }, { toliq: true, band: () => band, orqaga: () => { if (band) return true; if (qadam > 1 && chizish) { qadam -= 1; chizish(); return true; } return false; } });
 }

@@ -7,7 +7,7 @@
 //   07.11 kech (20261107310000_sorov_boglash): har filial o'zi uchun istalgan boshqa filialdan; so'rash oynasida har filialdagi qoldiq;
 //   Ko'chirish takliflari, Oson qoldig'i (dori oynasi) va «Qaysi filialda bor?» qidiruvidan bir bosishda so'rov (sorashOch);
 //   direktorga keldi-ketdi va «Oson'da ko'chirildi» (harakatOyna); Bosh sahifada karta ajralib turadi.
-import { h, input, kartaSarlavha, nusxaOl, pills, sheet, tasdiqlash, vaqt, sana } from './ui.mjs';
+import { h, input, kartaSarlavha, nusxaOl, pills, sheet, tasdiqlash, vaqt, sana, faolmi, faolQaytganda } from './ui.mjs';
 import { oldinMatn, osonEskimi, osonVaqtEl, qoldiqMatn, yanaRoyxat } from './oson-qoldiq.mjs';
 import { qidiruvKalit } from './kalit.mjs';
 
@@ -53,12 +53,15 @@ function yukla(ctx, chiz, majbur = false) {
   return S.yuklanmoqda;
 }
 
+let kuzatOxirgi = null;   // audit 11.11: jimlikdan qaytganda — darhol yangilash
+faolQaytganda(() => { if (kuzatOxirgi && !document.hidden && document.querySelector('[data-sorov-karta]')) yukla(kuzatOxirgi[0], kuzatOxirgi[1], true); });
 function kuzat(ctx, chiz) {
+  kuzatOxirgi = [ctx, chiz];
   if (S.taymer || typeof setTimeout !== 'function') return;
   S.taymer = setTimeout(() => {
     S.taymer = 0;
     if (typeof document === 'undefined' || !document.querySelector('[data-sorov-karta]')) return;
-    if (!document.hidden) yukla(ctx, chiz, true);
+    if (!document.hidden && faolmi()) yukla(ctx, chiz, true);   // audit 10.11: jim telefon so'rov yubormaydi
     kuzat(ctx, chiz);
   }, YANGILASH);
   if (S.taymer && typeof S.taymer.unref === 'function') S.taymer.unref();

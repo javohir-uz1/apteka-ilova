@@ -158,7 +158,8 @@ export function savdoKiritish(s, f, direktorId, now = Date.now()) {
   if (!z || (z.rol === 'sotuvchi' && z.filialId !== f.filialId && z.qoshimchaFilial !== f.filialId)) x.push('Xodim bu filialda ishlamaydi');
   if (x.length) throw new Error(x.join('. '));
   // Bir kun + filial + smena — bitta yozuv. Xodimning ochiq smenasi ham hisobga olinadi (u yopilganda shu kunga yoziladi) — audit 4.4.
-  const bir = s.smenalar.filter((m) => m.filialId === f.filialId && m.nom === f.smena && !m.bekor);
+  // Audit 10.11 (A4 №9): asosiy filialda «Butun kun» kunduzgi/tungi bilan to'qnashadi (server savdo_kiritish bilan bir xil).
+  const bir = s.smenalar.filter((m) => m.filialId === f.filialId && !m.bekor && (m.nom === f.smena || (asosiy && (m.nom === 'kunlik' || f.smena === 'kunlik'))));
   if (bir.some((m) => m.yopildi && H.kunKey(m.yopildi) === f.kun)) {
     throw new Error('Bu kunda ' + fl.nom + ' ' + f.smena + ' savdosi allaqachon yozilgan — Smenalar bo\'limiga qarang');
   }
@@ -263,7 +264,8 @@ export function qarzRuxsat(s, qarzId, ruxsat, now = Date.now()) {
   if (!q || q.holat !== 'ruxsat') throw new Error('Ruxsat kutayotgan qarz topilmadi');
   q.holat = ruxsat ? 'ochiq' : 'rad';
   q.hal = now;
-  if (ruxsat) q.berildi = now;
+  // Audit 11.11 (server bilan bir xil): berilgan vaqt o'zgarmaydi (kassa smenasi shunga qaraydi), muddat — ruxsatdan boshlab.
+  if (ruxsat) q.muddat = now + q.muddatKun * 864e5;
 }
 
 // Faqat direktor yopadi; qisman bo'lishi mumkin; pul Kassa yoki Uyga — kirim.
@@ -282,7 +284,12 @@ export function qarzUndirish(s, qarzId, summaStr, hamyon, direktorId) {
 
 // 09.11: mijoz qarzi (sinov rejimi — server qoidalari bilan bir xil, botsiz: mijoz tasdig'i va QR yo'q).
 export function qarzBer(s, xodimId, forma, now = Date.now()) {
+  // 11.11: qaysi filialda berildi — asosiy ish joyi (bo'sh) yoki ikkinchi ish joyi (SQL qarz_yozish p_filial bilan bir xil).
+  const z = xodim(s, xodimId), x = z && H.ishdagi(z, s);
+  const fil = String((forma && forma.filial) || '').trim();
+  if (fil && x && fil !== x.filialId && fil !== z.qoshimchaFilial) throw new Error('Bu filialda ishlamaysiz');
   const r = qarzYozish(s, xodimId, forma, now);
+  if (fil) r.qarz.filialId = fil;
   r.qarz.dorilar = String(forma.dorilar || '').replace(/\s+/g, ' ').trim().slice(0, 300);
   r.qarz.pullar = [];
   return { ...r, chatBor: false };
@@ -372,6 +379,8 @@ export function yozuvBekor(s, harakatId, sabab, kim) {
   const h = s.harakatlar.find((x) => x.id === harakatId);
   if (!h || h.bekor || h.tur === 'tuzatish') throw new Error('Bekor qilinadigan yozuv topilmadi');
   if (h.tur === 'pos') throw new Error('Karta savdosi smena bilan birga yoziladi — uni alohida bekor qilib bo\'lmaydi');
+  // 11.11 (pul auditi): kartaga o'tkazma yozuvi (h.otk) — faqat Kassa nazoratidan (server yozuv_bekor bilan bir xil matn).
+  if (h.otk) throw new Error('Bu — kartaga o\'tkazma yozuvi. Xato «tushdi» bo\'lsa: Pul → Kassa nazorati → «Tushgan o\'tkazmalar» → «Tushmadi deb tuzatish» (savdo va Uy hamyoni birga to\'g\'rilanadi)');
   const sb = String(sabab || '').trim();
   if (!sb) throw new Error('Sababini yozing');
   teskari(s, h, 'Bekor qilindi: ' + (h.izoh || '') + ' — ' + sb, kim);

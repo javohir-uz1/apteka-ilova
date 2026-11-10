@@ -3,7 +3,7 @@
 // «Bekor» (tasdiq bilan; mijozga xabar boradi). Bot xabaridagi tugmalar ham xuddi shu amal (api.mjs TUGMA_AMAL b/o/r).
 // Faqat serverda (server: bron_royxat — OQISH, bron_holat — YENGIL). Bosh sahifa ochiq turganda har daqiqada yangilanadi;
 // ro'yxat o'zgarsagina qayta chiziladi. Faol bron bo'lmasa — yashirin belgi (joy egallamaydi, yangilanish davom etadi).
-import { h, kartaSarlavha, royxatHarakat, sheet, tasdiqlash, vaqt } from './ui.mjs';
+import { h, kartaSarlavha, royxatHarakat, sheet, tasdiqlash, vaqt, faolmi, faolQaytganda } from './ui.mjs';
 
 const YANGILASH = 60000;
 const FAOL = new Set(['yangi', 'tayyor']);
@@ -39,12 +39,15 @@ function yukla(ctx, chiz, majbur = false) {
 }
 
 // Bosh sahifa ochiq turganda (karta yoki yashirin belgisi DOM'da) — har daqiqa; sahifa yopilsa to'xtaydi, qayta chizilganda boshlanadi.
+let kuzatOxirgi = null;   // audit 11.11: jimlikdan qaytganda — darhol yangilash
+faolQaytganda(() => { if (kuzatOxirgi && !document.hidden && document.querySelector('[data-bron-karta]')) yukla(kuzatOxirgi[0], kuzatOxirgi[1], true); });
 function kuzat(ctx, chiz) {
+  kuzatOxirgi = [ctx, chiz];
   if (B.taymer || typeof setTimeout !== 'function') return;
   B.taymer = setTimeout(() => {
     B.taymer = 0;
     if (typeof document === 'undefined' || !document.querySelector('[data-bron-karta]')) return;
-    if (!document.hidden) yukla(ctx, chiz, true);
+    if (!document.hidden && faolmi()) yukla(ctx, chiz, true);   // audit 10.11: jim telefon so'rov yubormaydi
     kuzat(ctx, chiz);
   }, YANGILASH);
   if (B.taymer && typeof B.taymer.unref === 'function') B.taymer.unref();   // Node (testlar) jarayonni ushlab turmasin

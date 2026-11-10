@@ -1,7 +1,7 @@
 // Xodim va direktor uchun umumiy bo'limlar: prays-list qidiruvi va defektura (kam qolgan dorilar).
 import * as H from './hisob.mjs';
-import { h, input, kartaSarlavha, ochiqEsla, sana, sheet, tasdiqlash, xatoJoyla } from './ui.mjs';
-import { osonKarta } from './oson-qoldiq.mjs';
+import { h, input, kartaSarlavha, ochiqEsla, sana, sheet, tasdiqlash, vaqt, xatoJoyla } from './ui.mjs';
+import { osonEskimi, osonKarta, osonVaqtEl } from './oson-qoldiq.mjs';
 import { mijozQism } from './mijoz.mjs';
 import { skanerTugma } from './shtrix-skan.mjs';
 
@@ -392,8 +392,17 @@ export function defKerakka(ctx, nom, jim) {
   return jim ? bajar() : tasdiqlash('«' + nom + '» buyurtma berilmagan bo\'lsa — «Kerak» ro\'yxatiga qaytarilsinmi?').then((ha) => ha && bajar());
 }
 // Qoldiq olinmagan bo'lsa — ro'yxat tepasidagi xabar va «Qayta urinish» (aks holda null).
+// Audit 10.11 (A4 №6): Oson qoldig'i eskirgan bo'lsa (server 'eski' yoki 45 daqiqadan eski — OSON_ESKI_MS) — xato bo'lmasa ham
+// ro'yxat tepasida sariq ogohlantirish (vaqti bilan): «Bizda jami 3 quti» hozirgi son deb o'qilmasin.
+const dqEski = () => !!DQ.data && (DQ.eski || (DQ.osonVaqt != null && osonEskimi(DQ.osonVaqt)));
 export function defQoldiqXatoEl(rctx, S) {
-  if (!rctx || !rctx.server || !DQ.xato) return null;
+  if (!rctx || !rctx.server) return null;
+  if (!DQ.xato) {
+    if (!dqEski()) return null;
+    // B4 №5: vaqt yo'q (server faqat 'eski' dedi) — «hali kelmagan … eski» degan qarama-qarshi matn emas, o'z matni.
+    if (DQ.osonVaqt == null) return h('div', { class: 'oson-vaqt eski', role: 'status' }, '⚠ Oson qoldig\'i qachon olingani noma\'lum — eski bo\'lishi mumkin. Aptekadagi kompyuterda Oson admin\'ni oching');
+    return osonVaqtEl(DQ.osonVaqt, { izoh: 'qoldiq soni eski bo\'lishi mumkin — aptekadagi kompyuterda Oson admin\'ni oching' });
+  }
   return h('div', { class: 'msg warn dq-xato' }, h('span', {}, 'Qoldiq olinmadi — internetni tekshiring'),
     h('button', { type: 'button', class: 'sm', disabled: DQ.yuk ? true : null, onclick: (e) => {
       e.currentTarget.disabled = true; e.currentTarget.textContent = 'Yuklanmoqda…';
@@ -404,8 +413,9 @@ export function defQoldiqEl(rctx, d, fil, bogla) {
   if (!rctx || !rctx.server || !DQ.data) return null;
   const z = DQ.data.get(H.defNom(d.nom).toLowerCase());
   if (!z) return null;
-  // Oson ma'lumoti 26 soatdan eski — qaysi vaqtdagi ekani aytiladi (kompyuterda Oson admin ochilmagan bo'lishi mumkin).
-  const eski = DQ.eski && DQ.osonVaqt ? ' (Oson ' + sana(DQ.osonVaqt) + ' dagi)' : '';
+  // Oson ma'lumoti eski (server 'eski' — 45 daqiqa, OSON_ESKI_MS bilan bir xil) — sana va soat bilan, «⚠» (A4 №6: avval faqat sana —
+  // shu kunning ertalabki ma'lumoti hozirgidek o'qilardi).
+  const eski = dqEski() && DQ.osonVaqt ? ' (⚠ Oson ' + sana(DQ.osonVaqt) + ' ' + vaqt(DQ.osonVaqt) + ' dagi)' : '';
   // 09.11 kech (egasi: "qaysi geparin ekanligi ham yozilsin, hamma dorida; ko'rinishi tartibli, tushunarli bo'lsin"):
   // har filial alohida qatorda, ostida ishlab chiqaruvchilar (Bayan Medical — 11 quti, NANO — 26 quti). Yozilgan filialda yo'q,
   // boshqasida bor bo'lsa — shu aytiladi (ko'chirish mumkin).

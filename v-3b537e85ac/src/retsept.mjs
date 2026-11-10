@@ -3,7 +3,7 @@
 // kengaytma (serverdan o'zi oladi) va direktorning punkt Excel'ida.
 import * as H from './hisob.mjs';
 import { BOT_USERNAME } from './config.mjs';
-import { h, input, ishQator, kartaSarlavha, kunNomi, matnMaydon, nusxaOl, ochiladi, pills, sana, sheet, tasdiqlash, vaqt, xatoJoyla, yordam } from './ui.mjs';
+import { h, input, ishQator, kartaSarlavha, kunNomi, matnMaydon, nusxaOl, ochiladi, pills, sana, sheet, tasdiqlash, vaqt, xatoJoyla, yordam, qaytaOchOldin } from './ui.mjs';
 import { qrOqi } from './qr.mjs';
 import { raqamMaydon } from './punkt.mjs';
 import { qoldiqMatn } from './oson-qoldiq.mjs';
@@ -76,7 +76,18 @@ function yukla(ctx) {
   if (yuklanmoqda) { yana = true; return; }
   yuklanmoqda = true;
   if (!R) yuklashXato = null;
-  ctx.oqi('retseptlar').then((r) => { R = ajrat(r || BOSH()); yuklashXato = null; yuklandi = Date.now(); },
+  const boshlandi = Date.now();
+  ctx.oqi('retseptlar').then((r) => {
+    // Audit 10.11 (saboq 24): belgi (O'raldi/Oson) serverga yetgandan OLDIN boshlangan to'liq ro'yxat — eski: tashlanadi, qayta olinadi.
+    if (boshlandi < mahalliyVaqt) { yana = true; return; }
+    const yangiR = ajrat(r || BOSH());
+    // Javobi hali kelmagan belgilar — ekrandagi (optimistik) yozuv qoladi, aks holda ✓ yo'qolib tugma qaytib chiqardi.
+    if (R && kutilmoqda.size && Array.isArray(yangiR.bemorlar)) {
+      const eskiB = new Map((R.bemorlar || []).map((z) => [z.id, z]));
+      yangiR.bemorlar = yangiR.bemorlar.map((z) => (kutilmoqda.has(z.id) && eskiB.get(z.id)) || z);
+    }
+    R = yangiR; yuklashXato = null; yuklandi = Date.now();
+  },
     (e) => { yuklashXato = (e && e.message) || 'Ro\'yxat ochilmadi'; yuklandi = Date.now(); })
     .finally(() => {
       yuklanmoqda = false;
@@ -409,7 +420,9 @@ function bemorlarKarta(tp, ctx, qil, qilX) {
 // Dori nomi — ta'sir etuvchi modda va doza ("Asetilsalitsil kislotasi 150 mg"; foydalanuvchi: "Trombopol emas"). Kengaytma xpn'da
 // shuni yuboradi; xpn bo'lmasa — "Modda nomi yo'q" (savdo nomi emas). Savdo nomi (bergan dorimiz) hech qayerda ko'rsatilmaydi.
 const doriNomi = (d) => (d.xpn && String(d.xpn).trim().length > 1 ? String(d.xpn).trim() : 'Modda nomi yo\'q');
-const doriMatni = (d) => doriNomi(d) + (d.berilmadi ? ' — berilmadi' : d.soni != null ? ' — ' + d.soni + ' dona' : '')
+// Audit 11.11: kasr soni (sirop 1,5) — vergul bilan, 3 xonagacha (float shovqinisiz).
+const sonDona = (n) => String(Math.round(Number(n) * 1000) / 1000).replace('.', ',');
+const doriMatni = (d) => doriNomi(d) + (d.berilmadi ? ' — berilmadi' : d.soni != null ? ' — ' + sonDona(d.soni) + ' dona' : '')
   // 10.11: reimbursatsiya partiyalarida yo'q modda — oddiy retsept (kassa orqali sotiladi), Oson'dan chiqarishga qo'shilmaydi.
   + (d.oddiy && !d.berilmadi ? ' · oddiy retsept — Oson\'dan chiqarilmaydi' : '');
 const JONLI = 5e3;
@@ -648,12 +661,12 @@ function hisobotView(m, ctx) {
   HIS.list.forEach((r) => qosh(jami, r));
   const qatorlar = [...jami.values()].sort((a, b) => b.soni - a.soni);
   m.append(h('div', { class: 'card list' }, kartaSarlavha('Jami · ' + qatorlar.length + ' xil dori'),
-    ...qatorlar.map((j) => h('div', { class: 'line' }, h('span', {}, j.nom), h('b', { style: 'white-space:nowrap' }, j.soni + ' dona')))));
+    ...qatorlar.map((j) => h('div', { class: 'line' }, h('span', { 'data-asl': '' }, j.nom), h('b', { style: 'white-space:nowrap' }, sonDona(j.soni) + ' dona')))));
   const punktlar = new Map();
   HIS.list.forEach((r) => { const k = r.ichki ? MIJOZ_NOM : r.punkt; if (!punktlar.has(k)) punktlar.set(k, new Map()); qosh(punktlar.get(k), r); });
   punktlar.forEach((map, nom) => { const rows = [...map.values()].sort((a, b) => b.soni - a.soni);
-    m.append(ochiladi(nom, rows.map((r) => h('div', { class: 'line' }, h('span', {}, r.nom), h('b', { style: 'white-space:nowrap' }, r.soni + ' dona'))),
-      { k: 'hisobot-' + nom, cls: 'karta list', izoh: rows.reduce((a, r) => a + r.soni, 0) + ' dona' })); });
+    m.append(ochiladi(nom, rows.map((r) => h('div', { class: 'line' }, h('span', { 'data-asl': '' }, r.nom), h('b', { style: 'white-space:nowrap' }, sonDona(r.soni) + ' dona'))),
+      { k: 'hisobot-' + nom, cls: 'karta list', izoh: sonDona(rows.reduce((a, r) => a + Number(r.soni), 0)) + ' dona' })); });
   // 07.11 tun: Telegram 8.0+ — to'g'ridan telefonga (bemor ma'lumoti yo'q hisobot); eski Telegram — avvalgidek bot orqali.
   m.append(...yuklashTugmalari(ctx, { tur: 'dorilar_excel', args: [dan, gacha], botga: () => ctx.amal('dorilarExcel', dan, gacha) }));
 }
@@ -776,7 +789,7 @@ function osonPunkt(m, ctx, tp, nom) {
       : belgili.length ? h('span', { style: 'color:var(--warn);font-weight:600' }, belgili.length + ' tasi chiqarilgan · ' + yangi.length + ' ta yangi bemor — jadvalda faqat yangilari')
         : h('span', { style: 'color:var(--warn);font-weight:600' }, 'Oson\'dan hali chiqarilmagan'),
     h('div', { class: 'line muted', style: 'font-size:13px' }, h('span', {}, 'Dori'), h('span', {}, 'Jami')),
-    ...(jami.length ? jami.map(([d, n]) => h('div', { class: 'line' }, h('span', {}, d), h('b', { style: 'white-space:nowrap' }, String(n))))
+    ...(jami.length ? jami.map(([d, n]) => h('div', { class: 'line' }, h('span', { 'data-asl': '' }, d), h('b', { style: 'white-space:nowrap' }, String(n))))
       : [h('div', { class: 'muted' }, 'Dorilar ro\'yxati kelmagan')]));
   const nusxa = sar + ' · ' + (yangi.length || bem.length) + ' bemor\n' + jami.map(([d, n]) => d + ' — ' + n).join('\n');
   card.append(h('div', { class: 'row', style: 'flex-wrap:wrap' },
@@ -977,12 +990,20 @@ function rasmSheet(z, ctx, qil, qilX) {
         holat.textContent = 'Bu rasm avval ko\'rib chiqilgan — bemorlar qayta qo\'shilmaydi. QR ichida: «' + qrNiqob(qrlar.join(' | ')).slice(0, 200) + '»';
         return;
       }
-      holat.textContent = qrlar.length + ' ta QR o\'qildi. Ro\'yxatga qo\'shilmoqda…';
-      const n = await qil('rasmRoyxat', z.id, true, qrlar.join('\n'));
-      if (n !== null) korilganRasm.add(z.id);   // R yangilanguncha qayta ochilsa ham — faqat ko'rsatish
-      if (ac.signal.aborted) return;
-      holat.textContent = rasmQrXabari(n, qrlar);
-      if (n !== null && qoldi) yanaJoy.append(yanaTugma(blob, qrlar));
+      // Audit 10.11: qo'shish bajarilmasa (boshqa amal saqlanayotgan edi, internet uzildi) — «Qayta qo'shish» tugmasi
+      // (QR'lar qayta o'qilmaydi; bir xil so'rov — server ikki marta qo'shmaydi).
+      const qoshQR = async () => {
+        holat.textContent = qrlar.length + ' ta QR o\'qildi. Ro\'yxatga qo\'shilmoqda…';
+        const n = await qil('rasmRoyxat', z.id, true, qrlar.join('\n'));
+        if (n !== null) korilganRasm.add(z.id);   // R yangilanguncha qayta ochilsa ham — faqat ko'rsatish
+        if (ac.signal.aborted) return;
+        holat.textContent = rasmQrXabari(n, qrlar);
+        if (n === null) {
+          const b = h('button', { type: 'button', class: 's', onclick: () => { b.remove(); qoshQR(); } }, 'QR bemorlarni qayta qo\'shish');
+          yanaJoy.append(b);
+        } else if (qoldi) yanaJoy.append(yanaTugma(blob, qrlar));
+      };
+      await qoshQR();
     }, (e) => { if (!ac.signal.aborted) { holat.textContent = e.message; ko.replaceChildren(h('div', { class: 'bosh-holat' }, e.message)); } });
     // Oyna yopilganda: QR o'qish to'xtaydi, rasm xotiradan bo'shaydi.
     return () => { ac.abort(); if (url) URL.revokeObjectURL(url); };
@@ -1118,7 +1139,7 @@ function punktlarKarta(m, ctx, qil, qilX, yopiq = true) {
 function punktSheet(ctx, p, qil, qilX) {
   sheet(p.nom, (box, close) => {
     const tel = input('Punktdagi odamning telefon raqami (Telegram\'dagi)', { type: 'tel', inputmode: 'tel' });
-    box.append(h('div', { class: 'msg info' }, (p.ulangan ? 'Punkt botga ulangan ✓. Odam almashsa yoki telefoni o\'zgarsa — yangi havola bering. ' : '')
+    box.append(qaytaOchOldin(), h('div', { class: 'msg info' }, (p.ulangan ? 'Punkt botga ulangan ✓. Odam almashsa yoki telefoni o\'zgarsa — yangi havola bering. ' : '')
       + 'Havola faqat shu raqamli Telegram\'da ochiladi — boshqa odamga borib qolsa, u ocha olmaydi.'), tel.el,
     h('button', { class: 'p', onclick: () => {
       if (!H.normTel(tel.i.value)) { tel.xato('Telefon raqami noto\'g\'ri (+998 XX XXX XX XX)'); tel.i.focus(); return; }
