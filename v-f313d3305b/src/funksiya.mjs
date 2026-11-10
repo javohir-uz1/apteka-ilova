@@ -2,7 +2,7 @@
 // qo'yadigan"). Server: 20261107240000_funksiyalar (ilova.funksiya_saqla, holatda sozlama.funksiyalar) va 20261107250000_funksiya_mijoz
 // (bot ham to'xtaydi). Xodim amali Edge'da ham rad etiladi (api.mjs FUNKSIYA_KALIT) — bu sahifa faqat boshqaruv.
 // Ro'yxat = SQL ilova.funksiya_royxati() (tests/miniapp-funksiya.test.mjs bir xilligini tekshiradi). Yo'q kalit — yoqiq.
-import { h, kartaSarlavha, tasdiqlash } from './ui.mjs';
+import { h, kartaSarlavha, qaytaOchOldin, tasdiqlash } from './ui.mjs';
 
 export const FUNKSIYALAR = [
   { k: 'x_qidiruv', guruh: 'xodim', nom: 'Dori qidirish', izoh: 'Narxi va qaysi filialda borligi' },
@@ -29,6 +29,8 @@ export function funksiyalarView(m, ctx) {
   m.append(h('div', { class: 'muted' }, 'O\'chirilgan imkoniyat xodimlarda ko\'rinmaydi va server ham bajarmaydi. Sizga (direktorga) hammasi ochiq qoladi. '
     + 'Qayta yoqsangiz — darhol ishlaydi, ma\'lumot o\'chmaydi.'));
   if (!ctx.server) m.append(h('div', { class: 'msg warn', role: 'status' }, 'Sinov rejimida saqlanmaydi — Telegram ilovasida ishlaydi.'));
+  // 10.11 (Edge YANGI_KIRISH): funksiya_saqla — yangi kirish kerak; ilova uzoq ochiq bo'lsa — bosishdan oldin ogohlantirish.
+  else { const q = qaytaOchOldin(); if (q) m.append(q); }
   const guruh = (g, sarlavha, izoh) => {
     const c = h('section', { class: 'card list' }, kartaSarlavha(sarlavha), h('div', { class: 'muted' }, izoh));
     for (const f of FUNKSIYALAR.filter((z) => z.guruh === g)) {

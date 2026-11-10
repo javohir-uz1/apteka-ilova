@@ -34,7 +34,7 @@ h1, h2, h3 { margin: 0; }
   border-bottom: 1px solid var(--sep); padding: 10px 16px 12px; padding-top: max(10px, env(safe-area-inset-top));
   display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 2; }
 .top .t { flex: 1; min-width: 0; }
-.top .t h1 { font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.top .t h1 { font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -.02em; overflow-wrap: break-word; }   /* B4 №6: anywhere so'zni o'rtasidan bo'lardi («Bugu/n») */
 .top .t span { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
 .avatar { width: 40px; height: 40px; border-radius: 20px; background: var(--soft); color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; flex: none; }
 /* Sarlavhadagi yozuv tugmasi (Lotin ↔ Кирилл) — hamma panelda, teginish 44 px. */
@@ -1356,7 +1356,7 @@ label.f input[aria-invalid="true"], textarea[aria-invalid="true"] { border: 0; b
 
 /* ---- Segment tanlov (iOS segmented control) ---- */
 .pills { background: var(--fill); border-radius: 11px; padding: 3px; gap: 2px; }
-.pill { min-height: 40px; border-radius: 9px; background: transparent; color: var(--ink); font-size: 15px; font-weight: 500; opacity: 1;
+.pill { min-height: 44px; border-radius: 9px; background: transparent; color: var(--ink); font-size: 15px; font-weight: 500; opacity: 1;
   transition: background-color 200ms var(--m-kir), box-shadow 200ms var(--m-kir); }
 .pill[aria-pressed="true"] { background: #FFFFFF; color: var(--ink); font-weight: 600; box-shadow: 0 3px 8px rgba(0, 0, 0, .12), 0 1px 1px rgba(0, 0, 0, .04); }
 .pill:active { opacity: .6; transform: none; }
@@ -1467,13 +1467,13 @@ button.card.yx-men { border-radius: var(--r-card); }
 /* ---- Pastki menyu (eski va yangi): oq, ingichka chiziq, faol — faqat urg'u rangi ---- */
 .yn-nav, .nav { background: rgba(249, 249, 249, .97); border-top: .5px solid rgba(60, 60, 67, .22); }
 .yn-nav { padding: 2px 4px env(safe-area-inset-bottom); }
-.yn-nav button { min-height: 56px; gap: 2px; font-size: 12px; font-weight: 500; color: #8E8E93; border-radius: 10px; }
+.yn-nav button { min-height: 56px; gap: 2px; font-size: 12px; font-weight: 500; color: var(--muted); border-radius: 10px; }
 .yn-nav button .ikon { width: 28px; height: 28px; padding: 0; border-radius: 0; background: none; transition: transform 200ms var(--m-kir); }
 .yn-nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .yn-nav button[aria-current="page"] .ikon { background: none; }
 .yn-nav button:active { background: transparent; opacity: 1; }
 .yn-nav button:active .ikon { transform: scale(.88); }
-.nav button { font-size: 12px; font-weight: 500; color: #8E8E93; }
+.nav button { font-size: 12px; font-weight: 500; color: var(--muted); }   /* audit 10.11: #8E8E93 — 3,1:1 */
 
 /* ---- Pastdan chiqadigan oyna (iOS sheet) ---- */
 .sheet-bg { background: var(--scrim); }
@@ -1485,7 +1485,7 @@ button.card.yx-men { border-radius: var(--r-card); }
 .sheet .head.tortiladi { padding-top: 20px; }
 .sheet .head h2 { font-size: 20px; font-weight: 700; letter-spacing: -.025em; }
 .sheet-tutqich { top: 7px; width: 36px; height: 5px; margin-left: -18px; background: rgba(60, 60, 67, .3); }
-.x { width: 32px; height: 32px; min-height: 32px; border-radius: 16px; background: var(--fill); color: #8E8E93; font-size: 22px; line-height: 1; margin: 6px; position: relative; }
+.x { width: 32px; height: 32px; min-height: 32px; border-radius: 16px; background: var(--fill); color: var(--muted); font-size: 22px; line-height: 1; margin: 6px; position: relative; }
 .x::after { content: ''; position: absolute; inset: -6px; }   /* teginish joyi 44 px */
 .sheet.toliq, .sheet.toliq .head { background: var(--card); }
 .sheet-bg { animation: m-fon 300ms ease-out both; }
@@ -1944,3 +1944,67 @@ html.matn-katta .buy-hafta-s, html.matn-katta .buy-hafta-iz { font-size: 14px; }
 .kirim-hal { display: flex; flex-direction: column; gap: 10px; }
 .kirim-maydon-joy { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: .5px solid var(--sep); }
 .kirim-maydon > span:first-child { color: var(--ink); font-size: 16px; overflow-wrap: anywhere; }
+/* 10.11 kech: Kassa ↔ Oson qayta tuzildi (nazorat.mjs) — filial: naqd/karta ko'rsatkichlari, kun qatorlari (bosiladi), tafsilot oynasi. */
+.nz-yangi { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.nz-filial-b { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.nz-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0 4px; }
+.nz-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: 14px; background: var(--fill); min-width: 0; }
+.nz-tile-n { font-size: 16px; color: var(--ink); font-weight: 700; }
+.nz-tile > .nz-f { font-size: clamp(16px, 5vw, 19px); white-space: normal; overflow-wrap: anywhere; }
+.nz-tile-s { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.nz-izoh { font-size: 13px; }
+.nz-f { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.nz-f-mos { color: var(--kirim); } .nz-f-kam { color: var(--red); } .nz-f-ogoh { color: var(--warn); } .nz-f-yoq { color: var(--muted); }
+.nz-kun2 { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "b chev" "s chev"; gap: 4px 8px; width: 100%; min-height: 56px;
+  padding: 10px 6px; border: 0; border-top: .5px solid var(--sep); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.nz-kun2-b { grid-area: b; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.nz-sabab { font-size: 13px; color: var(--muted); }
+.nz-kun2-s { grid-area: s; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 15px; }
+.nz-kq { display: inline-flex; gap: 6px; align-items: baseline; flex-wrap: wrap; min-width: 0; }
+.nz-kun2-s .nz-f { white-space: normal; }
+.nz-kq-n { color: var(--muted); font-size: 14px; }
+.nz-taxmin { color: var(--muted); font-size: 14px; }
+.nz-chev { grid-area: chev; align-self: center; color: var(--muted); font-size: 22px; }
+.nz-kun2.nz-kam { background: var(--red-bg); border-radius: 10px; }
+.nz-kun2.nz-ogoh { background: var(--warn-bg); border-radius: 10px; }
+.nz-teg { font-size: 13px; font-weight: 700; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.nz-teg-kam { color: var(--red); } .nz-teg-ogoh { color: var(--warn); }
+.nz-kun2:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.nz-t3 { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; padding: 8px 0; border-top: .5px solid var(--sep); font-variant-numeric: tabular-nums; }
+.nz-t3 > span:not(:first-child) { text-align: right; }
+.nz-t3 > span:first-child { overflow-wrap: anywhere; }
+.nz-t3-b { border-top: 0; font-size: 13px; color: var(--muted); font-weight: 600; }
+.nz-t3-f { font-weight: 700; }
+.nz-t3 .nz-f { white-space: normal; }
+.nz-t3-ochiq { color: var(--muted); }
+.nz-oyna-f { font-weight: 600; margin-bottom: 6px; overflow-wrap: anywhere; }
+.nz-h3 { font-size: 15px; margin: 14px 0 2px; }
+/* Kassa nazorati (kassa.mjs) — smenalar kun bo'yicha, faqat naqd. */
+.kassa-kun-b { font-weight: 700; font-size: 15px; padding: 14px 0 2px; color: var(--ink); }
+.kassa-q-b { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kassa-kim { overflow-wrap: anywhere; }
+.kassa-iz { font-size: 13px; }
+/* Audit 2: tor ekranda xodim ismi tik ustunga siqilmasin — summa va «Yopish» kerak bo'lsa keyingi qatorga. */
+.line.kassa-qoldiq { flex-wrap: wrap; row-gap: 6px; }
+.line.kassa-qoldiq > span:first-child { flex: 1 1 180px; min-width: 0; overflow-wrap: normal; }
+/* Audit 10.11 (A4 №5): Statistika — «Kunlar bo'yicha» ro'yxati (grafik ustunlari telefonda ~7 px; har qator ≥ 44 px). */
+.stat-kunlar { display: flex; flex-direction: column; }
+.line.stat-kun { min-height: 44px; align-items: center; }
+.line.stat-kun > b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* A4 №1: ortiqcha to'langan ta'minotchilar — qarz jamisi ostida alohida qator. */
+.card.hero .ta-ortiq { font-size: 15px; }
+
+/* Audit 11.11: sarlavhadagi nomlar (data-asl) — ota matn uslubida, alohida qatorga tushmaydi */
+.top .t h1 [data-asl], .top .t span [data-asl] { display: inline; font: inherit; color: inherit; margin: 0; }
+/* B6 №1: Daftar — naqd kirimdagi kartaga o'tkazma (seyfga emas) jami ostida. */
+.dk-otk { text-align: center; font-size: 14px; }
+/* B4 №2: Ombor kartasidagi «⚠ 12» tor ekranda «⚠ / 12» bo'lib bo'linmasin. */
+.ys-k b { white-space: nowrap; }
+/* B4 №4: ortiqcha to'langan ta'minotchilar — izohda alohida qatorda (qarz deb o'qilmasin). */
+.ta-ortiq-q { display: block; }
+/* B4 №6: 320–340 px — sarlavha so'z o'rtasidan bo'linmaydi: bir qator, kichikroq harf, sig'masa «…»; tugmalar orasi zichroq. */
+@media (max-width: 340px) {
+  .top { gap: 8px; }
+  .top .t h1, .top.yh .t h1, html.matn-katta .top .t h1, html.matn-katta .top.yh .t h1 { font-size: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+  .yozuv-tugma { padding: 0 10px; }
+}

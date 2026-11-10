@@ -36,7 +36,7 @@ export const ISHLAR = {
   qarzUndirish: [(S, men, q, s, ham) => A.qarzUndirish(S, q, s, ham, men.id), (q, s, ham) => ['qarz_undirish', [q, p(s), ham]]],
   // 09.11: mijoz qarzi — dorilar nomi, QR (bot tasdig'i), xodim to'lovi, direktor qabuli, bekor qilish.
   qarzBer: [(S, men, f) => A.qarzBer(S, men.id, f),
-    (f) => ['qarz_ber', [m(f.ism), m(f.tel), p(f.summa), Number(f.muddatKun) || null, String(f.dorilar || '').slice(0, 300)]]],
+    (f) => ['qarz_ber', [m(f.ism), m(f.tel), p(f.summa), Number(f.muddatKun) || null, String(f.dorilar || '').slice(0, 300), String(f.filial || '')]]],
   qarzQr: [() => A.qarzQrYoq(), (q) => ['qarz_qr', [q]]],
   qarzTolov: [(S, men, q, s, kun) => A.qarzTolov(S, men.id, q, s, kun), (q, s, kun) => ['qarz_tolov', [q, p(s), Number(kun) || null]]],
   qarzPulBekor: [(S, men, id) => A.qarzPulBekor(S, men.id, id), (id) => ['qarz_pul_bekor', [id]]],

@@ -77,6 +77,25 @@ const OYLAR = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgu
 export const kunNomi = (d = new Date()) => { const t = toshkent(d); return HAFTA[t.getUTCDay()] + ', ' + t.getUTCDate() + '-' + OYLAR[t.getUTCMonth()]; };
 
 // Xabar: muvaffaqiyat — 3 s; xato — 6 s va ajralib turadigan rang (xato matni o'qib ulgurilsin).
+// Audit 10.11: bosh ekran kartalari (kassa, so'rov, kirim, bron) har 30–60 s o'qiydi — telefon ochiq qoldirilsa oyiga ~100 ming
+// so'rov (Supabase bepul chegarasi 500 ming). 5 daqiqa hech kim tegmasa fon so'rovlari to'xtaydi; tegilishi bilan yana boshlanadi.
+const JIM_MS = 5 * 60e3;
+let oxirgiTegish = Date.now();
+// Audit 11.11 (2-audit): g'ildirak/aylantirish ham faollik; jim holatdan qaytganda kartalar darhol yangilanadi (faolQaytganda).
+const faolQaytdi = new Set();
+export function faolQaytganda(fn) { faolQaytdi.add(fn); }
+function tegdi() {
+  const jimEdi = Date.now() - oxirgiTegish > JIM_MS;
+  oxirgiTegish = Date.now();
+  if (jimEdi) faolQaytdi.forEach((f) => { try { f(); } catch (e) { /* bitta karta xatosi boshqasini to'xtatmasin */ } });
+}
+if (typeof window !== 'undefined' && window.addEventListener) {
+  ['pointerdown', 'keydown', 'touchstart', 'wheel'].forEach((t) => window.addEventListener(t, tegdi, { passive: true }));
+  window.addEventListener('scroll', tegdi, { passive: true, capture: true });
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (!document.hidden) tegdi(); });
+}
+export const faolmi = (now = Date.now()) => now - oxirgiTegish <= JIM_MS;
+
 export function toast(t, tur = 'ok') {
   document.querySelectorAll('.toast').forEach((e) => e.remove());
   const el = h('div', { class: 'toast' + (tur === 'xato' ? ' xato' : ''), role: tur === 'xato' ? 'alert' : 'status' }, t);
@@ -124,6 +143,39 @@ const oynalar = [];
 // Oyna ochiq turganda pastga surib yopish — Telegram so'raydi (enableClosingConfirmation).
 let panelOrqaga = null;
 const tgOl = () => { const w = typeof window !== 'undefined' ? window : null; const t = w && w.Telegram && w.Telegram.WebApp; return t && t.initData ? t : null; };
+
+// ---- «Yangi kirish» talab qilinadigan amallar (10.11, Edge YANGI_KIRISH: initData auth_date ≤ 15 daqiqa) ----
+// Taklif havolasi, xodim qo'shish / telefon / faol, ta'minotchi / punkt telefoni, funksiyalar, kalitlar, zaxira, bot ulash.
+// Direktor ilovani soatlab ochiq tutadi; pastga surish faqat yig'adi — ochilganda eski initData qoladi. Shuning uchun: oyna
+// ochilganda (yozishdan OLDIN) ogohlantirish va «Ilovani yopish»; server baribir rad etsa (400, qaytaOch yoki shu matn) — app.mjs bajar.
+export const QAYTA_OCH_MATN = 'Xavfsizlik uchun bu amaldan oldin ilovani to\'liq yoping va qayta oching (pastga surish yetmaydi).';
+export const QAYTA_OCH_SERVER = /Xavfsizlik uchun ilovani yoping/i;
+export const qaytaOchXatomi = (e) => !!e && (e.qaytaOch === true || (e.status === 400 || e.status == null) && QAYTA_OCH_SERVER.test(String(e.message || '')));
+export const YANGI_KIRISH_MS = 14 * 60e3;   // server 15 daqiqa — 1 daqiqa zaxira (bosguncha yozib ulgursin)
+// Telegram ichida va kirish (auth_date) 14 daqiqadan eski — true. Sinov rejimi / brauzer / auth_date yo'q — false (hech narsa ko'rsatilmaydi).
+export function kirishEskimi(now = Date.now(), chegara = YANGI_KIRISH_MS) {
+  const t = tgOl();
+  const a = t && t.initDataUnsafe ? Number(t.initDataUnsafe.auth_date) : NaN;
+  return a > 0 && now - a * 1000 > chegara;
+}
+export function ilovaniYopish() {
+  const w = typeof window !== 'undefined' ? window : null;
+  const t = w && w.Telegram && w.Telegram.WebApp;
+  try { if (t && typeof t.close === 'function') t.close(); else w.location.reload(); } catch (e) { try { w.location.reload(); } catch (e2) { /* bo'sh */ } }
+}
+export const qaytaOchEl = (matn = QAYTA_OCH_MATN) => h('div', { class: 'msg warn qayta-och', role: 'alert' }, h('span', {}, matn),
+  h('button', { type: 'button', class: 's', onclick: ilovaniYopish }, 'Ilovani yopish'));
+// Oyna / sahifa boshida: kirish eski bo'lsa — ogohlantirish, aks holda null.
+export const qaytaOchOldin = (now = Date.now()) => (kirishEskimi(now) ? qaytaOchEl() : null);
+// Server rad etganda ochiq oynaning tepasiga (sarlavha ostiga) — yozilganlar joyida qoladi; bir marta.
+export function qaytaOchOynaga(matn) {
+  const o = oynalar[oynalar.length - 1];
+  if (!o || !o.box || o.box.querySelector('.qayta-och')) return !!o;
+  const el = qaytaOchEl(matn);
+  const head = o.box.querySelector('.head');
+  if (head && head.nextSibling) o.box.insertBefore(el, head.nextSibling); else o.box.append(el);
+  return true;
+}
 // Audit 09.11: har chizishda panel avval «orqaga»ni olib (null), keyin qayta qo'yardi — Telegram'da ← bir lahza «×» ga aylanib
 // qaytardi. Endi: chizish davomida (tgKechiktir(true)) faqat o'zgaruvchiga yoziladi, oxirida bir marta qo'llanadi; Telegram'ga
 // faqat qiymat o'zgarganda yuboriladi (orqa, yopishni so'rash).
@@ -362,6 +414,9 @@ export function sheet(title, build, o2 = {}) {
   vvQoy([bg]);
   let tozala = null;
   const o = { box: null, close: null, orqaga: typeof o2.orqaga === 'function' ? o2.orqaga : null };
+  // Audit 11.11 (2-audit): o2.band() true — so'rov ketmoqda: ×, Esc, fon va surish oynani yopmaydi (xato kelsa yozilganlar yo'qolmasin).
+  const bandmi = () => { try { return typeof o2.band === 'function' && !!o2.band(); } catch (e) { return false; } };
+  const bandXabar = () => toast('Saqlanmoqda — bir soniya kuting', 'xato');
   let yopildi = false;
   const close = () => {
     if (!bg.isConnected || yopildi) return;
@@ -394,7 +449,7 @@ export function sheet(title, build, o2 = {}) {
   // 07.11 tun: tepada tutqich — sarlavhani pastga surib (80 px dan ko'p yoki tez siltab) yopish; to'liq ekranli oynada yo'q.
   const tortish = !o2.toliq && document.documentElement.classList.contains('yangi-qobiq');   // audit 07.11: eski ko'rinish o'zgarmasin
   const head = h('div', { class: 'head' + (tortish ? ' tortiladi' : '') }, !tortish ? null : h('span', { class: 'sheet-tutqich', 'aria-hidden': 'true' }),
-    h('h2', { id }, title), h('button', { class: 'x', type: 'button', 'aria-label': 'Yopish', onclick: close }, '×'));
+    h('h2', { id }, title), h('button', { class: 'x', type: 'button', 'aria-label': 'Yopish', onclick: () => { if (bandmi()) { bandXabar(); return; } close(); } }, '×'));
   const box = h('div', { class: 'sheet' + (o2.toliq ? ' toliq' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': id }, head);
   // Oyna ichiga shartli element qo'shilganda (x ? h(...) : null) DOM "null" matnini yozib qo'ymasin.
   const qosh = box.append.bind(box);
@@ -404,7 +459,7 @@ export function sheet(title, build, o2 = {}) {
   // × tugmasi — ataylab yopish, so'ralmaydi.
   const yozilgan = () => [...box.querySelectorAll('input, textarea')].some((i) => i.type !== 'hidden' && i.type !== 'checkbox'
     && i.type !== 'radio' && i.type !== 'file' && !i.readOnly && String(i.value || '') !== String(i.defaultValue || ''));
-  o.sorabYop = async () => { if (yozilgan() && !(await tasdiqlash('Yozganlaringiz o\'chadi. Oyna yopilsinmi?'))) return; close(); };
+  o.sorabYop = async () => { if (bandmi()) { bandXabar(); return; } if (yozilgan() && !(await tasdiqlash('Yozganlaringiz o\'chadi. Oyna yopilsinmi?'))) return; close(); };
   // Orqa fon faqat bosish shu fonning o'zida boshlanib, shu yerda tugasa yopadi: klaviatura yopilib oyna siljiganda
   // tugmaga qilingan bosish fonga tushib qolsa ham oyna yopilmaydi.
   // Klaviaturani yopish uchun fonga bosilgan bo'lsa — oyna yopilmaydi (yozilgani yo'qolmasin).
@@ -412,7 +467,7 @@ export function sheet(title, build, o2 = {}) {
   bg.addEventListener('pointerdown', (e) => { fondaBoshlandi = e.target === bg && !klaviaturaYopildimi(); });
   bg.addEventListener('click', (e) => { if (e.target === bg && fondaBoshlandi) o.sorabYop(); fondaBoshlandi = false; });
   // Pastga surib yopish — fon bosilgandagi yo'l bilan bir xil: yozilgan bo'lsa so'raladi (oyna joyiga qaytadi), aks holda pastga ketadi.
-  if (tortish) surishUlash(box, head, () => { if (yozilgan()) { o.sorabYop(); return false; } return true; }, close);
+  if (tortish) surishUlash(box, head, () => { if (bandmi()) { bandXabar(); return false; } if (yozilgan()) { o.sorabYop(); return false; } return true; }, close);
   if (!oynalar.length) document.addEventListener('keydown', oynaTugmasi);
   oynalar.push(o);
   // Qayta audit 06.11: build xato bersa — oyna ro'yxatda «ko'rinmas» qolib, Telegram «orqaga» va Esc butunlay ishlamay qolardi.
@@ -869,7 +924,8 @@ export function pills(values, current, onPick, label) {
       draw(v);
       const b = [...wrap.children][values.findIndex(([x]) => x === v)];
       if (b) b.focus({ preventScroll: true });   // tugma qayta chizildi — fokus yo'qolmasin
-    } }, (v === cur ? '✓ ' : '') + l)));
+    // Audit 11.11: yorliq element ham bo'lishi mumkin (nom — data-asl span); har chizishda nusxasi (bitta tugunni ko'chirmaslik).
+    } }, v === cur ? '✓ ' : '', l && l.nodeType ? l.cloneNode(true) : l)));
   };
   draw(current);
   return wrap;

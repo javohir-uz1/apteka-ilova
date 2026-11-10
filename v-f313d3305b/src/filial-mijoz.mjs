@@ -204,7 +204,8 @@ export function filialMijozOyna(ctx, z) {
         try {
           const r = await ctx.amalX(xatoJoyla([[nom, /nom/i], [tel, /telefon/i], [havola, /lokatsiya/i], [manzil, /manzil/i], [moljal, /mo'ljal/i], [ish, /ish vaqti/i]]),
             'filialMijozYoz', z.id, { nom: n, manzil: manzil.i.value, moljal: moljal.i.value, ish: ish.i.value, tel: t, joy: joyMatn(joy) });
-          if (r) { ctx.toast('Saqlandi ✓ — mijozlar «' + r.n + '» deb ko\'radi'); close(); }
+          // A4 №11: takror javobda (TAKROR) nom yo'q — «undefined» chiqmasin.
+          if (r) { ctx.toast(r.n ? 'Saqlandi ✓ — mijozlar «' + r.n + '» deb ko\'radi' : 'Saqlandi ✓'); close(); }
         } finally { saqla.disabled = false; }
       } }, 'Saqlash');
 

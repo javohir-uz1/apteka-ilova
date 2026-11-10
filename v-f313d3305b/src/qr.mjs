@@ -93,6 +93,7 @@ export async function qrOqi(blob, { rejim = 'birinchi', signal = null, bosqich =
       let r;
       try { r = await oq.bolak(olish()); } catch (e) {
         if (signal && signal.aborted) break;
+        try { if (oq && oq.yop) oq.yop(); } catch (e2) { /* audit 10.11: eski ishchi to'xtatiladi */ }
         oq = await asosiyOquvchi();   // ishchi ishlamadi — shu bo'lakdan boshlab asosiy oqimda
         r = await oq.bolak(olish());
       }

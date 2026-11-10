@@ -88,7 +88,7 @@ export function renderPunkt(root, ctx, p) {
   [...kunlar.entries()].reverse().forEach(([k, list], i) => m.append(ochiladi(k + ' · ' + list.length + ' bemor', h('div', { class: 'list' },
     ...list.map((z) => {
       const [l, col] = HOLAT[z.holat] || [z.holat, 'var(--muted)'];
-      return h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { style: 'font-weight:600' }, z.n + ') ' + (z.ism || 'Ismsiz')), h('span', { style: 'color:' + col + ';text-align:right;font-weight:600' }, l)),
+      return h('div', { class: 'item' }, h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { style: 'font-weight:600' }, z.n + ') ', z.ism ? h('span', { 'data-asl': '' }, z.ism) : 'Ismsiz'), h('span', { style: 'color:' + col + ';text-align:right;font-weight:600' }, l)),
         h('span', { class: 'muted' }, (qrBemor(z) ? 'QR retsept bo\'yicha berildi' + (z.jshshir ? ' · ' + z.jshshir : '') : (z.jshshir || 'JSHSHIR yo\'q') + ' · ' + (z.kodlar || 0) + ' ta kod')
           + (z.holatTs ? ' · ' + vaqt(z.holatTs) : '') + (z.sabab ? ' · ' + z.sabab : '')),
         z.xato && z.xato.length ? h('span', { style: 'color:var(--warn);font-size:13px;font-weight:600' }, 'Xato: ' + z.xato.join(', ') + ' — to\'g\'risini qayta yuboring') : null);

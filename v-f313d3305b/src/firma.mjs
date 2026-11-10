@@ -105,6 +105,8 @@ export function narxlar(nom) {
 }
 
 const narxMatn = (q) => H.som(q.yuz) + (q.kech ? ' · kechiktirilgan ' + H.som(q.kech) : '');
+// A4 №4: firma nomi (Grand Pharm, Meros Pharm) kirillga o'tmaydi.
+const asl = (t) => h('span', { 'data-asl': '' }, t);
 const taxminiy = () => h('span', { class: 'firma-tax', title: 'Nomi to\'liq mos emas — tekshiring' }, 'taxminiy');
 
 function narxSheet(nom, r) {
@@ -112,7 +114,7 @@ function narxSheet(nom, r) {
     box.append(h('div', { class: 'muted' }, 'Har firmada topilgan dori — firmadagi aniq nomi bilan. Avval nomi to\'liq mos kelganlar (100% to\'lov narxi, arzonidan), keyin «taxminiy»lar — ularni tekshiring.'));
     const l = h('div', { class: 'card list' });
     r.forEach((q, i) => l.append(h('div', { class: 'item firma-q' + (i === 0 ? ' arzon' : '') },
-      h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', {}, (i === 0 ? '✓ ' : '') + q.firma), h('b', {}, H.som(q.yuz))),
+      h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', {}, i === 0 ? '✓ ' : null, asl(q.firma)), h('b', {}, H.som(q.yuz))),
       h('div', { class: 'firma-nomi', 'data-asl': '' }, q.nom + (q.ishlab ? ' · ' + q.ishlab : ''), q.aniq ? null : [' · ', taxminiy()]),
       h('div', { class: 'muted' }, (q.kech ? 'Kechiktirilgan to\'lov: ' + H.som(q.kech) : 'Kechiktirilgan narx yo\'q') + (q.muddat ? ' · yaroqli: ' + q.muddat : '')))));
     if (!r.length) l.append(h('div', { class: 'muted' }, 'Yuklangan firmalarning birortasida topilmadi. Nomini «Firma prayslari» → «Narx qidirish»da tekshiring.'));
@@ -129,7 +131,7 @@ export function defNarxQator(nom) {
   // Firmadagi aniq nomi (foydalanuvchi 30.10: «praysdagi nomini ham qo'shib qo'y — xatoliklarning oldini olamiz»): xodim yozgani va
   // firmada topilgani yonma-yon — boshqa dori bo'lsa darhol ko'rinadi.
   return h('button', { type: 'button', class: 'firma-eng', onclick: () => narxSheet(nom, r) },
-    h('span', {}, 'Eng arzon: ', h('b', {}, e.firma), ' — ', h('b', {}, H.som(e.yuz))),
+    h('span', {}, 'Eng arzon: ', h('b', { 'data-asl': '' }, e.firma), ' — ', h('b', {}, H.som(e.yuz))),
     e.aniq ? null : taxminiy(),
     h('span', { class: 'firma-nomi', 'data-asl': '' }, e.firma + ': ' + e.nom + (e.ishlab ? ' · ' + e.ishlab : '')),
     h('span', { class: 'muted' }, (e.kech ? 'kechiktirilgan ' + H.som(e.kech) + ' · ' : '') + (r.length > 1 ? r.length + ' firmada bor ›' : 'faqat shu firmada ›')));
@@ -146,7 +148,7 @@ function firmaTanlaSheet(nomlar, chiz, ochFirmalar) {
       h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', {}, (F.tanlov === '' ? '✓ ' : '') + 'Hammasi'), h('span', { class: 'muted' }, F.royxat.length + ' ta firma')),
       h('div', { class: 'muted' }, 'Har dori ostida — eng arzon firma')));
     F.royxat.forEach((r) => l.append(h('button', { type: 'button', class: 'item firma-q' + (F.tanlov === r.firma ? ' arzon' : ''), onclick: () => tanla(r.firma) },
-      h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', {}, (F.tanlov === r.firma ? '✓ ' : '') + r.firma),
+      h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', {}, F.tanlov === r.firma ? '✓ ' : null, asl(r.firma)),
         h('span', { class: 'muted' }, (arzon.get(r.firma) || 0) + ' ta arzon')),
       h('div', { class: 'muted' + (r.kun > 7 ? ' firma-eski' : '') }, r.soni + ' ta dori · yuklangan ' + r.yuklandi + (r.kun > 7 ? ' — ' + r.kun + ' kun oldin' : '')))));
     box.append(h('div', { class: 'muted' }, '«N ta arzon» — defekturadagi nechta dori shu firmada eng arzon.'), l,
@@ -180,7 +182,7 @@ export function defFirmaKarta(ctx, ochiq, chiz, ochFirmalar) {
       tanlaTugma('Firmani tanlash ›', 'p'));
     return k;
   }
-  k.append(h('div', { class: 'firma-jami' }, h('span', { class: 'muted' }, 'Tanlangan firma'), h('b', { style: 'font-size:18px' }, F.tanlov || 'Hammasi')),
+  k.append(h('div', { class: 'firma-jami' }, h('span', { class: 'muted' }, 'Tanlangan firma'), h('b', { style: 'font-size:18px' }, F.tanlov ? asl(F.tanlov) : 'Hammasi')),
     h('div', { class: 'row' }, tanlaTugma('Boshqa firma', 's'), h('button', { class: 's', onclick: () => { F.tanlov = null; chiz(); } }, 'Yopish')));
   const topildi = nomlar.filter((n) => narxlar(n).length);
   if (!F.tanlov) {
@@ -198,7 +200,7 @@ export function defFirmaKarta(ctx, ochiq, chiz, ochFirmalar) {
     });
     const shu = [...guruh.values()];
     const jami = shu.reduce((a, { r }) => a + r[0].yuz, 0);
-    k.append(h('div', { class: 'firma-jami' }, h('b', {}, shu.length + ' ta dori'), h('span', { class: 'muted' }, F.tanlov + '\'da eng arzon · har biridan 1 tadan ' + H.som(jami))));
+    k.append(h('div', { class: 'firma-jami' }, h('b', {}, shu.length + ' ta dori'), h('span', { class: 'muted' }, asl(F.tanlov), '\'da eng arzon · har biridan 1 tadan ' + H.som(jami))));
     const l = h('div', { class: 'list' });
     shu.forEach(({ r, nomlar: ns }) => l.append(h('button', { type: 'button', class: 'item firma-q', onclick: () => narxSheet(ns[0], r) },
       h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '' }, r[0].nom), h('b', {}, H.som(r[0].yuz))),
@@ -246,7 +248,7 @@ function firmaSheet(ctx, chiz, fayl, firmaOldin) {
     const inp = input('Firma nomi', { value: taxmin, placeholder: 'Masalan: Grand Pharm', maxlength: '60', inputmode: 'text', pul: false });
     box.append(h('div', { class: 'muted', 'data-asl': '' }, fayl.nom), inp.el);
     if (bor.length) box.append(h('div', { class: 'muted' }, 'Yoki bori:'), h('div', { class: 'row', style: 'flex-wrap:wrap' },
-      ...bor.map((f) => h('button', { type: 'button', class: 's', onclick: () => { inp.i.value = f; inp.xato(''); } }, f))));
+      ...bor.map((f) => h('button', { type: 'button', class: 's', onclick: () => { inp.i.value = f; inp.xato(''); } }, asl(f)))));
     const holat = h('div', { class: 'muted', role: 'status' });
     const tugma = h('button', { class: 'p' }, 'Faylni o\'qish');
     box.append(holat, tugma);
@@ -313,7 +315,7 @@ export function firmaPrayslarView(m, ctx) {
       h('button', { class: 's', onclick: () => tasdiqlash(r.firma + ' praysi o\'chirilsinmi?').then((ha) => ha && ctx.amal('firmaOchir', r.firma)
         .then((x) => { if (x == null) return; close(); return firmalarOl(ctx, true).then(chiz, chiz); })) }, 'Praysni o\'chirish'));
   }, { fokus: false }) },
-  h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', {}, r.firma), h('span', { class: 'muted' }, r.soni + ' ta dori')),
+  h('div', { class: 'line', style: 'border:0;padding:0' }, h('b', { 'data-asl': '' }, r.firma), h('span', { class: 'muted' }, r.soni + ' ta dori')),
   h('div', { class: 'muted' + (r.kun > 7 ? ' firma-eski' : '') }, 'Yuklangan: ' + r.yuklandi + (r.kun > 7 ? ' — ' + r.kun + ' kun oldin, yangilang' : '')))));
   // Narx qidirish (hamma firmalar): nom bo'yicha, arzonidan.
   if (F.royxat.length) {
@@ -339,7 +341,7 @@ export function firmaPrayslarView(m, ctx) {
       r.sort((a, b) => a.yuz - b.yuz);
       r.slice(0, 40).forEach((x) => natija.append(h('div', { class: 'item' },
         h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', { 'data-asl': '' }, x.nom), h('b', {}, H.som(x.yuz))),
-        h('div', { class: 'muted' }, x.firma + (x.kech ? ' · kechiktirilgan ' + H.som(x.kech) : '') + (x.muddat ? ' · ' + x.muddat : '')))));
+        h('div', { class: 'muted' }, asl(x.firma), (x.kech ? ' · kechiktirilgan ' + H.som(x.kech) : '') + (x.muddat ? ' · ' + x.muddat : '')))));
       if (!r.length) natija.append(h('div', { class: 'muted' }, 'Topilmadi'));
       else if (r.length > 40) natija.append(h('div', { class: 'muted' }, 'Yana ' + (r.length - 40) + ' ta — aniqroq yozing'));
     };

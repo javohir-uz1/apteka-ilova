@@ -765,7 +765,7 @@ function sozlaSheet(ctx, fil, chiz) {
 }
 
 // Sinov uchun (tests): modul holatini tozalash.
-export function osonUnut() { Object.assign(O, BOSH()); }
+export function osonUnut() { Object.assign(O, BOSH()); clearTimeout(sonTaymer); sonTaymer = 0; sonEskiChizildi = null; }
 
 // 07.11 tun: direktor global qidiruvidan — «Qaysi filialda bor?» shu so'z bilan ochiladi (chizilganda o'zi qidiradi).
 export function osonQidiruvQoy(soz) { Object.assign(O.qidir, { soz: String(soz || ''), j: null, jSoz: null, xato: null }); }
@@ -867,14 +867,49 @@ export function analogOyna(ctx, fil, d) {
 // 07.11 (yangi ko'rinish — Ombor bo'limi): kichik kartalardagi sonlar va to'g'ridan-to'g'ri bo'lim. Ma'lumot shu modul keshidan
 // (1 daqiqa); yuklanmagan bo'lsa — fonda olinadi va chiz() chaqiriladi. Hali kelmagan son — null.
 // Audit 10.11 kech: xatoda karta abadiy «…» qolardi — endi xato: true (tugayapti), muddatXato: true; osonSonQayta — qayta urinish.
+// Audit 10.11 (A4 №3, B4 №3): Ombor kartalari — 60 s dan eski bo'lsa fonda yangilanadi (muddat ro'yxati xatodan keyin ham, 60 s
+// o'tib), son yoki vaqt o'zgarsagina qayta chiziladi. Ombor ochiq turganda yengil taymer (60 s): yangilaydi va 45 daqiqalik eskirish
+// chegarasi o'tganda «⚠» chiqishi uchun qayta chizadi; ekranda kartalar ([data-oson-sonlar]) bo'lmasa — taymer to'xtaydi.
+function sonYangila(ctx, chiz) {
+  if (!O.j && !O.xato && !O.yuklanmoqda) yukla(ctx).then(() => keyinChiz(chiz), () => keyinChiz(chiz));
+  else if (O.j && !O.yuklanmoqda && Date.now() - O.vaqt > 60000) {
+    const oldin = O.j.vaqt + ':' + JSON.stringify(O.j.sanoq || {});
+    yukla(ctx).then(() => { if (O.j && O.j.vaqt + ':' + JSON.stringify(O.j.sanoq || {}) !== oldin) keyinChiz(chiz); });
+  }
+  const M = O.muddat;
+  const muddatEski = !(M.j && M.j.oy === M.oy) || Date.now() - M.vaqt > 60000;
+  if (O.j && !M.yuklanmoqda && muddatEski && (!M.xato || Date.now() - M.vaqt > 60000)) {
+    const oldinM = M.j && M.j.oy === M.oy ? M.j.q.length : null, xatoEdi = !!M.xato;
+    muddatYukla(ctx).then(() => { if (!(M.j && M.j.oy === M.oy) || M.j.q.length !== oldinM || xatoEdi !== !!M.xato) keyinChiz(chiz); });
+  }
+}
+const SON_TAYMER_MS = 60000;
+let sonTaymer = 0, sonEskiChizildi = null;
+function sonKuzat(ctx, chiz) {
+  if (sonTaymer || typeof setTimeout !== 'function') return;
+  sonTaymer = setTimeout(() => {
+    sonTaymer = 0;
+    if (typeof document === 'undefined' || !document.querySelector('[data-oson-sonlar]')) return;   // Ombor yopilgan — to'xtaydi
+    if (!document.hidden) {
+      sonYangila(ctx, chiz);
+      // Yangi ma'lumot kelmasa ham vaqt o'tib «eski» bo'lib qolishi mumkin — chegara o'tganda bir marta qayta chiziladi.
+      if (O.j && osonEskimi(O.j.vaqt) !== sonEskiChizildi) keyinChiz(chiz);
+    }
+    sonKuzat(ctx, chiz);
+  }, SON_TAYMER_MS);
+  if (sonTaymer && typeof sonTaymer.unref === 'function') sonTaymer.unref();
+}
 export function osonSonlar(ctx, chiz) {
   if (!ctx.server) return null;
-  if (!O.j && !O.xato && !O.yuklanmoqda) yukla(ctx).then(() => keyinChiz(chiz), () => keyinChiz(chiz));
+  sonYangila(ctx, chiz);
+  sonKuzat(ctx, chiz);
   const M = O.muddat;
-  if (O.j && !(M.j && M.j.oy === M.oy) && !M.yuklanmoqda && !M.xato) muddatYukla(ctx).then(() => keyinChiz(chiz));
+  if (O.j) sonEskiChizildi = osonEskimi(O.j.vaqt);
   const san = O.j && O.j.sanoq && O.j.sanoq[''];
   const muddat = M.j && M.j.oy === M.oy ? M.j.q.length : null;
+  // vaqt / eski — Oson ro'yxati vaqti (A4 №3: kartada «⚠» va ustida ogohlantirish).
   return { tugayapti: san ? (san.t || 0) + (san.k || 0) : null, muddat, qayta: () => osonSonQayta(ctx, chiz),
+    vaqt: O.j ? (O.j.vaqt == null ? null : O.j.vaqt) : undefined, eski: !!O.j && osonEskimi(O.j.vaqt),
     xato: !O.j && !!O.xato && !O.yuklanmoqda,
     // Muddat ro'yxati asosiy ro'yxatdan keyin so'raladi — u olinmasa, muddat ham «olinmadi».
     muddatXato: muddat == null && !M.yuklanmoqda && (!!M.xato || (!O.j && !!O.xato && !O.yuklanmoqda)) };

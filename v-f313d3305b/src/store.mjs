@@ -142,6 +142,7 @@ export async function serverga(amal, args, initData, kalit) {
   if (!res.ok) {
     const e = new Error(body.xato || (res.status >= 500 ? 'Server javob bermadi — biroz kutib, qayta urinib ko\'ring' : 'Server xatosi (' + res.status + ')'));
     e.status = res.status;
+    if (body && body.qaytaOch === true) e.qaytaOch = true;   // audit 11.11: «ilovani qayta oching» (yangi kirish talab)
     throw e;
   }
   return body;
