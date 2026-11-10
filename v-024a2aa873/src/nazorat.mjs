@@ -217,12 +217,42 @@ const HOLAT = {
 };
 const farqMatn = (o, k) => [(o >= k ? '+' : '−') + H.som(Math.abs(o - k)),
   k > 0 ? h('span', { class: 'nz-foiz' }, (o >= k ? '+' : '−') + Math.round(Math.abs(o - k) / k * 100) + '%') : null];
+// 10.11 kech (egasi: "farqni karta yoki naqd ham ajratib ko'rinishi kerak"): Oson KASSA smenalari bo'yicha aniq naqd va karta.
+// farq = kiritilgan − Oson (manfiy — KAM; Kassa nazorati bilan bir xil); 1 000 so'mgacha — mos.
+const KASSA_MOS = 1000;
+const kassaFarqEl = (farq, cheg) => (farq == null ? h('b', {}, '—')
+  : Math.abs(farq) <= KASSA_MOS ? h('b', { class: 'nz-kassa-mos' }, '✓ mos')
+    : h('b', { class: farq < 0 && -farq > cheg ? 'pul-zarar' : 'pul-kam' }, (farq < 0 ? 'kam ' : 'ortiqcha ') + H.som(Math.abs(farq))));
+const kassaQator = (nom, kir, oson, farq, cheg) => h('div', { class: 'nz-kassa' }, h('b', { class: 'nz-kassa-n' }, nom),
+  h('span', {}, 'kiritilgan ', h('b', {}, H.som(kir))), h('span', {}, 'Oson ', h('b', {}, H.som(oson))), kassaFarqEl(farq, cheg));
+// Bir kun (shu kun yopilgan Oson smenalari ↔ shu kunga kiritilgan savdo): naqd (kiritilgan + o'tkazma + qarz) va karta.
+function kassaKunEl(x, cheg) {
+  const e = h('div', { class: 'nz-kassa-kun' });
+  if (x.kiritildi) {
+    const qosh = [x.otkazma > 0 ? 'o\'tkazma ' + H.som(x.otkazma) : '', x.qarz > 0 ? 'qarz ' + H.som(x.qarz) : ''].filter(Boolean).join(', ');
+    e.append(kassaQator('Naqd', x.kNaqd + x.otkazma + x.qarz, x.oNaqd, x.naqdFarq, cheg), kassaQator('Karta', x.kKarta, x.oKarta, x.kartaFarq, cheg));
+    if (qosh) e.append(h('div', { class: 'muted nz-kassa-iz' }, 'Naqdga qo\'shildi: ' + qosh));
+    if (x.kutilmoqda > 0) e.append(h('div', { class: 'muted nz-kassa-iz' }, 'Javob kutayotgan o\'tkazma ' + H.som(x.kutilmoqda) + ' — «Tushdi» bo\'lsa naqdga qo\'shiladi.'));
+  } else {
+    e.append(h('div', { class: 'muted nz-kassa-iz' }, 'Oson kassasi: naqd ' + H.som(x.oNaqd) + ', karta ' + H.som(x.oKarta) + ' — savdo kiritilmagan.'));
+  }
+  if (x.boshi) e.append(h('div', { class: 'muted nz-kassa-iz' }, 'Oson kassasi shu kundan o\'qila boshlagan — oldingi tungi smena yo\'q, to\'liq emas.'));
+  if (x.ochiq > 0) e.append(h('div', { class: 'muted nz-kassa-iz' }, 'Oson\'da smena hali ochiq — kun tugagach aniq bo\'ladi.'));
+  return e;
+}
+// Ajratiladi: to'liq kun (smena ochiq emas, o'qish shu kundan oldin boshlangan, bitta smena emas) va farq chegaradan katta.
+const kassaOgoh = (d, cheg) => {
+  const x = d.kassa;
+  if (!x || x.ochiq !== 0 || x.boshi || d.chala) return false;
+  const nf = Number(x.naqdFarq) || 0;
+  return (Math.abs(nf) > cheg && Math.abs(nf + (Number(x.kutilmoqda) || 0)) > cheg) || Math.abs(Number(x.kartaFarq) || 0) > cheg;
+};
 
 export function kassaView(m, ctx) {
   const chiz = () => ctx.rerender();
   kYukla(ctx, chiz);
-  m.append(h('div', { class: 'muted' }, 'Siz kiritgan kunlik savdo (naqd + karta) va Oson\'da sotilgan dorilar (qoldiq kamayishi × narx) solishtiriladi. '
-    + 'Oson odatda kamroq ko\'rsatadi — Oson bo\'yicha KO\'P sotilgan kun tekshirilsin: savdo to\'liq kiritilganmi, kassada kamomad yo\'qmi.'));
+  m.append(h('div', { class: 'muted' }, 'NAQD va KARTA — Oson kassasi smenalari bo\'yicha aniq: siz kiritgan savdo bilan alohida solishtiriladi '
+    + '(naqdga kartaga tushgan o\'tkazma va qarzga berilgan dori ham qo\'shiladi). «Oson (~)» — qoldiq kamayishi × narx bo\'yicha taxminiy.'));
   m.append(pills([[7, '7 kun'], [14, '14 kun'], [30, '30 kun']], K.kunlar, (v) => { K.kunlar = Number(v); kYukla(ctx, chiz, true); chiz(); }, 'Davr'));
   if (!K.j || K.jKalit !== K.kunlar) {
     m.append(K.xatoKalit === K.kunlar ? xatoKarta(K.xato, () => { K.xato = null; K.xatoKalit = 0; kYukla(ctx, chiz, true); chiz(); }) : yuklanmoqda('Hisoblanmoqda…'));
@@ -236,8 +266,17 @@ export function kassaView(m, ctx) {
   for (const f of j.filiallar) {
     const k = h('div', { class: 'card list' }, h('div', { class: 'line', style: 'border:0;padding:0' }, kartaSarlavha(f.nom, { 'data-asl': '' }),
       f.ogoh ? h('b', { class: 'pul-zarar' }, f.ogoh + ' kun tekshirilsin') : null));
+    const cheg = Number(f.chegara) || 100000;
+    const kj = f.kassaJami;
+    if (kj && kj.kun > 0) {
+      k.append(h('div', { class: 'nz-kassa-jami' }, h('div', { class: 'muted' }, 'Oson kassasi bo\'yicha (aniq), ' + kj.kun + ' kun:'),
+        kassaQator('Naqd', Number(kj.kNaqd), Number(kj.oNaqd), Number(kj.naqdFarq), cheg * kj.kun),
+        kassaQator('Karta', Number(kj.kKarta), Number(kj.oKarta), Number(kj.kartaFarq), cheg * kj.kun)));
+    } else if (f.kunlar.some((d) => d.kassa)) {
+      k.append(h('div', { class: 'muted' }, 'Oson kassasi bo\'yicha to\'liq kun hali yo\'q (smena ochiq yoki savdo kiritilmagan) — kunlar ostida qarang.'));
+    }
     if (!f.korinadi) {
-      k.append(h('div', { class: 'msg warn' }, 'Bu filialda Oson\'da sotuv deyarli ko\'rinmaydi — solishtirib bo\'lmaydi. Sotuv Oson orqali o\'tyaptimi — aptekada tekshiring.'));
+      k.append(h('div', { class: 'msg warn' }, 'Bu filialda Oson qoldig\'idan sotuv deyarli ko\'rinmaydi — taxminiy (~) solishtirib bo\'lmaydi. Sotuv Oson orqali o\'tyaptimi — aptekada tekshiring.'));
     } else if (f.jami.kun > 0) {
       const o = Number(f.jami.oson), kir = Number(f.jami.kiritilgan);
       k.append(h('div', { class: 'nz-jami' }, h('div', {}, h('span', { class: 'muted' }, 'Kiritilgan'), h('b', {}, H.som(kir))),
@@ -250,17 +289,21 @@ export function kassaView(m, ctx) {
         + (f.kuzatildi ? ' (Oson sotuvi ' + sana(f.kuzatildi) + ' dan kuzatilmoqda)' : '') + '.'));
     }
     const kunlar = K.ochiq[f.f] ? f.kunlar : f.kunlar.slice(0, 7);
-    if (f.korinadi) {
+    // Audit 10.11 kech: taxminiy sotuv ko'rinmaydigan filialda ham Oson kassasi bo'yicha kunlar ko'rinadi (qaysi kun — topilsin).
+    if (f.korinadi || f.kunlar.some((d) => d.kassa)) {
       // Har kun — ikki qator (tor ekranda summa bo'linmasin): sana va holat; kiritilgan va Oson.
       kunlar.forEach((d) => {
         // Savdo kiritilmagan, Oson sotuvi kichik — «✓» emas, «kiritilmagan» (kulrang).
-        const [matn, cls] = d.holat === 'yaxshi' && d.kiritilgan == null ? ['Savdo kiritilmagan', 'nz-holat tm'] : HOLAT[d.holat] || ['', 'nz-holat'];
-        const ogoh = d.holat === 'kop' || d.holat === 'kiritilmagan' || d.holat === 'yopiqda_sotuv';
+        let [matn, cls] = d.holat === 'yaxshi' && d.kiritilgan == null ? ['Savdo kiritilmagan', 'nz-holat tm'] : HOLAT[d.holat] || ['', 'nz-holat'];
+        // Kassa bo'yicha aniq qatorlar bor — taxminiy «✓ Mos» yashil belgisi qizil «kam» yonida chalg'itmasin.
+        if (d.holat === 'yaxshi' && d.kassa && d.kassa.kiritildi) [matn, cls] = ['Taxminiy: mos', 'nz-holat tm'];
+        const ogoh = (f.korinadi && (d.holat === 'kop' || d.holat === 'kiritilmagan' || d.holat === 'yopiqda_sotuv')) || kassaOgoh(d, cheg);
         k.append(h('div', { class: 'nz-kun' + (ogoh ? ' nz-ogoh' : '') },
           h('div', { class: 'nz-kun-b' }, h('b', {}, haftaKuni(d.kun) + ', ' + kunMatn(d.kun)),
-            h('span', { class: cls }, d.holat === 'kop' ? 'Oson bo\'yicha +' + H.som(d.oson - d.kiritilgan) : matn)),
-          h('div', { class: 'nz-kun-s' }, h('span', {}, 'Kiritilgan: ', h('b', {}, d.kiritilgan == null ? '—' : H.som(d.kiritilgan))),
-            h('span', {}, 'Oson: ', h('b', {}, d.toliq || d.oson ? '~' + H.som(d.oson) : '—')))));
+            f.korinadi ? h('span', { class: cls }, d.holat === 'kop' ? 'Oson bo\'yicha +' + H.som(d.oson - d.kiritilgan) : matn) : null),
+          f.korinadi ? h('div', { class: 'nz-kun-s' }, h('span', {}, 'Kiritilgan: ', h('b', {}, d.kiritilgan == null ? '—' : H.som(d.kiritilgan))),
+            h('span', {}, 'Oson: ', h('b', {}, d.toliq || d.oson ? '~' + H.som(d.oson) : '—'))) : null,
+          d.kassa ? kassaKunEl(d.kassa, cheg) : null));
       });
       if (f.kunlar.length > 7) k.append(h('button', { type: 'button', class: 'oq-yana', onclick: () => { K.ochiq[f.f] = !K.ochiq[f.f]; chiz(); } }, K.ochiq[f.f] ? 'Yig\'ish ▴' : 'Yana ' + (f.kunlar.length - 7) + ' kun ▾'));
     }

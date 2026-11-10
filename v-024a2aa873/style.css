@@ -1911,3 +1911,44 @@ html.matn-katta .buy-qator .buy-holat, html.matn-katta button.buy-tur-t { font-s
 .belgi.muted { color: var(--muted); background: var(--fill); }
 .chiq-q .belgi.oson-b { align-self: flex-start; }
 html.matn-katta .buy-hafta-s, html.matn-katta .buy-hafta-iz { font-size: 14px; }
+/* 10.11 tun: kassa nazorati (kassa.mjs) — kartaga o'tkazma so'rovi, javob, naqd/karta qatorlari, qoldiq. */
+.otk-q { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: .5px solid var(--sep); }
+.otk-s { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.otk-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.otk-summa { font-size: 19px; }
+.otk-javob .row { display: flex; gap: 10px; }
+.otk-javob .row > button { flex: 1; min-height: 48px; }
+.kassa-q { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-top: .5px solid var(--sep); }
+.kassa-q:first-of-type { border-top: 0; }
+.kassa-n { font-size: 14px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.kassa-t { display: inline-block; min-width: 52px; font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); }
+.kassa-o { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.line.kassa-qoldiq { align-items: center; }
+.savdo-naqd-k b { font-size: 17px; }
+.savdo-karta-k { padding-top: 6px; border-top: .5px solid var(--sep); }
+/* 10.11 kunduz: kelgan dorilar (kirim.mjs) — Oson'da filialga ko'chirilgan dorilarni sanash. */
+.kirim-q { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: .5px solid var(--sep); }
+.kirim-s { overflow-wrap: anywhere; }
+.kirim-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.kirim-h > button.p { min-height: 44px; }
+.kirim-sarlavha { font-size: 17px; overflow-wrap: anywhere; }
+.kirim-royxat { display: flex; flex-direction: column; }
+.kirim-qator { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border-top: .5px solid var(--sep);
+  overflow-wrap: anywhere; }
+.kirim-qator b { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.kirim-qator.farq { color: var(--red); }
+.kirim-maydon input { max-width: 140px; }
+.kirim-tugma { display: flex; gap: 10px; }
+.kirim-tugma > button { flex: 1; min-height: 48px; }
+.kirim-sinx { padding: 10px 12px; border-radius: 12px; background: var(--info-bg); color: var(--info); font-weight: 600; overflow-wrap: anywhere; }
+.kirim-hal { display: flex; flex-direction: column; gap: 10px; }
+.kirim-maydon-joy { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: .5px solid var(--sep); }
+.kirim-maydon > span:first-child { color: var(--ink); font-size: 16px; overflow-wrap: anywhere; }
+/* 10.11 kech: Kassa ↔ Oson — Oson kassasi bo'yicha naqd va karta alohida (nazorat.mjs). */
+.nz-kassa-kun { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.nz-kassa-jami { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-bottom: .5px solid var(--sep); }
+.nz-kassa { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 15px; font-variant-numeric: tabular-nums; }
+.nz-kassa-n { min-width: 48px; }
+.nz-kassa > b:last-child { margin-left: auto; }
+.nz-kassa-mos { color: var(--kirim); }
+.nz-kassa-iz { font-size: 13px; }
