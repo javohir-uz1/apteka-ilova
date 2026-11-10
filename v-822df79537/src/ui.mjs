@@ -153,6 +153,8 @@ function orqagaYangila() {
   } catch (e) { /* eski Telegram */ }
 }
 export function orqagaQoy(fn) { panelOrqaga = typeof fn === 'function' ? fn : null; orqagaYangila(); }
+// Oyna ichiga keyin yozish maydoni qo'shilsa (masalan «Farq bor») — pastga surib yopishda Telegram so'rashi qayta hisoblanadi.
+export function yopishSorovYangila() { orqagaYangila(); }
 export function orqagaBos() {
   const o = oynalar[oynalar.length - 1];
   // 07.11: ko'p qadamli oyna (qarz yozish) — «orqaga» avval oldingi qadamga (o.orqaga() true qaytarsa — oyna yopilmaydi).

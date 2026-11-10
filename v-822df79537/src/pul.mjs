@@ -344,6 +344,8 @@ export function buyurtmaView(m, ctx, fil) {
   // Audit 10.11 kech: tavsiya qaysi Oson ro'yxatidan — eskirgan bo'lsa sariq; yangilash xatosi — jim emas.
   const kalit = B.zaxira + ':' + B.yetkazish;
   if (j.vaqt !== undefined) m.append(osonVaqtEl(j.vaqt, { izoh: 'tavsiya eski qoldiqdan — aptekadagi kompyuterda Oson admin\'ni oching' }));
+  // 3-audit: yangi hisob xatosi — ro'yxat tepasida (500 qator tagida ko'rinmasdi).
+  if (j.hisob2Xato) m.append(h('div', { class: 'msg warn' }, 'Yangi hisobda xato bo\'ldi — ro\'yxat eski usulda (Oson qoldig\'i kamayishidan) hisoblandi.'));
   if (B.xato && B.xatoKalit === kalit) m.append(yangilanmadiEl(B.xato, () => { B.xato = null; B.xatoKalit = ''; bYukla(ctx, chiz, true); chiz(); }));
   const kuzKun = j.kuzatuv ? (Date.now() - j.kuzatuv) / 864e5 : 0;
   if (kuzKun < 14) {
@@ -400,7 +402,11 @@ export function buyurtmaView(m, ctx, fil) {
       } }, 'Qaytarish') : null)), { k: 'buy-yashir', izoh: 'vaqti tugaguncha ro\'yxatda chiqmaydi' }));
   }
   m.append(h('div', { class: 'muted' }, 'Qatorga bosing — nega shuncha quti ekanini ko\'rasiz. Chiziq — dori necha kunga yetishi (to\'la chiziq = zaxira + yetkazish kunlari). '
-    + 'Sotuv — Oson qoldig\'i kamaygani; muddati yaqin va «Muzlagan pul»dagi dorilarni ko\'p olmang.'));
+    // Audit 2: ba'zi filialda hali Oson tarixi yo'q (eski hisob) — matn qatorlarning o'z manbasiga qarab.
+    + (j.qatorlar.length && j.qatorlar.every((q) => q.manba === 'oson') ? 'Sotuv — Oson hisobotidan (so\'nggi 8 hafta' + (j.tarixVaqt ? ', ' + sana(j.tarixVaqt) + ' da o\'qilgan' : '') + '); '
+      : j.qatorlar.some((q) => q.manba === 'oson') ? 'Sotuv — Oson hisobotidan (so\'nggi 8 hafta); tarixi hali kelmagan filialda — Oson qoldig\'i kamaygani (taxminiy); '
+        : 'Sotuv — Oson qoldig\'i kamaygani (taxminiy); ')
+    + 'muddati yaqin va «Muzlagan pul»dagi dorilarni ko\'p olmang.'));
   // (3) Pastki panel: savatdagi dorilar (hamma filial) — «Buyurtma tayyorlash».
   const tan = j.qatorlar.filter(tanlanganmi);
   const tp = pulJami(tan, fm);
@@ -442,7 +448,8 @@ function doriOyna(ctx, x, fil, chiz) {
       const soni = qSoni(x), on = tanlanganmi(x), f = qFirma(x, fm), n = qutiNarx(x, f);
       ich.append(h('div', { class: 'muted' }, asl(filNom(fil, x)), ' · ' + (t === 'tugagan' ? 'hozir tugagan' : 'hozir ' + qoldiqMatn(x.qoldiq, x.dona) + ' bor')));
       ich.append(h('div', { class: 'buy-javob' }, h('b', {}, 'Bugun ' + x.kerak + ' quti buyurtma bering'),
-        h('span', {}, kunlik > 0 ? 'Firma ' + yk + ' kunda olib keladi, bu qutilar keyingi ' + Math.max(1, jk - yk) + ' kunga yetadi.'
+        h('span', {}, kunlik > 0 && x.sekin ? (x.kerak > 1 ? 'Sekin sotiladi — bu qutilar uzoq yetadi.' : 'Sekin sotiladi — bu quti uzoq yetadi.')
+          : kunlik > 0 ? 'Firma ' + yk + ' kunda olib keladi, bu qutilar keyingi ' + Math.max(1, jk - yk) + ' kunga yetadi.'
           : 'Xodimlar defekturada so\'ragan — sotuv hali ko\'rinmadi.')));
       const ke = kunlarEl(ctx, x, fil, t, yk, jk, qayta);
       if (ke) ich.append(ke);
@@ -453,6 +460,8 @@ function doriOyna(ctx, x, fil, chiz) {
       const fakt = buyFaktlar(x);
       if (fakt.length) nega.append(h('div', { class: 'muted buy-fakt' }, fakt.join(' ')));
       ich.append(nega);
+      const he = haftalarEl(x);
+      if (he) ich.append(he);
       ich.append(firmaTanlov(x, fm, f, () => { chiz(); qayta(); }));
       const yangiSon = (v) => { qQoy(x, { s: v === Math.round(Number(x.kerak)) ? undefined : v }); chiz(); qayta(); };
       ich.append(h('div', { class: 'buy-son-q' },
@@ -526,11 +535,29 @@ function sorovEl(ctx, x, sor, nom, n, qayta) {
   } }, nom + 'dan ' + n + ' quti so\'rash');
   return b;
 }
+// So'nggi 8 hafta sotuvi (Oson hisobotidan): ustunlar — eng eskisidan; balandlik CSSOM orqali (style atributi CSP'da yopiq bo'lishi mumkin).
+export function haftalarEl(x) {
+  const hs = Array.isArray(x.haftalar) ? x.haftalar.map((v) => Math.max(0, Number(v) || 0)) : null;
+  if (!hs || hs.length !== 8 || !hs.some((v) => v > 0)) return null;
+  const mx = Math.max(...hs);
+  // Audit 10.11: o'nlik vergul bilan sonlar «; » bilan ajratiladi (ekran o'quvchida «1,5, 2» chalkashmasin); ustun o'z yo'lagida.
+  const ust = h('div', { class: 'buy-hafta', role: 'img', 'aria-label': 'So\'nggi 8 hafta sotuvi, eng eskisidan: ' + hs.map(kasr).join('; ') + ' quti' });
+  hs.forEach((v, i) => {
+    const bar = h('span', { class: 'buy-hafta-b' + (i === 7 ? ' oxirgi' : '') });
+    bar.style.height = Math.max(4, Math.round(v / mx * 100)) + '%';
+    ust.append(h('span', { class: 'buy-hafta-u', 'aria-hidden': 'true' }, h('span', { class: 'buy-hafta-s' }, kasr(v)), h('span', { class: 'buy-hafta-y' }, bar)));
+  });
+  return h('section', { class: 'card buy-haftalar' }, h('h3', {}, 'So\'nggi 8 hafta sotuvi (quti)'), ust,
+    h('div', { class: 'buy-hafta-iz muted' }, h('span', {}, '8 hafta oldin'), h('span', {}, 'oxirgi 7 kun')));
+}
 export function buyFaktlar(x) {
   const f = [];
+  if (x.manba === 'oson') f.push('Sotuv — Oson hisobotidan, so\'nggi 8 hafta (oxirgi haftalar og\'irroq).');
+  if (x.sekin) f.push('Haftasiga 1 qutidan kam sotiladi — faqat tugaganda yoki so\'ralganda olinadi.');
   if (Number(x.yoqKun) >= 1) f.push(sonM(x.yoqKun) + ' kun dori tugab turgan — o\'sha kunlar hisobga olinmadi (aks holda sotuv kam ko\'rinardi).');
   if (Number(x.xavf) > 0) f.push((x.abc === 'A' ? 'Ko\'p' : 'Yaxshi') + ' pul keltiradigan dori — zaxiraga +' + x.xavf + ' kun qo\'shildi.');
-  if (TUR_NOMI[x.tur]) f.push('Har kuni sotilmaydi — biroz kamroq olindi.');
+  // Yangi hisobda (manba oson) notekis sotuv kamaytirilmaydi — aksincha, xavfsizlik zaxirasi kattaroq bo'ladi.
+  if (TUR_NOMI[x.tur] && !x.sekin) f.push(x.manba === 'oson' ? 'Sotuvi haftadan haftaga bir xil emas — xavfsizlik zaxirasi shunga qarab kattaroq.' : 'Har kuni sotilmaydi — biroz kamroq olindi.');
   const km = kutilganMatn(x);
   if (km) f.push('Kutilgan qoldiq: ' + km + ' (yo\'lda — buyurtma berilgan, hali kelmagan; bron — mijozlar bron qilgan).');
   if (x.firmaN >= 3 && x.firmaKun != null) f.push((x.firma || 'Firma') + ' odatda ' + sonM(x.firmaKun) + ' kunda olib keladi — shu hisobga olindi.');
@@ -670,9 +697,19 @@ function sozlashOyna(j, chiz) {
         h('div', { class: 'muted' }, 'Firma 3 va undan ko\'p marta olib kelgan bo\'lsa — uning haqiqiy vaqti olinadi'
           + (Array.isArray(j.firmalar) && j.firmalar.length ? ' (pastda).' : '.')));
       if (Array.isArray(j.firmalar) && j.firmalar.length) ich.append(firmalarKarta(j.firmalar));
-      ich.append(yordam('Har dori uchun oxirgi 30 kunda kuniga necha quti sotilgani olinadi; dori tugab turgan kunlar hisobga olinmaydi. '
-        + 'Olish = zaxira va yetkazish kunlarida sotiladigan qutilar + xodimlar defekturada so\'ragan − javonda bor − yo\'ldagi (buyurtma berilgan, hali kelmagan) '
-        + '+ mijozlar bron qilgani. Ko\'p pul keltiradigan dorilarga 1–3 kun qo\'shimcha zaxira qo\'shiladi, har kuni sotilmaydigan dorilar biroz kamroq olinadi.',
+      // 3-audit: aralash (ba'zi filialda tarix hali yo'q) — matn qatorlarga qarab.
+      const osonBor = Array.isArray(j.qatorlar) && j.qatorlar.some((q) => q.manba === 'oson');
+      const aralash = osonBor && j.qatorlar.some((q) => q.manba !== 'oson');
+      ich.append(yordam(osonBor
+        ? 'Sotuv — Oson hisobotidan, so\'nggi 8 hafta: kuniga necha quti (oxirgi haftalar og\'irroq), dori tugab turgan kunlar hisobga olinmaydi. '
+          + 'Dori faqat firma kelguncha qoldig\'i xavfli darajaga tushadigan bo\'lsa chiqadi (buyurtma nuqtasi). '
+          + 'Olish = (yetkazish + zaxira kunlari) sotuvi + xavfsizlik zaxirasi + xodimlar defekturada so\'ragan − javonda bor − yo\'ldagi + bron. '
+          + 'Xavfsizlik zaxirasi — sotuv qanchalik notekisligiga va dori qancha pul keltirishiga qarab (ko\'p pul keltiradiganiga ko\'proq). '
+          + 'Haftasiga 1 qutidan kam sotiladigan dori — faqat tugaganda yoki so\'ralganda olinadi (kamida 1 quti).'
+          + (aralash ? ' Sotuv tarixi hali kelmagan filialda — Oson qoldig\'i kamaygani (taxminiy).' : '')
+        : 'Har dori uchun oxirgi 30 kunda kuniga necha quti sotilgani olinadi; dori tugab turgan kunlar hisobga olinmaydi. '
+          + 'Olish = zaxira va yetkazish kunlarida sotiladigan qutilar + xodimlar defekturada so\'ragan − javonda bor − yo\'ldagi (buyurtma berilgan, hali kelmagan) '
+          + '+ mijozlar bron qilgani. Ko\'p pul keltiradigan dorilarga 1–3 kun qo\'shimcha zaxira qo\'shiladi, har kuni sotilmaydigan dorilar biroz kamroq olinadi.',
         'Qanday hisoblanadi?'));
       ich.append(h('button', { type: 'button', class: 'p katta', onclick: () => {
         if (z !== B.zaxira || y !== B.yetkazish) { B.zaxira = z; B.yetkazish = y; B.ochiq = {}; lsQoy(SOZ_K, { zaxira: z, yetkazish: y }); chiz(); }
@@ -691,13 +728,18 @@ const kasr = (n) => String(Math.round(Number(n) * 10) / 10).replace('.', ',');
 // joiz; kutilgan manfiy bo'lsa (bron qoldiqdan ko'p) — «+ bron qilingan»; yo'lda yoki bron bo'lsa — «kutilgan qoldiq» (javondagi emas).
 export function buyHisob(x) {
   if (x.jamiKun == null || x.kunlik == null) return null;
+  // 10.11 tun (server 20261110210000): Oson sotuv tarixi bilan — xavfsizlik zaxirasi ham qo'shiladi (server 2 xonagacha yaxlitlaydi).
   const sotuv = Number(x.kunlik) * Number(x.jamiKun), bor = Number(x.kutilgan != null ? x.kutilgan : x.qoldiq) || 0, talab = Number(x.talab) || 0;
-  const tol = 0.005 * Number(x.jamiKun) + 1e-9;
+  // Sekin dori (server: kamida 1, xavfsiz qo'shilmaydi) — audit 10.11.
+  const ss = !x.sekin && Number(x.xavfsiz) > 0 ? Number(x.xavfsiz) : 0;
+  const tol = 0.005 * Number(x.jamiKun) + (ss ? 0.005 : 0) + 1e-9;
   const k = Number(x.kerak);
-  if (!(k >= Math.ceil(sotuv - tol - bor + talab - 1e-9) && k <= Math.ceil(sotuv + tol - bor + talab - 1e-9))) return null;
+  const ham = sotuv + ss - bor + talab;
+  if (!(k >= Math.ceil(ham - tol - 1e-9) && k <= Math.ceil(ham + tol - 1e-9)) && !(x.sekin && k === 1 && Math.ceil(ham + tol - 1e-9) <= 1)) return null;
   const kutilganmi = x.kutilgan != null && (Number(x.yolda) > 0 || Number(x.bron) > 0);
   const q = [];
   if (sotuv > 0) q.push(x.jamiKun + ' kunlik sotuv ' + kasr(sotuv));
+  if (ss > 0) q.push('+ xavfsizlik zaxirasi ' + kasr(ss));
   if (talab > 0) q.push((q.length ? '+ ' : '') + 'xodimlar so\'ragan ' + talab);
   if (bor > 0) q.push('− ' + (kutilganmi ? 'kutilgan qoldiq ' : 'hozir bor ') + kasr(bor));
   if (bor < 0) q.push((q.length ? '+ ' : '') + 'bron qilingan ' + kasr(-bor));
@@ -712,6 +754,7 @@ export function buyHisobQator(x) {
   const kutilganmi = x.kutilgan != null && (Number(x.yolda) > 0 || Number(x.bron) > 0);
   const r = [];
   if (sotuv > 0) r.push([x.jamiKun + ' kunda sotiladi (kuniga ' + kasr(x.kunlik) + ')', kasr(sotuv) + ' quti']);
+  if (!x.sekin && Number(x.xavfsiz) > 0) r.push(['Xavfsizlik zaxirasi (sotuv bir tekis bo\'lmagani uchun)', '+ ' + kasr(x.xavfsiz) + ' quti']);
   if (talab > 0) r.push(['Xodimlar defekturada so\'ragan', '+ ' + talab + ' quti']);
   if (bor > 0) r.push([kutilganmi ? 'Bor + yo\'lda (kutilgan)' : 'Javonda bor', '− ' + kasr(bor) + ' quti']);
   if (bor < 0) r.push(['Bron qilingan', '+ ' + kasr(-bor) + ' quti']);

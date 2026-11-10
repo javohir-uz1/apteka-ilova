@@ -1892,3 +1892,55 @@ label.buy-firma-q input { width: 22px; height: 22px; margin: 0; accent-color: va
 button.buy-telefon { min-height: 44px; font-size: 15px; }
 html.matn-katta .buy-qator .buy-nom { font-size: 18px; } html.matn-katta .buy-meta, html.matn-katta .buy-ogoh, html.matn-katta .buy-kun-izoh { font-size: 15px; }
 html.matn-katta .buy-qator .buy-holat, html.matn-katta button.buy-tur-t { font-size: 16px; }
+
+/* =====================================================================================================================
+   OSON QO'SHIMCHA (10.11 tun): Aqlli buyurtmada so'nggi 8 hafta sotuvi ustunlari, «Savdo kiritish»da Oson kassasi taklifi,
+   hisobdan chiqarishda Oson belgisi. Ranglar — mavjud tokenlar (kontrast ≥ 4,5:1), teginish ≥ 44 px.
+   ===================================================================================================================== */
+.buy-haftalar { gap: 8px; }
+.buy-hafta { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; align-items: end; height: 96px; }
+.buy-hafta-u { display: flex; flex-direction: column; align-items: stretch; height: 100%; gap: 2px; min-width: 0; }
+.buy-hafta-y { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; min-height: 0; }
+.buy-hafta-s { font-size: 12px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.buy-hafta-b { display: block; border-radius: 4px 4px 2px 2px; background: #5E9E94; min-height: 4px; }   /* oq fonda 3,1:1 */
+.buy-hafta-b.oxirgi { background: var(--accent); }
+.buy-hafta-iz { display: flex; justify-content: space-between; font-size: 12px; }
+.savdo-oson:empty { display: none; }
+.card.savdo-oson-k { gap: 6px; background: var(--soft); box-shadow: none; }
+.card.savdo-oson-k button.s { align-self: flex-start; }
+.belgi.muted { color: var(--muted); background: var(--fill); }
+.chiq-q .belgi.oson-b { align-self: flex-start; }
+html.matn-katta .buy-hafta-s, html.matn-katta .buy-hafta-iz { font-size: 14px; }
+/* 10.11 tun: kassa nazorati (kassa.mjs) — kartaga o'tkazma so'rovi, javob, naqd/karta qatorlari, qoldiq. */
+.otk-q { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: .5px solid var(--sep); }
+.otk-s { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.otk-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.otk-summa { font-size: 19px; }
+.otk-javob .row { display: flex; gap: 10px; }
+.otk-javob .row > button { flex: 1; min-height: 48px; }
+.kassa-q { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-top: .5px solid var(--sep); }
+.kassa-q:first-of-type { border-top: 0; }
+.kassa-n { font-size: 14px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.kassa-t { display: inline-block; min-width: 52px; font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); }
+.kassa-o { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.line.kassa-qoldiq { align-items: center; }
+.savdo-naqd-k b { font-size: 17px; }
+.savdo-karta-k { padding-top: 6px; border-top: .5px solid var(--sep); }
+/* 10.11 kunduz: kelgan dorilar (kirim.mjs) — Oson'da filialga ko'chirilgan dorilarni sanash. */
+.kirim-q { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: .5px solid var(--sep); }
+.kirim-s { overflow-wrap: anywhere; }
+.kirim-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.kirim-h > button.p { min-height: 44px; }
+.kirim-sarlavha { font-size: 17px; overflow-wrap: anywhere; }
+.kirim-royxat { display: flex; flex-direction: column; }
+.kirim-qator { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border-top: .5px solid var(--sep);
+  overflow-wrap: anywhere; }
+.kirim-qator b { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.kirim-qator.farq { color: var(--red); }
+.kirim-maydon input { max-width: 140px; }
+.kirim-tugma { display: flex; gap: 10px; }
+.kirim-tugma > button { flex: 1; min-height: 48px; }
+.kirim-sinx { padding: 10px 12px; border-radius: 12px; background: var(--info-bg); color: var(--info); font-weight: 600; overflow-wrap: anywhere; }
+.kirim-hal { display: flex; flex-direction: column; gap: 10px; }
+.kirim-maydon-joy { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: .5px solid var(--sep); }
+.kirim-maydon > span:first-child { color: var(--ink); font-size: 16px; overflow-wrap: anywhere; }
