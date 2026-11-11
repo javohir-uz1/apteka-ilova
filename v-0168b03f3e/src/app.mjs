@@ -10,7 +10,7 @@ import { renderPunkt } from './punkt.mjs';
 import { serverSorovi, sinovdaBajar } from './ishlar.mjs';
 import { bandBolsaQayta, kutayotganKuzat, kutayotganMatn, kutayotganTashlangan, qoidaXatosi, sorovchi, urinishMatni } from './sorov.mjs';
 import { qarzXabari } from './xabar.mjs';
-import { guruhXato, h, holatniEsla, holatniTikla, input, ishQator, kartaSarlavha, kunNomi, mavzu, nav, ochiladi, otishdami, oynalarYopilganda, oyKey, orqagaQoy, pills, sahifaOtish, sana, sheet, svg, tasdiqlash, tgKechiktir, tgOrqagaUlash, toast, unut, vaqt, xatoJoyla, yordam, yozuvTugma } from './ui.mjs';
+import { guruhXato, h, holatniEsla, holatniTikla, input, ishQator, kartaSarlavha, kunNomi, mavzu, nav, ochiladi, otishdami, oynalarYopilganda, oyKey, orqagaQoy, pills, qaytaOchOynaga, qaytaOchXatomi, sahifaOtish, sana, sheet, svg, tasdiqlash, tgKechiktir, tgOrqagaUlash, toast, unut, vaqt, xatoJoyla, yordam, yozuvTugma } from './ui.mjs';
 import { KIRILL, kirillDom, kirillKuzat, kirillYut, yozuvKirillmi } from './kirill.mjs';
 import { renderDirektor } from './direktor.mjs';
 import { renderTaminotchi } from './taminotchi.mjs';
@@ -54,7 +54,8 @@ let raqamKerak = false, raqamKutish = false;
 let band = false;    // server so'rovi ketyapti — ikki marta bosilmasin
 // Sinov rejimi: boshqa tab saqlasa — shu tab eski nusxa bilan ustidan yozmasin.
 if (!SERVER) window.addEventListener('storage', (e) => { if (e.key === 'apteka-demo-v1') { S = yukla(); rerender({ fon: true }); } });
-let kim = SERVER ? null : sessionStorage.getItem('apteka-kim');   // sinov rejimi: Telegram kirishi o'rniga
+let kim = null;
+if (!SERVER) { try { kim = sessionStorage.getItem('apteka-kim'); } catch (e) { /* saqlash bloklangan brauzer */ } }   // sinov rejimi: Telegram kirishi o'rniga
 let tab = 'bosh';
 let dTab = 'kam';   // xodim → Dorilar ichidagi bo'lim
 const root = document.getElementById('app');
@@ -152,7 +153,10 @@ async function bajar(nom, args, xatoQoy) {
     haptik('xato');
     oxirgiXato = { tur: xatoTuri(e), matn: e && e.message };
     // Maydon tagiga — faqat qoida xatosi; tarmoq/server/kirish xatosi — umumiy xabar.
-    if (!(xatoQoy && qoidaXatosi(e) && xatoQoy(e.message))) toast(e.message, 'xato');
+    // 10.11 (yangi kirish): server «ilovani yoping, qayta oching» desa — maydon tagiga emas: oyna tepasida va doimiy banner
+    // («Ilovani yopish» bilan); oyna yopilmaydi — yozilganlar joyida qoladi.
+    if (SERVER && qaytaOchXatomi(e)) qaytaOchKorsat();
+    else if (!(xatoQoy && qoidaXatosi(e) && xatoQoy(e.message))) toast(e.message, 'xato');
     eskirdiTekshir(e);
     // Audit 09.11: qoida xatosi ko'pincha «holat o'zgardi» (boshqa xodim yozdi, mijoz botda tasdiqladi) — ekran fonda yangilansin,
     // aks holda har qayta urinish eski ma'lumot bilan yana yiqiladi.
@@ -177,7 +181,7 @@ async function amalFon(nom, ...args) {
     if (r.holat) { S = r.holat; eskirgan = null; if (!band) rerender({ fon: true }); }
     return r.natija;
   } catch (e) {
-    toast(e.message, 'xato');
+    if (qaytaOchXatomi(e)) qaytaOchKorsat(); else toast(e.message, 'xato');
     eskirdiTekshir(e);
     return null;
   }
@@ -278,8 +282,8 @@ function renderXodim(x) {
   if (!XTAB[tab]) tab = 'bosh';
   if (!SERVER) root.append(h('div', { class: 'demo' }, 'Sinov rejimi · ', h('button', { class: 's', onclick: () => { kim = null; sessionStorage.removeItem('apteka-kim'); render(true); } }, 'boshqa xodim')));
   root.append(h('header', { class: 'top' }, h('span', { class: 'avatar', 'aria-hidden': 'true' }, x.ism[0]),
-    h('div', { class: 't' }, h('h1', {}, tab === 'bosh' ? x.ism : XTAB[tab]),
-      h('span', {}, filialOf(x.filialId).nom + (x.daraja === 2 ? ' · 2-daraja' : '') + (tab === 'bosh' ? '' : ' · ' + x.ism))),
+    h('div', { class: 't' }, h('h1', {}, tab === 'bosh' ? h('span', { 'data-asl': '' }, x.ism) : XTAB[tab]),
+      h('span', {}, h('span', { 'data-asl': '' }, filialOf(x.filialId).nom), (x.daraja === 2 ? ' · 2-daraja' : '') + (tab === 'bosh' ? '' : ' · '), tab === 'bosh' ? null : h('span', { 'data-asl': '' }, x.ism))),
     yozuvTugma(render, x.id)));
   const m = h('main', {});
   // Retsept va Bilimdon menyuda yo'q — tepada qaytish (qayerdan kelgan bo'lsa — o'sha bo'limga). Retseptning ichki sahifasida
@@ -553,9 +557,9 @@ function renderXodimYangi(x) {
   if (!SERVER) root.append(h('div', { class: 'demo' }, 'Sinov rejimi · ', h('button', { class: 's', onclick: () => { kim = null; sessionStorage.removeItem('apteka-kim'); render(true); } }, 'boshqa xodim')));
   // Retsept punkti ichida o'zining «‹ Retseptlar» tugmasi bor — ikkita qaytish chiqmasin (audit 05.11).
   const orqa = ichki && !(tab === 'retsept' && retseptIchida()) ? orqagaTugma(xOrqaga) : null;
-  const fNom = filialOf(x.filialId).nom + (x.daraja === 2 ? ' · 2-daraja' : '');
+  const fNom = filialOf(x.filialId).nom;   // audit 10.11: nomlar data-asl (kirill rejimida o'girilmaydi)
   root.append(h('header', { class: 'top yh' }, orqa || h('span', { class: 'avatar', 'aria-hidden': 'true' }, x.ism[0]),
-    h('div', { class: 't' }, h('h1', {}, ichki ? XY_TAB[tab] : x.ism), h('span', {}, fNom + ' · ' + (ichki ? x.ism : kunNomi()))),
+    h('div', { class: 't' }, h('h1', {}, ichki ? XY_TAB[tab] : h('span', { 'data-asl': '' }, x.ism)), h('span', {}, h('span', { 'data-asl': '' }, fNom), (x.daraja === 2 ? ' · 2-daraja' : '') + ' · ', ichki ? h('span', { 'data-asl': '' }, x.ism) : kunNomi())),
     yozuvTugma(render, x.id)));
   const m = h('main', { class: ichki ? 'y-ichki' : 'y-ildiz yx' });
   if (tab === 'bosh') xBosh(m, x);
@@ -792,16 +796,26 @@ function jonli(matn, shoshilinch) {
 const jonliQoy = (matn) => { try { jonli(matn, false); } catch (e) { /* joy yo'q — faqat ekranda */ } return matn; };
 // «Ma'lumot yangilanmadi» / «Ilova eskirdi» — #app tepasida doimiy (navbatBelgi kabi): matn yoki tugma o'zgarsa yangilanadi.
 let eskirganOxirgi = '';
+// 10.11 (yangi kirish, Edge YANGI_KIRISH): server qaytaOch / «Xavfsizlik uchun ilovani yoping…» — kirish ma'lumoti eski; ilova
+// yopilib ochilguncha shunday qoladi (yangi holat kelsa ham o'chmaydi — auth_date o'zgarmaydi). Tepada doimiy banner + ochiq oynada.
+let qaytaOchKerak = false;
+const QAYTA_OCH_BANNER = 'Xavfsizlik uchun ilovani to\'liq yoping va qayta oching (pastga surish yetmaydi), keyin yana bosing.';
+function qaytaOchKorsat() {
+  qaytaOchKerak = true;
+  try { eskirganBelgi(); } catch (e) { /* #app hali yo'q */ }
+  // Ochiq oyna bor — uning tepasida (yozilganlar joyida); oyna yo'q — xabar ham (banner sahifa tepasida).
+  if (!qaytaOchOynaga(QAYTA_OCH_BANNER)) toast(QAYTA_OCH_BANNER, 'xato');
+}
 function eskirganBelgi() {
   let el = document.querySelector('.msg.eskirgan');
-  const matn = eskirgan && S ? eskirgan : '';
+  const matn = qaytaOchKerak && S ? QAYTA_OCH_BANNER : eskirgan && S ? eskirgan : '';
   if (!matn) { if (el) el.remove(); eskirganOxirgi = ''; return; }
-  const imzo = matn + '|' + eskirdi;
+  const imzo = matn + '|' + eskirdi + '|' + qaytaOchKerak;
   if (el && imzo === eskirganOxirgi) return;
   eskirganOxirgi = imzo;
   if (!el) { el = h('div', { class: 'msg warn eskirgan' }); root.parentNode.insertBefore(el, root); }
   el.replaceChildren(h('span', {}, matn),
-    eskirdi ? yopishTugma('sm') : h('button', { class: 'sm', onclick: () => serverdanYukla() }, 'Yangilash'));
+    eskirdi || qaytaOchKerak ? yopishTugma('sm') : h('button', { class: 'sm', onclick: () => serverdanYukla() }, 'Yangilash'));
   jonli(matn, true);
 }
 

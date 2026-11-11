@@ -158,7 +158,8 @@ export function savdoKiritish(s, f, direktorId, now = Date.now()) {
   if (!z || (z.rol === 'sotuvchi' && z.filialId !== f.filialId && z.qoshimchaFilial !== f.filialId)) x.push('Xodim bu filialda ishlamaydi');
   if (x.length) throw new Error(x.join('. '));
   // Bir kun + filial + smena — bitta yozuv. Xodimning ochiq smenasi ham hisobga olinadi (u yopilganda shu kunga yoziladi) — audit 4.4.
-  const bir = s.smenalar.filter((m) => m.filialId === f.filialId && m.nom === f.smena && !m.bekor);
+  // Audit 10.11 (A4 №9): asosiy filialda «Butun kun» kunduzgi/tungi bilan to'qnashadi (server savdo_kiritish bilan bir xil).
+  const bir = s.smenalar.filter((m) => m.filialId === f.filialId && !m.bekor && (m.nom === f.smena || (asosiy && (m.nom === 'kunlik' || f.smena === 'kunlik'))));
   if (bir.some((m) => m.yopildi && H.kunKey(m.yopildi) === f.kun)) {
     throw new Error('Bu kunda ' + fl.nom + ' ' + f.smena + ' savdosi allaqachon yozilgan — Smenalar bo\'limiga qarang');
   }
@@ -263,7 +264,8 @@ export function qarzRuxsat(s, qarzId, ruxsat, now = Date.now()) {
   if (!q || q.holat !== 'ruxsat') throw new Error('Ruxsat kutayotgan qarz topilmadi');
   q.holat = ruxsat ? 'ochiq' : 'rad';
   q.hal = now;
-  if (ruxsat) q.berildi = now;
+  // Audit 11.11 (server bilan bir xil): berilgan vaqt o'zgarmaydi (kassa smenasi shunga qaraydi), muddat — ruxsatdan boshlab.
+  if (ruxsat) q.muddat = now + q.muddatKun * 864e5;
 }
 
 // Faqat direktor yopadi; qisman bo'lishi mumkin; pul Kassa yoki Uyga — kirim.
@@ -282,7 +284,12 @@ export function qarzUndirish(s, qarzId, summaStr, hamyon, direktorId) {
 
 // 09.11: mijoz qarzi (sinov rejimi — server qoidalari bilan bir xil, botsiz: mijoz tasdig'i va QR yo'q).
 export function qarzBer(s, xodimId, forma, now = Date.now()) {
+  // 11.11: qaysi filialda berildi — asosiy ish joyi (bo'sh) yoki ikkinchi ish joyi (SQL qarz_yozish p_filial bilan bir xil).
+  const z = xodim(s, xodimId), x = z && H.ishdagi(z, s);
+  const fil = String((forma && forma.filial) || '').trim();
+  if (fil && x && fil !== x.filialId && fil !== z.qoshimchaFilial) throw new Error('Bu filialda ishlamaysiz');
   const r = qarzYozish(s, xodimId, forma, now);
+  if (fil) r.qarz.filialId = fil;
   r.qarz.dorilar = String(forma.dorilar || '').replace(/\s+/g, ' ').trim().slice(0, 300);
   r.qarz.pullar = [];
   return { ...r, chatBor: false };
@@ -372,6 +379,8 @@ export function yozuvBekor(s, harakatId, sabab, kim) {
   const h = s.harakatlar.find((x) => x.id === harakatId);
   if (!h || h.bekor || h.tur === 'tuzatish') throw new Error('Bekor qilinadigan yozuv topilmadi');
   if (h.tur === 'pos') throw new Error('Karta savdosi smena bilan birga yoziladi — uni alohida bekor qilib bo\'lmaydi');
+  // 11.11 (pul auditi): kartaga o'tkazma yozuvi (h.otk) — faqat Kassa nazoratidan (server yozuv_bekor bilan bir xil matn).
+  if (h.otk) throw new Error('Bu — kartaga o\'tkazma yozuvi. Xato «tushdi» bo\'lsa: Pul → Kassa nazorati → «Tushgan o\'tkazmalar» → «Tushmadi deb tuzatish» (savdo va Uy hamyoni birga to\'g\'rilanadi)');
   const sb = String(sabab || '').trim();
   if (!sb) throw new Error('Sababini yozing');
   teskari(s, h, 'Bekor qilindi: ' + (h.izoh || '') + ' — ' + sb, kim);
@@ -660,6 +669,39 @@ export function bemorOraldi(s, id, oraldi, kim) {
   if (!oraldi && b.oson && !sinovDirektor(s, kim)) throw new Error('Oson\'dan chiqarilgan bemorning O\'raldi belgisini faqat direktor olib tashlaydi');
   if (!oraldi) { delete b.oraldi; delete b.oraldiKim; return; }
   if (!b.oraldi) { b.oraldi = Date.now(); if (kim) b.oraldiKim = kim; }
+}
+// 11.11: QR bemorni boshqa ro'yxatga ko'chirish (SQL bemor_kochir_ish): faqat QR / kengaytma bemori (sinovQr = SQL bemor_qr) va
+// «berildi»; eski — ekranda ko'ringan punkt (boshqacha bo'lsa: aynan shu ko'chirish bajarilgan — takror, aks holda «Ro'yxat
+// o'zgargan»); o'ralgan / Oson'dan chiqarilgan — faqat direktor. Tartib — yangi punktning o'sha kunidagi oxirgisidan keyin.
+export function bemorKochir(s, id, punktId, sabab, eski, kim) {
+  const r = rs(s);
+  const b = r.bemorlar.find((z) => z.id === id);
+  if (!b) throw new Error("Bemor topilmadi — ro'yxatni yangilang");
+  if (!punktId) throw new Error("Qaysi ro'yxatga ko'chirishni tanlang");
+  const p = r.punktlar.find((z) => z.id === punktId && z.faol !== false);
+  if (!p) throw new Error("Ro'yxat topilmadi — punktni qayta tanlang");
+  const javob = (e, takror) => ({ id: b.id, punktId: p.id, punktNom: p.nom, eskiPunktId: e, osonEdi: !!b.oson, oraldiEdi: !!b.oraldi, excelEdi: !!b.excel,
+    ...(takror ? { takror: true } : {}) });
+  if (eski && b.punktId !== eski) {
+    const k = (r.kochirishlar || []).filter((z) => z.bemorId === b.id).at(-1);
+    if (k && k.yangiPunkt === p.id && k.eskiPunkt === eski && b.punktId === p.id) return javob(eski, true);
+    throw new Error("Ro'yxat o'zgargan — ro'yxatni yangilang");
+  }
+  if (b.punktId === p.id) throw new Error("Bemor allaqachon shu ro'yxatda");
+  if (!sinovQr(b)) throw new Error("Bu bemor punktning o'z ro'yxatidan — ko'chirib bo'lmaydi");
+  if (b.holat === 'olindi') throw new Error("Bemor punktga berib yuborilgan (olib ketilgan) — boshqa ro'yxatga ko'chirib bo'lmaydi");
+  if (b.holat !== 'berildi') throw new Error("Faqat berilgan bemor ko'chiriladi — ro'yxatni yangilang");
+  if ((b.oraldi || b.oson) && !sinovDirektor(s, kim)) throw new Error("O'ralgan yoki Oson'dan chiqarilgan bemorni faqat direktor ko'chiradi");
+  const kun = H.kunKey(b.ts);
+  const n = r.bemorlar.filter((z) => z.punktId === p.id && H.kunKey(z.ts) === kun).reduce((x, z) => Math.max(x, Number(z.n) || 0), 0) + 1;
+  const old = b.punktId;
+  const oldNom = (r.punktlar.find((z) => z.id === old) || {}).nom || null;
+  b.punktId = p.id;
+  b.n = n;
+  b.kochirildi = { dan: oldNom, danId: old, vaqt: Date.now() };
+  (r.kochirishlar = r.kochirishlar || []).push({ bemorId: b.id, eskiPunkt: old, yangiPunkt: p.id, kim: kim || null,
+    sabab: String(sabab || '').trim().slice(0, 200) || null, vaqt: Date.now() });
+  return javob(old, false);
 }
 // Oson Apteka'dan chiqarildi (SQL bemor_oson): birinchi qo'ygan va vaqt saqlanadi.
 export function bemorOson(s, id, belgi, kim) {

@@ -134,12 +134,26 @@ export const oyOxirgiKun = (oy) => { const [y, m] = oy.split('-').map(Number); r
 export const savdoKuni = (sm) => kunKey(sm.yopildi || sm.ochildi);
 // «Bajarish kerak»: kecha savdosi kiritilmagan filiallar — oxirgi 30 kunda savdosi bo'lganlar, «Savdo bo'lmadi» deb belgilanmaganlar
 // (S.savdoYoq, 20261030130000_savdo_yoq.sql). Direktor Bosh va Oddiy rejim shu bilan.
+// 11.11 (pul auditi B6): asosiy filialda (kunduzgi + tungi) faqat bittasi kiritilgan bo'lsa ham — kiritilmagan («Butun kun» yoki ikkalasi
+// kerak; SQL kassa_oson_hisob «chala» bilan bir xil). Natijada yetmaydigan smena: f.yetmaydi ('kunduzgi' | 'tungi'; to'liq kiritilmaganda yo'q).
+// Ortiqcha eslatma bo'lmasin: bu qoida faqat so'nggi 30 kunda shu filialga tungi (yoki «Butun kun») savdo kiritilgan bo'lsa — direktor
+// savdoni smena bo'yicha kiritadi; aks holda avvalgidek bitta yozuv yetadi.
 export function kechaSavdosiz(S, bugun) {
   const kecha = kunQosh(bugun, -1), oy30 = kunQosh(bugun, -30);
   const yop = S.smenalar.filter((z) => !z.bekor && z.yopildi);
   const yoq = new Set((S.savdoYoq || []).map((y) => y.filialId + '|' + y.kun));
-  return S.filiallar.filter((f) => !yop.some((z) => z.filialId === f.id && savdoKuni(z) === kecha) && !yoq.has(f.id + '|' + kecha)
-    && yop.some((z) => z.filialId === f.id && savdoKuni(z) >= oy30));
+  const natija = [];
+  for (const f of S.filiallar) {
+    if (yoq.has(f.id + '|' + kecha) || !yop.some((z) => z.filialId === f.id && savdoKuni(z) >= oy30)) continue;
+    const kechagi = yop.filter((z) => z.filialId === f.id && savdoKuni(z) === kecha);
+    if (!kechagi.length) { natija.push(f); continue; }
+    if (!f.asosiy || kechagi.some((z) => z.nom === 'kunlik')) continue;
+    if (!yop.some((z) => z.filialId === f.id && savdoKuni(z) >= oy30 && savdoKuni(z) < kecha && (z.nom === 'tungi' || z.nom === 'kunlik'))) continue;
+    const bor = new Set(kechagi.map((z) => z.nom));
+    const yetmaydi = !bor.has('kunduzgi') ? 'kunduzgi' : !bor.has('tungi') ? 'tungi' : null;
+    if (yetmaydi) natija.push({ ...f, yetmaydi });
+  }
+  return natija;
 }
 export const savdoYoqmi = (S, filialId, kun) => (S.savdoYoq || []).some((y) => y.filialId === filialId && y.kun === kun);
 // Savdoga kiradi: yopilgan, direktor tasdiqlagan (yoki o'zi kiritgan), bekor qilinmagan.
@@ -628,25 +642,40 @@ export function kunXulosa(s, kun, now = Date.now()) {
   const sv = kunSavdo(s.smenalar, kun);
   const ochiq = s.smenalar.filter((m) => !m.yopildi).map((m) => fil(m.filialId) + ' (' + ism(m.xodimId) + ')');
   const kutil = s.smenalar.filter((m) => m.qabul && m.qabul.holat === 'kutilmoqda').map((m) => fil(m.filialId) + ' ' + som(m.qabul.summa));
-  const kam = s.smenalar.filter((m) => m.yopildi && !m.qolda && !m.bekor && kunKey(m.yopildi) === kun && farq(m) !== 0).map((m) => ism(m.xodimId) + ' ' + som(farq(m)));
   const tk = s.smenalar.filter(tasdiqKutadi);
   const otgan = s.qarzlar.filter((q) => q.holat === 'ochiq' && muddatiOtgan(q, now));
   const kassa = qoldiq(s, 'kassa');
   const uy = qoldiq(s, 'uy');
+  const r = royxat(s), amalda = amaldaF(r);
   // Uy hamyon sifatida ishlatilgan bo'lsa (boshlang'ich uy, uy xarajati/kirimi) — uy qatorlari. Faqat "uyga olib ketildi"
   // (seyf → uy ko'chirish) bo'lsa — uy qoldig'i ko'rsatilmaydi, bugun olib ketilgani alohida qator. SQL kun_xulosa bilan bir xil.
   const b = (s.sozlama && s.sozlama.boshlangich) || {};
-  // Ta'minotchiga uydan to'lov uy hamyonini "ishlatilgan" qilmaydi (pul auditi 28.10, SQL kun_xulosa bilan bir xil).
-  const uyBor = !!b.uy || (s.harakatlar || []).some((h) => h.d && h.d.uy && !['kochirish', 'tolov'].includes(turi(h)));
-  const uyga = royxat(s).filter((h) => turi(h) === 'kochirish' && kunKey(h.ts) === kun).reduce((a, h) => a + ((h.d && h.d.uy) || 0), 0);
+  // Ta'minotchiga uydan to'lov uy hamyonini "ishlatilgan" qilmaydi (pul auditi 28.10). 11.11: kartaga o'tkazma (h.otk — puli Uy
+  // hamyoniga) ham, bekor qilingan yozuv ham (amalda emas) — uyni «ishlatilgan» qilmaydi; o'tkazmalar alohida qator. SQL bilan bir xil.
+  const uyBor = !!b.uy || r.some((h) => amalda(h) && h.d && h.d.uy && !h.otk && !['kochirish', 'tolov'].includes(h.tur));
+  const uyga = r.filter((h) => turi(h) === 'kochirish' && kunKey(h.ts) === kun).reduce((a, h) => a + ((h.d && h.d.uy) || 0), 0);
+  const otkJami = r.filter((h) => amalda(h) && h.otk && kunKey(h.ts) === kun).reduce((a, h) => a + summasi(h), 0);
+  // 11.11: xarajatdan oylik (avans) alohida; ta'minotchiga to'lov — bir nechta hamyondan bo'lsa qayerdan.
+  const bg = boglanish(s);
+  const avans = r.filter((h) => amalda(h) && h.tur === 'xarajat' && kunKey(h.ts) === kun && bg.avans.has(h.id)).reduce((a, h) => a + summasi(h), 0);
+  const tolovlar = r.filter((h) => amalda(h) && h.tur === 'tolov' && kunKey(h.ts) === kun);
+  const manba = [['seyfdan', 'kassa'], ['uydan', 'uy'], ['bankdan', 'bank']]
+    .map(([l, k]) => [l, tolovlar.reduce((a, h) => a - ((h.d && h.d[k]) || 0), 0)]).filter(([, v]) => v > 0);
+  // 11.11: kassa farqlari — Kassa nazorati qoldig'i (xodim bo'yicha, server holatida kassaFarq). Sinov rejimida yo'q — havola.
+  const kf = s.kassaFarq;
+  const kfMatn = !Array.isArray(kf) ? 'Kassa farqlari — Kassa nazoratida'
+    : kf.length ? 'Kassa farqlari (naqd): ' + kf.map((x) => x.ism + ' (' + x.fn + ') ' + (x.qoldiq < 0 ? 'kam ' : 'ortiqcha ') + som(Math.abs(x.qoldiq))).join('; ') + ' — Kassa nazoratida'
+      : 'Kassa farqlari (naqd): yo\'q';
   return [
     'Kechki xulosa · ' + kun.split('-').reverse().join('.'),
     'Savdo: ' + som(sv.jami) + ' (naqd ' + som(sv.naqd) + ', karta ' + som(sv.karta) + ')',
     ...s.filiallar.map((f) => '  ' + f.nom + ': ' + som(((sv.filiallar[f.id] || {}).naqd || 0) + ((sv.filiallar[f.id] || {}).karta || 0))),
     'Tasdiq kutayotgan savdo: ' + (tk.length ? tk.length + ' ta smena, ' + som(tk.reduce((a, m) => a + (m.naqd || 0) + (m.karta || 0), 0)) : 'yo\'q'),
-    'Xarajat: ' + som(kunXarajat(s, kun)) + ' · Kirim: ' + som(kunKirim(s, kun)) + ' · Ta\'minotchilarga to\'lov: ' + som(kunTolov(s, kun)),
+    'Xarajat: ' + som(kunXarajat(s, kun) - avans) + (avans > 0 ? ' · Oylik (avans): ' + som(avans) : '') + ' · Kirim: ' + som(kunKirim(s, kun))
+      + ' · Ta\'minotchilarga to\'lov: ' + som(kunTolov(s, kun)) + (manba.length > 1 ? ' (' + manba.map(([l, v]) => l + ' ' + som(v)).join(', ') + ')' : ''),
     ...(uyBor ? ['Hamyonlar: seyf ' + som(kassa) + ', uy ' + som(uy), 'Uy xarajati: ' + som(kunUyXarajat(s, kun))]
       : ['Seyfda: ' + som(kassa), ...(uyga > 0 ? ['Uyga olib ketildi: ' + som(uyga)] : [])]),
+    ...(otkJami > 0 ? ['Kartaga o\'tkazmalar: ' + som(otkJami)] : []),
     'Ochiq smenalar: ' + (ochiq.length ? ochiq.join(', ') : 'yo\'q'),
     'Qabul qilinmagan pul: ' + (kutil.length ? kutil.join(', ') : 'yo\'q'),
     // 09.11 (audit): xodimlardagi qarz puli (bo'lsa) — SQL kun_xulosa bilan bir xil (birinchi to'lov vaqti tartibida).
@@ -655,7 +684,7 @@ export function kunXulosa(s, kun, now = Date.now()) {
       xodimdagiPullar(s.qarzlar).forEach((z) => g.set(z.pul.xodimId, (g.get(z.pul.xodimId) || 0) + z.pul.summa));
       return g.size ? ['Xodimlarda qarz puli: ' + [...g].map(([id, n]) => ((s.xodimlar || []).find((x) => x.id === id) || {}).ism + ' ' + som(n)).join(', ')] : [];
     })(),
-    'Kassa farqlari: ' + (kam.length ? kam.join(', ') : 'yo\'q'),
+    kfMatn,
     'Muddati o\'tgan qarzlar: ' + otgan.length + ' ta, ' + som(otgan.reduce((a, q) => a + qarzQoldiq(q), 0)),
     'Ruxsat kutayotgan qarzlar: ' + s.qarzlar.filter((q) => q.holat === 'ruxsat').length
   ].join('\n');

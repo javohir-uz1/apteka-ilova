@@ -27,6 +27,10 @@ export const ISHLAR = {
   xodimVaqtincha: [(S, men, xid, f, gacha) => A.xodimVaqtincha(S, xid, f, gacha), (xid, f, gacha) => ['xodim_vaqtincha', [xid, f || '', gacha || '']]],
   xodimDaraja: [(S, men, xid, d) => A.xodimDaraja(S, xid, d), (xid, d) => ['xodim_daraja', [xid, Number(d) === 2 ? 2 : 1]]],
   bemorOraldi: [(S, men, id, o) => A.bemorOraldi(S, id, o, men.ism), (id, o) => ['bemor_oraldi', [id, !!o]]],
+  // 11.11: QR bemorni boshqa ro'yxatga (punkt yoki «Aptekadagi mijozlar»); eski — ekranda ko'ringan hozirgi punkt.
+  // Natija {id, punktId, punktNom, eskiPunktId, osonEdi, oraldiEdi[, takror]}.
+  bemorKochir: [(S, men, id, punktId, sabab, eski) => A.bemorKochir(S, id, punktId, sabab, eski, men.ism),
+    (id, punktId, sabab, eski) => ['bemor_kochir', [id, punktId, String(sabab || '').slice(0, 200), eski || null]]],
   bemorOson: [(S, men, id, o) => A.bemorOson(S, id, o, men.ism), (id, o) => ['bemor_oson', [id, !!o]]],
   osonToplam: [(S, men, p, kun, o, n) => A.osonToplam(S, p, kun, o, n, men.ism), (p, kun, o, n) => ['oson_toplam', [p, m(kun), !!o, n]]],
   osonMijozlar: [(S, men, idlar) => A.osonMijozlar(S, idlar, men.ism), (idlar) => ['oson_mijozlar', [JSON.stringify(idlar)]]],
@@ -36,7 +40,7 @@ export const ISHLAR = {
   qarzUndirish: [(S, men, q, s, ham) => A.qarzUndirish(S, q, s, ham, men.id), (q, s, ham) => ['qarz_undirish', [q, p(s), ham]]],
   // 09.11: mijoz qarzi — dorilar nomi, QR (bot tasdig'i), xodim to'lovi, direktor qabuli, bekor qilish.
   qarzBer: [(S, men, f) => A.qarzBer(S, men.id, f),
-    (f) => ['qarz_ber', [m(f.ism), m(f.tel), p(f.summa), Number(f.muddatKun) || null, String(f.dorilar || '').slice(0, 300)]]],
+    (f) => ['qarz_ber', [m(f.ism), m(f.tel), p(f.summa), Number(f.muddatKun) || null, String(f.dorilar || '').slice(0, 300), String(f.filial || '')]]],
   qarzQr: [() => A.qarzQrYoq(), (q) => ['qarz_qr', [q]]],
   qarzTolov: [(S, men, q, s, kun) => A.qarzTolov(S, men.id, q, s, kun), (q, s, kun) => ['qarz_tolov', [q, p(s), Number(kun) || null]]],
   qarzPulBekor: [(S, men, id) => A.qarzPulBekor(S, men.id, id), (id) => ['qarz_pul_bekor', [id]]],

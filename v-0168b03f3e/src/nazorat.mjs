@@ -5,7 +5,7 @@
 import * as H from './hisob.mjs';
 import { h, input, kartaSarlavha, pills, sana, sheet, tasdiqlash, yordam } from './ui.mjs';
 import { kartaFarqSoz, naqdFarqSoz, pulNb } from './kassa.mjs';
-import { osonVaqtEl, qoldiqMatn, yanaRoyxat } from './oson-qoldiq.mjs';
+import { osonEskimi, osonVaqtEl, qoldiqMatn, yanaRoyxat } from './oson-qoldiq.mjs';
 
 // c — davlat reyestri narx chegarasi (20261107210000_dori_reyestr; eski serverda yo'q — bo'lim ko'rinmaydi).
 const NB = () => ({ j: null, y: null, c: null, vaqt: 0, yuklanmoqda: null, xato: null, saralash: 'hammasi', ochiq: false, yuborilmoqda: '',
@@ -267,7 +267,7 @@ export function kassaView(m, ctx) {
     return;
   }
   const j = K.j;
-  m.append(h('div', { class: 'nz-yangi' }, j.vaqt ? osonVaqtEl(j.vaqt) : h('span', {}),
+  m.append(h('div', { class: 'nz-yangi' }, (j.vaqt !== undefined && osonVaqtEl(j.vaqt)) || h('span', {}),
     h('button', { type: 'button', class: 's', onclick: () => { K.xatoKalit = 0; kYukla(ctx, chiz, true); chiz(); } }, K.yuklanmoqda ? 'Yangilanmoqda…' : 'Yangilash')));
   if (K.xatoKalit === K.kunlar) m.append(h('div', { class: 'msg warn', role: 'status' }, 'Yangilanmadi: ' + K.xato + ' — ko\'rinib turgani avvalgi ma\'lumot.'));
   if (!j.filiallar.length) { m.append(h('div', { class: 'card muted' }, 'Oson filiallari ilovadagi filiallarga bog\'lanmagan — Qoldiq → «Sozlash».')); return; }
@@ -331,7 +331,7 @@ function kunQator(f, d, cheg, dar) {
     satr.push(h('span', { class: 'nz-kq nz-taxmin' }, 'Yozilgan ' + (d.kiritilgan == null ? '—' : pulNb(d.kiritilgan)) + ' · Oson ~'
       + (d.toliq || d.oson ? pulNb(d.oson) : '—')));
   }
-  const sabab = x ? (kunSabab(d) || (kut ? 'javob kutayotgan o\'tkazma bor' : null)) : (TAXMIN[d.holat] ? 'taxminiy: ' + (d.holat === 'kop' ? 'Oson\'da +' + pulNb(d.oson - (d.kiritilgan || 0)) : TAXMIN[d.holat]) : null);
+  const sabab = x ? (kunSabab(d) || (kut ? (Number(x.ruxsatQarz) >= Number(x.kutilmoqda) ? 'ruxsat kutayotgan qarz bor' : 'javob kutayotgan o\'tkazma bor') : null)) : (TAXMIN[d.holat] ? 'taxminiy: ' + (d.holat === 'kop' ? 'Oson\'da +' + pulNb(d.oson - (d.kiritilgan || 0)) : TAXMIN[d.holat]) : null);
   return h('button', { type: 'button', class: 'nz-kun2' + (dar ? ' nz-' + dar : ''), onclick: () => kunOyna(f, d, cheg) },
     h('span', { class: 'nz-kun2-b' }, h('b', {}, kunNomi(d)), sabab ? h('span', { class: 'nz-sabab' }, sabab) : null,
       dar ? h('span', { class: 'nz-teg nz-teg-' + dar }, dar === 'kam' ? '⚠ naqd kam' : 'tekshiring') : null),
@@ -354,11 +354,23 @@ function kunOyna(f, d, cheg) {
         qator3('Yozilgan', x.kiritildi ? son(x.kNaqd + x.otkazma + x.qarz) : '—', x.kiritildi ? son(x.kKarta) : '—'),
         qator3('Oson sotdi', son(x.oNaqd), son(x.oKarta)),
         h('div', { class: 'nz-t3 nz-t3-f' }, h('span', {}, 'Farq'), naqdEl(x, kutKechirim(x, cheg) ? Infinity : cheg, 'span', toliq), kartaEl(x, 'span', toliq)));
-      const qosh = [];
-      if (x.otkazma > 0) qosh.push('kartaga tushgan o\'tkazma ' + pulNb(x.otkazma));
-      if (x.qarz > 0) qosh.push('qarzga berilgan ' + pulNb(x.qarz));
-      if (qosh.length) box.append(h('div', { class: 'muted' }, 'Yozilgan naqdga qo\'shildi: ' + qosh.join(', ') + '.'));
-      if (x.kutilmoqda > 0) box.append(h('div', { class: 'msg warn' }, 'Javob kutayotgan o\'tkazma ' + pulNb(x.kutilmoqda) + ' — bosh sahifada «Tushdi» bo\'lsa naqdga qo\'shiladi.'));
+      // B6 №4: Yozilgan naqd = kassadan + kartaga (savdoga bog'langan o'tkazma ham — u kNaqd ichida edi) + qarzga.
+      // Server bog'langan o'tkazma summasini bersa (otkazmaBogli) — ajratiladi; eski server — avvalgidek faqat qo'shilganlar.
+      const bogli = Number(x.otkazmaBogli ?? 0) || 0;
+      const kartaga = (Number(x.otkazma) || 0) + bogli, qarzga = Number(x.qarz) || 0;
+      if (x.kiritildi && x.otkazmaBogli !== undefined && (kartaga > 0 || qarzga > 0)) {
+        box.append(h('div', { class: 'muted nz-tarkib' }, 'Yozilgan naqd = kassadan ' + pulNb((Number(x.kNaqd) || 0) - bogli)
+          + (kartaga > 0 ? ' + kartaga ' + pulNb(kartaga) : '') + (qarzga > 0 ? ' + qarzga ' + pulNb(qarzga) : '') + '.'));
+      } else {
+        const qosh = [];
+        if (x.otkazma > 0) qosh.push('kartaga tushgan o\'tkazma ' + pulNb(x.otkazma));
+        if (x.qarz > 0) qosh.push('qarzga berilgan ' + pulNb(x.qarz));
+        if (qosh.length) box.append(h('div', { class: 'muted' }, 'Yozilgan naqdga qo\'shildi: ' + qosh.join(', ') + '.'));
+      }
+      // Audit 11.11: kutilmoqda = javob kutayotgan o'tkazma + ruxsat kutayotgan qarz (server ruxsatQarz) — alohida yoziladi.
+      const rq = Math.max(0, Number(x.ruxsatQarz) || 0), ko = Math.max(0, (Number(x.kutilmoqda) || 0) - rq);
+      if (ko > 0) box.append(h('div', { class: 'msg warn' }, 'Javob kutayotgan o\'tkazma ' + pulNb(ko) + ' — bosh sahifada «Tushdi» bo\'lsa naqdga qo\'shiladi.'));
+      if (rq > 0) box.append(h('div', { class: 'msg warn' }, 'Ruxsat kutayotgan qarz ' + pulNb(rq) + ' — direktor ruxsat bersa, «qarzga» qo\'shiladi.'));
       box.append(h('h3', { class: 'nz-h3' }, 'Yozilgan savdo'));
       const sm = Array.isArray(x.smenalar) ? x.smenalar : null;
       // Audit: ro'yxat kelmagan (eski server) — «kiritilmagan» deb yolg'on aytilmaydi.
@@ -415,8 +427,10 @@ export function narxXodimKarta(ctx, fil, chiz) {
 // Audit 10.11 kech: xatoda karta abadiy «…» qolardi — holat: true bo'lsa { son, xato, qayta } (kartada «—», bosilsa qayta urinadi).
 export function narxFarqSoni(ctx, chiz, holat = false) {
   if (!ctx.server) return null;
+  // Audit 10.11 (A4 №3): 60 s dan eski bo'lsa ham fonda yangilanadi (nYukla o'zi 60 s ichida qayta so'ramaydi; xatodan keyin ham).
   if (!N.j && !N.xato) nYukla(ctx, chiz);
+  else if (N.j && !N.yuklanmoqda && Date.now() - N.vaqt > 60000) nYukla(ctx, chiz);
   const son = N.j && Array.isArray(N.j.qatorlar) ? N.j.qatorlar.length : null;
   if (!holat) return son;
-  return { son, xato: son == null && !!N.xato && !N.yuklanmoqda, qayta: () => { N.xato = null; nYukla(ctx, chiz, true); chiz(); } };
+  return { son, eski: !!N.j && N.j.vaqt !== undefined && osonEskimi(N.j.vaqt), xato: son == null && !!N.xato && !N.yuklanmoqda, qayta: () => { N.xato = null; nYukla(ctx, chiz, true); chiz(); } };
 }

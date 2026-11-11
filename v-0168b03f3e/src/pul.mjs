@@ -16,7 +16,7 @@ import { osonVaqtEl, qoldiqMatn } from './oson-qoldiq.mjs';
 import { firmalarOl, narxlar } from './firma.mjs';
 import { ozFilialmi, sorovHolati, sorovYuklanganmi, sorovYukla } from './filial-sorov.mjs';
 
-const PB = () => ({ j: null, vaqt: 0, yuklanmoqda: null, xato: null, bolim: 'muddat', filial: '', ochiq: false });
+const PB = () => ({ j: null, vaqt: 0, yuklanmoqda: null, keyin: false, xato: null, bolim: 'muddat', filial: '', ochiq: false });
 // 10.11 kech: Aqlli buyurtma sozlamasi (zaxira, yetkazish) va savati — shu telefonda (localStorage; yopiq bo'lsa — shu ochilishda).
 const SAVAT_K = 'apteka-buyurtma-savat', SOZ_K = 'apteka-buyurtma-soz';
 const ZAXIRALAR = [3, 7, 14, 30], YETKAZISHLAR = [1, 2, 3];
@@ -81,13 +81,19 @@ export function pulKirish(och) {
 
 // Audit 06.11: xatodan keyin ham 1 daqiqa kutiladi («Qayta urinish» — majbur); aks holda har chizishda yangi so'rov ketib,
 // to'xtovsiz aylanardi (chizish → so'rov → xato → chizish).
+// Audit 10.11 (A4 №10): so'rov ketayotganda majburiy yangilash (masalan muddat siyosati saqlandi) tashlanmaydi — tugagach yana bir
+// marta (bYukla kabi), aks holda saqlashdan oldin boshlangan eski javob yangi siyosatni bosib qolardi.
 function yukla(ctx, chiz, majbur = false) {
-  if (P.yuklanmoqda) return;
+  if (P.yuklanmoqda) { if (majbur) P.keyin = true; return; }
   if (!majbur && (P.j || P.xato) && Date.now() - P.vaqt < 60000) return;
   P.yuklanmoqda = ctx.oqi('osonPul')
     .then((j) => { if (!j || !j.muddat) throw new Error('Server javobi tushunarsiz'); P.j = j; P.xato = null; })
       .catch((e) => { P.xato = (e && e.message) || 'Ma\'lumot olinmadi'; })
-    .finally(() => { P.vaqt = Date.now(); P.yuklanmoqda = null; chiz(); });
+    .finally(() => {
+      P.vaqt = Date.now(); P.yuklanmoqda = null;
+      if (P.keyin) { P.keyin = false; yukla(ctx, chiz, true); }
+      chiz();
+    });
 }
 
 export function pulView(m, ctx, fil) {
@@ -867,7 +873,7 @@ export function kochirishView(m, ctx, fil) {
     return;
   }
   const j = K.j;
-  m.append(h('div', { class: 'line', style: 'border:0;padding:0' }, j.vaqt ? osonVaqtEl(j.vaqt) : h('span', {}),
+  m.append(h('div', { class: 'line', style: 'border:0;padding:0' }, (j.vaqt !== undefined && osonVaqtEl(j.vaqt)) || h('span', {}),
     h('button', { class: 's', onclick: () => { kYukla(ctx, chiz, true); chiz(); } }, K.yuklanmoqda ? 'Yangilanmoqda…' : 'Yangilash')));
   if (K.xato) m.append(yangilanmadiEl(K.xato, () => { K.xato = null; kYukla(ctx, chiz, true); chiz(); }));
   // Filiallar: sotuv tarixi necha kunlik, Oson'da sotuv ko'rinadimi (ko'rinmasa — u filial hisobga olinmaydi).

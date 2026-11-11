@@ -54,13 +54,13 @@ export function doira({ sarlavha, jamiNom, bolaklar, bosh, tur }) {
   bor.forEach((b) => {
     const q = h('button', { type: 'button', class: 'doira-qator', 'aria-pressed': 'false' },
       h('span', { class: 'doira-belgi', style: 'background:' + b.rang, 'aria-hidden': 'true' }),
-      h('span', { class: 'doira-nom' }, b.nom),
+      h('span', { class: 'doira-nom', 'data-asl': '' }, b.nom),   // A4 №4: filial / ta'minotchi nomi kirillga o'tmaydi
       h('b', { class: 'doira-summa' }, raqam(b.qiymat)),
       h('span', { class: 'doira-ulush' }, foiz(b.qiymat, jami)));
     qatorlar.push(q);
     legenda.append(q);
     (b.ichki || []).filter((x) => x.qiymat > 0).forEach((x) => legenda.append(h('div', { class: 'doira-ichki' },
-      h('span', { class: 'doira-nom' }, x.nom),
+      h('span', { class: 'doira-nom', 'data-asl': '' }, x.nom),
       h('span', { class: 'doira-chiziq', 'aria-hidden': 'true' }, h('i', { style: 'width:' + Math.max(2, Math.round(x.qiymat / b.qiymat * 100)) + '%;background:' + b.rang })),
       h('b', { class: 'doira-summa' }, raqam(x.qiymat)))));
   });
@@ -70,6 +70,8 @@ export function doira({ sarlavha, jamiNom, bolaklar, bosh, tur }) {
   const korsat = (i) => {
     yoylar.forEach((y, j) => { y.setAttribute('stroke-width', j === i ? QALIN + 6 : QALIN); y.style.opacity = i < 0 || j === i ? '1' : '.35'; });
     qatorlar.forEach((q, j) => q.setAttribute('aria-pressed', String(j === i)));
+    // Bo'lak nomi — asl holicha (data-asl); «Jami kirim» — oddiy matn (kirill rejimida o'giriladi).
+    if (i < 0) markazNom.removeAttribute('data-asl'); else markazNom.setAttribute('data-asl', '');
     if (i < 0) { markazNom.textContent = jamiNom; markazSon.textContent = raqam(jami); markazFoiz.textContent = 'so\'m'; return; }
     markazNom.textContent = bor[i].nom; markazSon.textContent = raqam(bor[i].qiymat); markazFoiz.textContent = foiz(bor[i].qiymat, jami);
   };

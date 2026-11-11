@@ -3,7 +3,7 @@
 // Osnovnoy xodimlariga"; "xodimga «sinxronizatsiya qiling» degan chiqishi kerak — shunda o'sha filialning Oson'ida ko'rinadi").
 // Oson'da faollashtirilgan ko'chirish (kirim omboridan ham) → filial xodimlariga bot xabari va shu karta: xodim Oson kassasida
 // sinxronizatsiya qiladi, sanaydi, «Hammasi joyida» yoki «Farq bor» (qaysi dori, nechta keldi); farqni direktor «Hal qilindi» bilan yopadi.
-import { h, input, kartaSarlavha, sana, sheet, tasdiqlash, vaqt, yopishSorovYangila, yordam } from './ui.mjs';
+import { h, input, kartaSarlavha, sana, sheet, tasdiqlash, vaqt, yopishSorovYangila, yordam, faolmi, faolQaytganda } from './ui.mjs';
 
 const YANGILASH = 60000;
 const KARTADA = 6;
@@ -56,12 +56,15 @@ function yukla(ctx, chiz, majbur = false) {
     });
   return S.yuklanmoqda;
 }
+let kuzatOxirgi = null;   // audit 11.11: jimlikdan qaytganda — darhol yangilash
+faolQaytganda(() => { if (kuzatOxirgi && !document.hidden && document.querySelector('[data-kirim-karta]')) yukla(kuzatOxirgi[0], kuzatOxirgi[1], true); });
 function kuzat(ctx, chiz) {
+  kuzatOxirgi = [ctx, chiz];
   if (S.taymer || typeof setTimeout !== 'function') return;
   S.taymer = setTimeout(() => {
     S.taymer = 0;
     if (typeof document === 'undefined' || !document.querySelector('[data-kirim-karta]')) return;
-    if (!document.hidden) yukla(ctx, chiz, true);
+    if (!document.hidden && faolmi()) yukla(ctx, chiz, true);   // audit 10.11: jim telefon so'rov yubormaydi
     kuzat(ctx, chiz);
   }, YANGILASH);
   if (S.taymer && typeof S.taymer.unref === 'function') S.taymer.unref();
@@ -93,13 +96,24 @@ export function kirimKarta(ctx, chiz) {
     return h('div', { 'data-kirim-karta': '', hidden: true });
   }
   const rows = S.j.qatorlar.filter((k) => (dir ? ochiq(k) : true));
-  if (!rows.length) return h('div', { 'data-kirim-karta': '', hidden: true });
+  // Audit 11.11 (2-audit): Oson ko'chirishlari 3 soatdan ko'p o'qilmagan (yoki hech o'qilmagan) — yangi kelgan dorilar hali
+  // ro'yxatda bo'lmasligi mumkin. Ro'yxat bo'sh bo'lsa ham direktorga ko'rinadi (aynan shunda yangi kelganlar yo'qoladi).
+  const hv = S.j.hujjatVaqt;
+  const eskiHujjat = hv === null || (typeof hv === 'number' && Date.now() - hv > 3 * 3600e3);
+  const ogohEl = () => h('div', { class: 'msg warn' }, hv
+    ? '⚠ Oson ko\'chirishlari ' + sana(hv) + ' ' + vaqt(hv) + ' dan beri o\'qilmagan — yangi kelgan dorilar hali bu ro\'yxatda bo\'lmasligi mumkin.'
+    : '⚠ Oson ko\'chirishlari hali o\'qilmagan — aptekadagi kompyuterda Oson admin ochiq va kirilganini tekshiring.');
+  if (!rows.length) {
+    if (eskiHujjat && dir) return h('section', { class: 'card list kirim-karta', 'data-kirim-karta': '' }, kartaSarlavha('📦 Kelgan dorilar'), ogohEl());
+    return h('div', { 'data-kirim-karta': '', hidden: true });
+  }
   const kut = rows.filter((k) => k.holat === 'kutilmoqda').length, farq = rows.filter((k) => k.holat === 'farq').length;
   const koP = new Set(rows.map((k) => k.f)).size > 1 || dir;
   const k = h('section', { class: 'card list kirim-karta' + ((dir ? farq : kut) ? ' muhim' : ''), 'data-kirim-karta': '' },
     kartaSarlavha('📦 Kelgan dorilar' + (kut ? ' — sanash kerak (' + kut + ')' : '') + (dir && farq ? (kut ? ', ' : ' — ') + 'farq (' + farq + ')' : '')));
   if (!dir && kut) k.append(h('div', { class: 'kirim-sinx' }, '1) ' + SINX + ' 2) Ro\'yxatni ochib, kelgan dorilarni sanang.'));
   if (S.xato && S.okVaqt) k.append(h('div', { class: 'muted' }, 'Yangilanmadi (' + S.xato + ') — ro\'yxat ' + vaqt(S.okVaqt) + ' holatida.'));
+  if (eskiHujjat) k.append(ogohEl());
   rows.slice(0, KARTADA).forEach((z) => k.append(kirimQator(ctx, chiz, z, koP)));
   if (rows.length > KARTADA) {
     k.append(h('button', { type: 'button', class: 'link', onclick: () => hammasiOyna(ctx, chiz, rows, koP) }, 'Hammasini ko\'rish (' + rows.length + ')'));

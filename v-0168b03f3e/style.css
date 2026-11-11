@@ -34,7 +34,7 @@ h1, h2, h3 { margin: 0; }
   border-bottom: 1px solid var(--sep); padding: 10px 16px 12px; padding-top: max(10px, env(safe-area-inset-top));
   display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 2; }
 .top .t { flex: 1; min-width: 0; }
-.top .t h1 { font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.top .t h1 { font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -.02em; overflow-wrap: break-word; }   /* B4 №6: anywhere so'zni o'rtasidan bo'lardi («Bugu/n») */
 .top .t span { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
 .avatar { width: 40px; height: 40px; border-radius: 20px; background: var(--soft); color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; flex: none; }
 /* Sarlavhadagi yozuv tugmasi (Lotin ↔ Кирилл) — hamma panelda, teginish 44 px. */
@@ -1356,7 +1356,7 @@ label.f input[aria-invalid="true"], textarea[aria-invalid="true"] { border: 0; b
 
 /* ---- Segment tanlov (iOS segmented control) ---- */
 .pills { background: var(--fill); border-radius: 11px; padding: 3px; gap: 2px; }
-.pill { min-height: 40px; border-radius: 9px; background: transparent; color: var(--ink); font-size: 15px; font-weight: 500; opacity: 1;
+.pill { min-height: 44px; border-radius: 9px; background: transparent; color: var(--ink); font-size: 15px; font-weight: 500; opacity: 1;
   transition: background-color 200ms var(--m-kir), box-shadow 200ms var(--m-kir); }
 .pill[aria-pressed="true"] { background: #FFFFFF; color: var(--ink); font-weight: 600; box-shadow: 0 3px 8px rgba(0, 0, 0, .12), 0 1px 1px rgba(0, 0, 0, .04); }
 .pill:active { opacity: .6; transform: none; }
@@ -1467,13 +1467,13 @@ button.card.yx-men { border-radius: var(--r-card); }
 /* ---- Pastki menyu (eski va yangi): oq, ingichka chiziq, faol — faqat urg'u rangi ---- */
 .yn-nav, .nav { background: rgba(249, 249, 249, .97); border-top: .5px solid rgba(60, 60, 67, .22); }
 .yn-nav { padding: 2px 4px env(safe-area-inset-bottom); }
-.yn-nav button { min-height: 56px; gap: 2px; font-size: 12px; font-weight: 500; color: #8E8E93; border-radius: 10px; }
+.yn-nav button { min-height: 56px; gap: 2px; font-size: 12px; font-weight: 500; color: var(--muted); border-radius: 10px; }
 .yn-nav button .ikon { width: 28px; height: 28px; padding: 0; border-radius: 0; background: none; transition: transform 200ms var(--m-kir); }
 .yn-nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .yn-nav button[aria-current="page"] .ikon { background: none; }
 .yn-nav button:active { background: transparent; opacity: 1; }
 .yn-nav button:active .ikon { transform: scale(.88); }
-.nav button { font-size: 12px; font-weight: 500; color: #8E8E93; }
+.nav button { font-size: 12px; font-weight: 500; color: var(--muted); }   /* audit 10.11: #8E8E93 — 3,1:1 */
 
 /* ---- Pastdan chiqadigan oyna (iOS sheet) ---- */
 .sheet-bg { background: var(--scrim); }
@@ -1485,7 +1485,7 @@ button.card.yx-men { border-radius: var(--r-card); }
 .sheet .head.tortiladi { padding-top: 20px; }
 .sheet .head h2 { font-size: 20px; font-weight: 700; letter-spacing: -.025em; }
 .sheet-tutqich { top: 7px; width: 36px; height: 5px; margin-left: -18px; background: rgba(60, 60, 67, .3); }
-.x { width: 32px; height: 32px; min-height: 32px; border-radius: 16px; background: var(--fill); color: #8E8E93; font-size: 22px; line-height: 1; margin: 6px; position: relative; }
+.x { width: 32px; height: 32px; min-height: 32px; border-radius: 16px; background: var(--fill); color: var(--muted); font-size: 22px; line-height: 1; margin: 6px; position: relative; }
 .x::after { content: ''; position: absolute; inset: -6px; }   /* teginish joyi 44 px */
 .sheet.toliq, .sheet.toliq .head { background: var(--card); }
 .sheet-bg { animation: m-fon 300ms ease-out both; }
@@ -1987,3 +1987,42 @@ html.matn-katta .buy-hafta-s, html.matn-katta .buy-hafta-iz { font-size: 14px; }
 /* Audit 2: tor ekranda xodim ismi tik ustunga siqilmasin — summa va «Yopish» kerak bo'lsa keyingi qatorga. */
 .line.kassa-qoldiq { flex-wrap: wrap; row-gap: 6px; }
 .line.kassa-qoldiq > span:first-child { flex: 1 1 180px; min-width: 0; overflow-wrap: normal; }
+/* Audit 10.11 (A4 №5): Statistika — «Kunlar bo'yicha» ro'yxati (grafik ustunlari telefonda ~7 px; har qator ≥ 44 px). */
+.stat-kunlar { display: flex; flex-direction: column; }
+.line.stat-kun { min-height: 44px; align-items: center; }
+.line.stat-kun > b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* A4 №1: ortiqcha to'langan ta'minotchilar — qarz jamisi ostida alohida qator. */
+.card.hero .ta-ortiq { font-size: 15px; }
+
+/* Audit 11.11: sarlavhadagi nomlar (data-asl) — ota matn uslubida, alohida qatorga tushmaydi */
+.top .t h1 [data-asl], .top .t span [data-asl] { display: inline; font: inherit; color: inherit; margin: 0; }
+/* B6 №1: Daftar — naqd kirimdagi kartaga o'tkazma (seyfga emas) jami ostida. */
+.dk-otk { text-align: center; font-size: 14px; }
+/* B4 №2: Ombor kartasidagi «⚠ 12» tor ekranda «⚠ / 12» bo'lib bo'linmasin. */
+.ys-k b { white-space: nowrap; }
+/* B4 №4: ortiqcha to'langan ta'minotchilar — izohda alohida qatorda (qarz deb o'qilmasin). */
+.ta-ortiq-q { display: block; }
+/* B4 №6: 320–340 px — sarlavha so'z o'rtasidan bo'linmaydi: bir qator, kichikroq harf, sig'masa «…»; tugmalar orasi zichroq. */
+@media (max-width: 340px) {
+  .top { gap: 8px; }
+  .top .t h1, .top.yh .t h1, html.matn-katta .top .t h1, html.matn-katta .top.yh .t h1 { font-size: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+  .yozuv-tugma { padding: 0 10px; }
+}
+
+/* ---- Boshqa ro'yxatga ko'chirish (11.11, retsept.mjs kochirOyna; maket E) ---- */
+.kochir-tugma { align-self: flex-start; }
+.kochir-royxat { display: flex; flex-direction: column; gap: 8px; margin: 4px 0; }
+.kochir-v { min-height: 56px; width: 100%; padding: 8px 14px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;
+  text-align: left; font-weight: 400; background: var(--fill-2); color: var(--ink); border: 2px solid transparent; border-radius: 12px; }
+.kochir-v[aria-checked="true"] { background: var(--tint); border-color: var(--accent); }
+.kochir-v-s { display: flex; align-items: center; gap: 8px; }
+.kochir-v-s b { font-weight: 600; font-size: 16px; }
+.kochir-belgi { flex: none; width: 22px; height: 22px; border-radius: 11px; border: 2px solid var(--field-line); display: inline-flex; align-items: center;
+  justify-content: center; font-size: 13px; font-weight: 800; color: var(--on-accent, #FFFFFF); }
+.kochir-v[aria-checked="true"] .kochir-belgi { background: var(--accent); border-color: var(--accent); }
+.kochir-v small { font-size: 14px; color: var(--muted); padding-left: 30px; }
+.kochir-ok { width: 100%; margin-top: 4px; }
+/* Ko'chirish — R1 ko'rigi (11.11): oynadagi ogohlantirishlar va bemor oynasidagi «… ro'yxatidan ko'chirilgan» qatori. */
+.kochir-ogoh { display: flex; flex-direction: column; gap: 8px; }
+.kochir-ogoh:empty { display: none; }
+.kochirildi { font-size: 14px; }

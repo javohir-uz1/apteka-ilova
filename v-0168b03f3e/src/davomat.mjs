@@ -98,7 +98,7 @@ export function davomatView(m, ctx, S) {
       ...list.filter((z) => z.filial === f).map((z) => {
         const v = z.kunlar[kun];
         return h('div', { class: 'davomat-qator' },
-          h('span', { class: 'davomat-ism' }, z.ism, v === undefined ? h('small', {}, 'belgilanmagan') : null),
+          h('span', { class: 'davomat-ism' }, h('span', { 'data-asl': '' }, z.ism), v === undefined ? h('small', {}, 'belgilanmagan') : null),
           h('div', { class: 'davomat-tug', role: 'group', 'aria-label': z.ism },
             h('button', { type: 'button', class: 'dv-ha', 'aria-pressed': String(v === true), onclick: () => belgila(z, true) }, 'Keldi'),
             h('button', { type: 'button', class: 'dv-yoq', 'aria-pressed': String(v === false), onclick: () => belgila(z, false) }, 'Kelmadi')));
@@ -106,6 +106,6 @@ export function davomatView(m, ctx, S) {
   }
   // Oy bo'yicha jami (tanlangan kunning oyi).
   m.append(ochiladi('Oy bo\'yicha — ' + oy, h('div', { class: 'card list' },
-    ...d.xodimlar.map((z) => h('div', { class: 'line' }, h('span', {}, z.ism + ' · ' + filialNomi(z.filial)),
+    ...d.xodimlar.map((z) => h('div', { class: 'line' }, h('span', { 'data-asl': '' }, z.ism + ' · ' + filialNomi(z.filial)),
       h('b', {}, sanoq(z, true) + ' kun keldi' + (sanoq(z, false) ? ' · ' + sanoq(z, false) + ' kelmadi' : ''))))), { k: 'davomat-oy' }));
 }

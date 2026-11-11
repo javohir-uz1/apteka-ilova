@@ -6,7 +6,8 @@
 //    qoldiq (filial + xodim), yopish, chegaralar. Karta — «Kassa ↔ Oson»da kun bo'yicha (10.11 kech).
 // 3) naqdFarqSoz / kartaFarqSoz — ikkala oynada bir xil so'z va daraja (10.11 kech, audit: "bir xil pul har xil ko'rinardi").
 import * as H from './hisob.mjs';
-import { h, input, kartaSarlavha, pills, sana, sheet, tasdiqlash, vaqt, yordam } from './ui.mjs';
+import { h, input, kartaSarlavha, pills, sana, sheet, tasdiqlash, vaqt, yordam, faolmi, faolQaytganda } from './ui.mjs';
+import { osonEskimi } from './oson-qoldiq.mjs';
 
 const YANGILASH = 30000;
 const SS = () => ({ j: null, xato: null, vaqt: 0, yuklanmoqda: null, imzo: '', taymer: 0, xatoChizildi: false });
@@ -19,6 +20,8 @@ export function kassaYangila() { KK.clear(); KF.vaqt = 0; }
 
 export const TURI = { payme: 'Payme', click: 'Click', boshqa: 'Boshqa' };
 const asl = (t) => h('span', { 'data-asl': '' }, t || '');
+// Audit 11.11: Payme/Click — nom, kirillga o'girilmaydi («Boshqa» — oddiy so'z, o'giriladi).
+const turiEl = (t) => (t === 'boshqa' || !TURI[t] ? (TURI[t] || t) : asl(TURI[t]));
 const qachon = (ts) => (ts ? (sana(ts) === sana(Date.now()) ? vaqt(ts) : sana(ts) + ' ' + vaqt(ts)) : '');
 const HOLAT = { kutilmoqda: ['Javob kutilmoqda', 'ogoh'], tushdi: ['✓ Tushdi', 'ok'], tushmadi: ['✗ Tushmadi', 'yoq'], bekor: ['Bekor qilindi', 'muted'] };
 
@@ -40,12 +43,15 @@ function yukla(ctx, chiz, majbur = false) {
     });
   return S.yuklanmoqda;
 }
+let kuzatOxirgi = null;   // audit 11.11: jimlikdan qaytganda — darhol yangilash
+faolQaytganda(() => { if (kuzatOxirgi && !document.hidden && document.querySelector('[data-otkazma-karta]')) yukla(kuzatOxirgi[0], kuzatOxirgi[1], true); });
 function kuzat(ctx, chiz) {
+  kuzatOxirgi = [ctx, chiz];
   if (S.taymer || typeof setTimeout !== 'function') return;
   S.taymer = setTimeout(() => {
     S.taymer = 0;
     if (typeof document === 'undefined' || !document.querySelector('[data-otkazma-karta]')) return;
-    if (!document.hidden) yukla(ctx, chiz, true);
+    if (!document.hidden && faolmi()) yukla(ctx, chiz, true);   // audit 10.11: jim telefon so'rov yubormaydi
     kuzat(ctx, chiz);
   }, YANGILASH);
   if (S.taymer && typeof S.taymer.unref === 'function') S.taymer.unref();
@@ -88,7 +94,7 @@ function holatEl(o) {
 
 function xodimQator(ctx, chiz, o) {
   return h('div', { class: 'otk-q' },
-    h('div', { class: 'otk-s' }, h('b', {}, H.som(o.summa)), h('span', { class: 'muted' }, ' · ' + (TURI[o.turi] || o.turi) + ' · ' + qachon(o.vaqt)
+    h('div', { class: 'otk-s' }, h('b', {}, H.som(o.summa)), h('span', { class: 'muted' }, ' · ', turiEl(o.turi), ' · ' + qachon(o.vaqt)
       + (o.ism && ctx.x && o.xodimId !== ctx.x.id ? ' · ' : '')), o.ism && ctx.x && o.xodimId !== ctx.x.id ? asl(o.ism) : null),
     h('div', { class: 'otk-h' }, holatEl(o),
       o.holat === 'kutilmoqda' && ctx.x && o.xodimId === ctx.x.id
@@ -122,7 +128,7 @@ function javobQator(ctx, chiz, o) {
   const ha = h('button', { type: 'button', class: 'p', onclick: (e) => javob(true, e.currentTarget) }, '✓ Tushdi');
   const yoq = h('button', { type: 'button', class: 's', onclick: (e) => javob(false, e.currentTarget) }, 'Tushmadi');
   return h('div', { class: 'otk-q otk-javob' },
-    h('div', { class: 'otk-s' }, h('b', { class: 'otk-summa' }, H.som(o.summa)), h('span', { class: 'muted' }, ' · ' + (TURI[o.turi] || o.turi))),
+    h('div', { class: 'otk-s' }, h('b', { class: 'otk-summa' }, H.som(o.summa)), h('span', { class: 'muted' }, ' · ', turiEl(o.turi))),
     h('div', { class: 'muted' }, asl(o.fn), ' · ', asl(o.ism), ' · ' + qachon(o.vaqt), o.izoh ? [' · ', asl(o.izoh)] : null),
     h('div', { class: 'row' }, ha, yoq));
 }
@@ -139,7 +145,7 @@ function sorashOyna(ctx, chiz) {
     if (uy && qf && qf !== uy) filChiz();
     const sum = input('Summa, so\'m', { placeholder: '0', autofocus: true });
     const tur = h('div', {});
-    const turChiz = () => tur.replaceChildren(pills(Object.entries(TURI), f.turi, (v) => { f.turi = v; turChiz(); }, 'Qayerdan'));
+    const turChiz = () => tur.replaceChildren(pills(Object.entries(TURI).map(([k, v]) => [k, k === 'boshqa' ? v : asl(v)]), f.turi, (v) => { f.turi = v; turChiz(); }, 'Qayerdan'));
     turChiz();
     const iz = input('Izoh (ixtiyoriy)', { inputmode: 'text', maxlength: 200, placeholder: 'Masalan: Trombopol uchun (mijoz ismi/telefoni kerak emas)' });
     let band = false;
@@ -247,7 +253,7 @@ export function kassaNazoratView(m, ctx) {
     return;
   }
   if (KF.xato) m.append(h('div', { class: 'msg warn' }, 'Yangilanmadi: ' + KF.xato));
-  const eski = !j.osonVaqt || Date.now() - j.osonVaqt > 60 * 60000;
+  const eski = osonEskimi(j.osonVaqt);   // A4 №7: OSON_ESKI_MS (45 daqiqa) — boshqa Oson ekranlari bilan bir xil
   if (eski) m.append(h('div', { class: 'msg warn' }, j.osonVaqt ? 'Oson kassasi ma\'lumoti ' + qachon(j.osonVaqt) + ' da kelgan — eski bo\'lishi mumkin.'
     : 'Oson kassasi ma\'lumoti hali kelmagan (kengaytma 0.9.20).'));
 
@@ -321,7 +327,10 @@ function savdoQator(x, j) {
   const izoh = [];
   if (x.osonOchiq) izoh.push(h('div', { class: 'muted kassa-iz' }, 'Oson smenasi hali yopilmagan — ochiq, hisobga kirmaydi.'));
   else if (!x.osonSoni) izoh.push(h('div', { class: 'muted kassa-iz' }, 'Bu smenaga to\'g\'ri keladigan Oson smenasi topilmadi (yoki u 20 soatdan uzun ochiq qolgan) — kun bo\'yicha «Kassa ↔ Oson»da qarang.'));
-  if (x.kutilmoqda) izoh.push(h('div', { class: 'msg warn' }, 'Javob kutayotgan o\'tkazma: ' + H.som(x.kutilmoqda) + ' — bosh sahifada «Tushdi/Tushmadi» deb javob bering.'));
+  // Audit 11.11: kutilmoqda = javob kutayotgan o'tkazma + ruxsat kutayotgan qarz (server ruxsatQarz) — alohida yoziladi.
+  const rq = Math.max(0, Number(x.ruxsatQarz) || 0), ko = Math.max(0, (Number(x.kutilmoqda) || 0) - rq);
+  if (ko) izoh.push(h('div', { class: 'msg warn' }, 'Javob kutayotgan o\'tkazma: ' + H.som(ko) + ' — bosh sahifada «Tushdi/Tushmadi» deb javob bering.'));
+  if (rq) izoh.push(h('div', { class: 'msg warn' }, 'Ruxsat kutayotgan qarz: ' + H.som(rq) + ' — bosh sahifada ruxsat bering yoki rad eting.'));
   return h('div', { class: 'item kassa-q' }, h('div', { class: 'kassa-q-b' }, kim, belgi),
     h('div', { class: 'kassa-n' }, 'Yozilgan ', h('b', {}, pulNb(yozilgan)), tarkib ? h('span', { class: 'muted' }, tarkib) : null),
     x.osonSoni ? h('div', { class: 'kassa-n' }, 'Oson sotdi ', h('b', {}, pulNb(x.osonNaqd))) : null,
