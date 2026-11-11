@@ -37,24 +37,44 @@ export function shtrixGuruhlar(list) {
     .map((g) => ({ ...g, turlar: g.turlar.sort((a, b) => tartibla(a.nom, b.nom)) }));
 }
 
+// Oson bilan bog'liqligi (12.11, 20261112020000_kateter_shtrix.sql): server har kodga «oson» — Oson qoldig'ida shu kodli dori
+// nomini beradi. osonBor (S.osonShtrix) — Oson shtrix-kodlari umuman kelganmi; kelmagan bo'lsa (eski kengaytma, sinov) — jim.
+// null — hech narsa; { ok: true, nom } — Oson taniydi; { ok: false } — Oson'da bu kod yo'q (kassa skaneri topmaydi).
+export function shtrixOsonHolat(s, osonBor) {
+  if (s && s.oson) return { ok: true, nom: s.oson };
+  return osonBor ? { ok: false } : null;
+}
+
+// Kod Oson'da yo'q — xodimga qidirish yo'li: Oson'da nom ko'pincha boshqacha davom etadi («KD-Fix катетер внутривенный р.14G»),
+// shuning uchun birinchi so'z bilan qidirib, qolganini (o'lcham) ro'yxatdan tanlash aytiladi (audit 12.11).
+export function osonQidirIzoh(nom) {
+  const [bosh, ...qolgan] = String(nom).trim().split(/\s+/);
+  return h('div', { class: 'shtrix-oson ogoh', role: 'note' }, 'Bu kod Oson\'ga hali qo\'shilmagan — skaner topmasa, Oson\'da «',
+    h('b', { 'data-asl': '' }, bosh), '» deb qidiring', qolgan.length ? [' va «', h('b', { 'data-asl': '' }, qolgan.join(' ')), '»ni tanlang'] : null, '.');
+}
+
 // Guruh oynasi: turlari ro'yxati → bosilsa shtrix-kod, tagida «Orqaga» (ro'yxat yana chiqadi).
 // Bitta turi bo'lsa (masalan, Analgin) — darhol shtrix-kod.
-export function shtrixOyna(g, boshTur = null) {
+export function shtrixOyna(g, boshTur = null, osonBor = false) {
   sheet(g.guruh, (box) => {
     const ich = h('div', { style: 'display:flex;flex-direction:column;gap:10px' });
     const yagona = g.turlar.length === 1;
     const royxat = () => {
       ich.textContent = '';
       ich.append(h('div', { class: 'muted' }, 'Turini tanlang — shtrix-kod chiqadi'),
-        h('div', { class: 'shtrix-turlar' }, ...g.turlar.map((s) => h('button', { type: 'button', class: 'shtrix-tugma', onclick: () => kod(s) }, s.nom || g.guruh))));
+        h('div', { class: 'shtrix-turlar' }, ...g.turlar.map((s) => h('button', { type: 'button', class: 'shtrix-tugma', 'data-asl': '', onclick: () => kod(s) }, s.nom || g.guruh))));
     };
     const kod = (s) => {
       ich.textContent = '';
-      ich.append(h('div', { class: 'shtrix-nomi' }, g.guruh + (s.nom ? ' · ' + s.nom : '')),
+      const oh = shtrixOsonHolat(s, osonBor);
+      // Oddiy DOM append null'ni «null» matni qilib qo'yadi (12.11 topildi: bitta turli guruhda ham chiqardi) — avval filtrlanadi.
+      ich.append(...[h('div', { class: 'shtrix-nomi', 'data-asl': '' }, g.guruh + (s.nom ? ' · ' + s.nom : '')),
         shtrixRasm(s.kod),
         h('div', { class: 'shtrix-raqam', 'data-asl': '' }, s.kod),
         h('div', { class: 'muted', style: 'text-align:center' }, 'Ekranni skanerga tuting. O\'qimasa — telefon yorug\'ligini oshiring.'),
-        yagona ? null : h('button', { type: 'button', class: 'p', onclick: royxat }, '‹ Orqaga — ro\'yxat'));
+        oh && oh.ok ? h('div', { class: 'shtrix-oson' }, 'Oson\'da: ', h('b', { 'data-asl': '' }, oh.nom)) : null,
+        oh && !oh.ok ? osonQidirIzoh(s.nom || g.guruh) : null,
+        yagona ? null : h('button', { type: 'button', class: 'p', onclick: royxat }, '‹ Orqaga — ro\'yxat')].filter(Boolean));
     };
     box.append(ich);
     if (boshTur) kod(boshTur); else if (yagona) kod(g.turlar[0]); else royxat();
@@ -66,18 +86,22 @@ export function shtrixKarta(S) {
   const gs = shtrixGuruhlar(S.shtrixlar);
   if (!gs.length) return null;
   return h('div', { class: 'card' }, kartaSarlavha('Shtrix-kodlar'),
-    h('div', { class: 'shtrix-turlar' }, ...gs.map((g) => h('button', { type: 'button', class: 'shtrix-tugma', onclick: () => shtrixOyna(g) }, g.guruh))));
+    h('div', { class: 'shtrix-turlar' }, ...gs.map((g) => h('button', { type: 'button', class: 'shtrix-tugma', onclick: () => shtrixOyna(g, null, !!S.osonShtrix) }, g.guruh))));
 }
 
-// Xodim yangi ko'rinishi (11.11, sodda Bosh): «Shtrix-kodlar» tugmasi — oynada guruhlar; bittasi bo'lsa — darhol uning oynasi.
+// Xodim yangi ko'rinishi (11.11, sodda Bosh; 12.11 — katta tugma): «Shtrix-kodlar» — oynada guruhlar (Ампула, Катетер, Шприц);
+// bittasi bo'lsa — darhol uning oynasi.
 export const shtrixBormi = (S) => shtrixGuruhlar(S.shtrixlar).length > 0;
+// Katta tugma izohi: guruh nomlari (ekranga sig'maganini CSS «…» bilan qisqartiradi).
+export const shtrixIzoh = (S) => shtrixGuruhlar(S.shtrixlar).map((g) => g.guruh).join(' · ');
 export function shtrixRoyxatOyna(S) {
   const gs = shtrixGuruhlar(S.shtrixlar);
+  const osonBor = !!S.osonShtrix;
   if (!gs.length) return;
-  if (gs.length === 1) { shtrixOyna(gs[0]); return; }
+  if (gs.length === 1) { shtrixOyna(gs[0], null, osonBor); return; }
   sheet('Shtrix-kodlar', (box, close) => {
     box.append(h('div', { class: 'muted' }, 'Nomini tanlang — shtrix-kod chiqadi'),
-      h('div', { class: 'shtrix-turlar' }, ...gs.map((g) => h('button', { type: 'button', class: 'shtrix-tugma', onclick: () => { close(); shtrixOyna(g); } }, g.guruh))));
+      h('div', { class: 'shtrix-turlar' }, ...gs.map((g) => h('button', { type: 'button', class: 'shtrix-tugma', onclick: () => { close(); shtrixOyna(g, null, osonBor); } }, g.guruh))));
   }, { fokus: false });
 }
 
@@ -112,11 +136,13 @@ export function shtrixDirektor(m, ctx) {
   if (!gs.length) { m.append(h('div', { class: 'card muted' }, 'Hali shtrix-kod yo\'q. Masalan: nomi «Shprits», turi «5 ml», raqami — qutidagi shtrix ostidagi raqamlar.')); return; }
   gs.forEach((g) => {
     m.append(h('div', { class: 'card list' }, kartaSarlavha(g.guruh + ' · ' + g.turlar.length + ' ta'),
-      ...g.turlar.map((s) => h('div', { class: 'item' },
-        h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', {}, s.nom || '(turisiz)'), h('b', { 'data-asl': '' }, s.kod)),
+      ...g.turlar.map((s) => { const oh = shtrixOsonHolat(s, !!S.osonShtrix); return h('div', { class: 'item' },
+        h('div', { class: 'line', style: 'border:0;padding:0' }, h('span', s.nom ? { 'data-asl': '' } : {}, s.nom || '(turisiz)'), h('b', { 'data-asl': '' }, s.kod)),
+        oh ? h('div', { class: 'shtrix-oson' + (oh.ok ? '' : ' ogoh') }, oh.ok ? ['✓ Oson\'da: ', h('span', { 'data-asl': '' }, oh.nom)]
+          : '⚠ Oson\'da bu kod yo\'q — Oson\'dagi dori kartasiga shu kodni qo\'shing, aks holda kassa skaneri topmaydi') : null,
         h('div', { class: 'row' },
-          h('button', { class: 's', onclick: () => shtrixOyna(g, s) }, 'Ko\'rish'),
+          h('button', { class: 's', onclick: () => shtrixOyna(g, s, !!S.osonShtrix) }, 'Ko\'rish'),
           h('button', { class: 's ogoh', onclick: () => tasdiqlash(g.guruh + (s.nom ? ' · ' + s.nom : '') + ' o\'chirilsinmi?')
-            .then((ha) => ha && ctx.amal('shtrixOchir', s.id).then((ok) => ok && ctx.toast('O\'chirildi'))) }, 'O\'chirish'))))));
+            .then((ha) => ha && ctx.amal('shtrixOchir', s.id).then((ok) => ok && ctx.toast('O\'chirildi'))) }, 'O\'chirish'))); })));
   });
 }

@@ -12,7 +12,7 @@
 import * as H from './hisob.mjs';
 import { h, kartaSarlavha, nusxaOl, ochiladi, pills, sana, sheet, tasdiqlash, vaqt, yordam } from './ui.mjs';
 import { ikon } from './ikon.mjs';
-import { osonVaqtEl, qoldiqMatn } from './oson-qoldiq.mjs';
+import { birZavod, ishlabQisqa, osonVaqtEl, qoldiqMatn, sotuvTezlik } from './oson-qoldiq.mjs';
 import { firmalarOl, narxlar } from './firma.mjs';
 import { ozFilialmi, sorovHolati, sorovYuklanganmi, sorovYukla } from './filial-sorov.mjs';
 
@@ -453,6 +453,26 @@ function doriOyna(ctx, x, fil, chiz) {
       const t = buyTuri(x), yk = yetkKun(x), jk = jamiKun(x), kunlik = Number(x.kunlik) || 0;
       const soni = qSoni(x), on = tanlanganmi(x), f = qFirma(x, fm), n = qutiNarx(x, f);
       ich.append(h('div', { class: 'muted' }, asl(filNom(fil, x)), ' · ' + (t === 'tugagan' ? 'hozir tugagan' : 'hozir ' + qoldiqMatn(x.qoldiq, x.dona) + ' bor')));
+      // 12.11: bir xil nomli dori bir necha ishlab chiqaruvchidan — server bitta dori qilib hisoblagan.
+      const ishl = Array.isArray(x.ishlablar) ? x.ishlablar.filter((a) => a && typeof a === 'object') : [];
+      if (ishl.length > 1) {
+        // 1-audit: keksa direktor uchun — qisqa kirish, har zavod alohida qatorda, oddiy rangda.
+        // 12.11 (egasi: "qaysi zavodniki ko'p sotilayotganini ham aniqlash"): har zavodning 8 haftalik sotuvi (server 'sotildi8') va
+        // javonda bo'lgan kunlari ('borKun8') — «haftasiga ~N quti sotiladi» / «yangi keldi, 1 kunda 19 quti sotildi». 1-audit:
+        // «Eng ko'p sotiladigani» — faqat hamma zavod kamida 14 kun javonda bo'lgan va nomlari adashmaydigan bo'lsa.
+        // 2-audit: tugagan zavod (qoldiq 0) javonda 7 kundan kam bo'lsa — «… sotilib tugadi», «yangi keldi» emas.
+        const tl = ishl.map((a) => ({ a, n: ishlabQisqa(a.ishlab), t: sotuvTezlik(a, null, !(Number(a.qoldiq) > 0)) }));
+        const tez = tl.every((z) => z.t && z.a.borKun8 != null && Number(z.a.borKun8) >= 14)
+          ? tl.slice().sort((p1, p2) => p2.t.haftalik - p1.t.haftalik)[0] : null;
+        const tezNom = tez && tez.t.haftalik > 0 && tez.n && !tl.some((z) => z !== tez && birZavod(z.n, tez.n)) ? tez.n : null;
+        const sotMatn = (t) => (!t ? '' : t.tur === 'tez' ? ' · haftasiga ' + t.matn + ' sotiladi'
+          : t.tur === 'yangi' ? ' · ' + t.matn + (/kunda/.test(t.matn) ? ' sotildi' : '') : ' · ' + t.matn);
+        ich.append(h('div', { class: 'buy-ishlab' },
+          h('div', {}, 'Bu dori ' + ishl.length + ' ta zavoddan — hammasi bitta dori deb hisoblandi:'),
+          tezNom ? h('div', {}, 'Eng ko\'p sotiladigani: ', asl(tezNom)) : null,
+          ...tl.map(({ a, n, t }) => h('div', {}, '• ', n ? asl(n) : 'zavod nomi yo\'q',
+            ' — ' + (Number(a.qoldiq) > 0 ? qoldiqMatn(a.qoldiq, x.dona) : 'tugagan') + sotMatn(t)))));
+      }
       ich.append(h('div', { class: 'buy-javob' }, h('b', {}, 'Bugun ' + x.kerak + ' quti buyurtma bering'),
         h('span', {}, kunlik > 0 && x.sekin ? (x.kerak > 1 ? 'Sekin sotiladi — bu qutilar uzoq yetadi.' : 'Sekin sotiladi — bu quti uzoq yetadi.')
           : kunlik > 0 ? 'Firma ' + yk + ' kunda olib keladi, bu qutilar keyingi ' + Math.max(1, jk - yk) + ' kunga yetadi.'

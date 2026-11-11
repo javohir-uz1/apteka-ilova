@@ -21,7 +21,9 @@ export const TANISHUV = {
     { ikon: 'dori', sarlavha: 'Katta tugmalar', matn: ['Eng tepada — katta tugmalar:',
       ['x_defektura', 'Defekturaga yozish — kam qolgan yoki tugagan dorini yozing, direktor buyurtma beradi.'],
       ['x_qidiruv', 'Dori qidirish — narxi va qaysi filialda bor. Ichida shtrix-kodni kamera bilan o\'qish ham bor.'],
-      ['x_qidiruv', 'Bugun nima keldi — Oson\'ga bugun kirgan dorilar.']] },
+      ['x_qidiruv', 'Bugun nima keldi — Oson\'ga bugun kirgan dorilar.'],
+      // 12.11: Shtrix-kodlar katta tugmaga ko'tarildi (ro'yxati hamma filialda bir xil, prod'da doim bor).
+      'Shtrix-kodlar — ampula, kateter, shprits: turini tanlang va ekranni kassa skaneriga tuting.'] },
     { ikon: 'shtrix', sarlavha: 'Kichik tugmalar va kartalar', matn: ['Katta tugmalar ostida — kichik tugmalar (masalan, Kartaga o\'tkazma).',
       'Ish chiqsa — karta paydo bo\'ladi (masalan, kelgan dorilarni sanash). Ish bo\'lmasa — karta yo\'q.', 'Pastroqda — boshqa filialdan dori so\'rash.'] },
     { ikon: 'men', sarlavha: 'Boshqa bo\'limlar', matn: ['Eng pastda — «Boshqa bo\'limlar».',

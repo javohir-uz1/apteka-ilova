@@ -15,7 +15,7 @@ import { KIRILL, kirillDom, kirillKuzat, kirillYut, yozuvKirillmi } from './kiri
 import { renderDirektor } from './direktor.mjs';
 import { renderTaminotchi } from './taminotchi.mjs';
 import { defekturaXodim, kelganKarta, praysQidiruv } from './bolimlar.mjs';
-import { shtrixBormi, shtrixKarta, shtrixRoyxatOyna } from './shtrix.mjs';
+import { shtrixBormi, shtrixIzoh, shtrixKarta, shtrixRoyxatOyna } from './shtrix.mjs';
 import { muddatiOtganKarta, osonQidiruv } from './oson-qoldiq.mjs';
 import { narxXodimKarta } from './nazorat.mjs';
 import { bronKarta, bronYuklanganmi } from './bron.mjs';
@@ -533,8 +533,8 @@ function oylikView(m, x) {
 }
 
 // ---- Xodim — yangi ko'rinish (07.11, egasi «variant A» ni tanladi) ----
-// Pastki menyu yo'q. 11.11 dan Bosh sodda (xBosh): 3 ta katta tugma (Defekturaga yozish, Dori qidirish, Bugun nima keldi), «Tez» qatori
-// (Shtrix-kodlar, Kartaga o'tkazma, Retseptlar), amal kartalari faqat ishi bo'lsa, dori so'rash, «Boshqa bo'limlar» (qarz, inventar,
+// Pastki menyu yo'q. 11.11 dan Bosh sodda (xBosh): katta tugmalar (Defekturaga yozish, Dori qidirish, Bugun nima keldi, 12.11 dan
+// Shtrix-kodlar), «Tez» qatori (Kartaga o'tkazma, Retseptlar), amal kartalari faqat ishi bo'lsa, dori so'rash, «Boshqa bo'limlar» (qarz, inventar,
 // Bilimdon, oylik, Men). Ichki sahifada — Telegram «orqaga» va ‹ (kelgan sahifaga; Bosh'ga qaytganda aylantirish joyi tiklanadi).
 // Qarz yozish — 3 qadamli oyna (qarz-usta.mjs; amal va tekshiruv eski oynadagidek).
 const XY_TAB = { bosh: 'Bosh sahifa', qarz: 'Qarzlarim', men: 'Men', oylik: 'Oyligim', dorilar: 'Dorilar', retsept: 'Retseptlar', oyin: 'Bilimdon', inventar: 'Inventar' };
@@ -615,8 +615,8 @@ function qidiruvOch(skan) {
 // Bosh sahifa (yangi; 11.11 soddalashtirildi — egasi: "ko'p narsa bo'lsa ishlata olmaydi"; 14 kunlik foydalanish: Defektura 139,
 // Bilimdon 82 (07.11 dan keyin 0), O'raldi 18, qolganlari 0; R9/R10 ko'rigi). Tartib:
 //   (Bilimdon o'yini — faqat jonli bo'lsa, eng tepada; renderXodimYangi) → salom + davomat (ixcham)
-//   → 3 ta katta tugma: Defekturaga yozish (asosiy, yagona to'ldirilgan), Dori qidirish, Bugun nima keldi
-//   → «Tez» qatori: Shtrix-kodlar (bo'lsa), Kartaga o'tkazma, Retseptlar (ruxsati borga)
+//   → katta tugmalar: Defekturaga yozish (asosiy, yagona to'ldirilgan), Dori qidirish, Bugun nima keldi, Shtrix-kodlar (bo'lsa; 12.11)
+//   → «Tez» qatori: Kartaga o'tkazma, Retseptlar (ruxsati borga)
 //   → amal kartalari (faqat ishi bo'lsa: kelgan dorilarni sanash, o'tkazma javobi, bronlar, «Bugun» — kelgan defektura, ruxsat
 //     kutayotgan qarz, qarz pullari; muddati o'tgan; narx yorlig'i) → dori so'rash (pastda, egasi 11.11) → «Boshqa bo'limlar» (yopiq).
 // Joy sakramasin: kech keladigan kartalar (kirim, o'tkazma, bron) birinchi marta kelguncha (ko'pi bilan 3 s) pastki qism (dori so'rash
@@ -647,12 +647,14 @@ function xBosh(m, x) {
   m.append(h('nav', { class: 'yx-asosiy', 'aria-label': 'Asosiy amallar' },
     fy('x_defektura') ? katta('dori', 'Defekturaga yozish', defSoni ? defSoni + ' ta yozilgan' : 'Kam qolgan dorini yozing', () => xOch('dorilar', 'kam'), 'asosiy') : null,
     fy('x_qidiruv') ? katta('qidir', 'Dori qidirish', 'Narxi, qaysi filialda', () => qidiruvOch(false)) : null,
-    kh ? katta('keldi', 'Bugun nima keldi', kh.izoh, () => keldiOch(ctx, qayta), kh.eski ? 'eski' : '') : null));
+    kh ? katta('keldi', 'Bugun nima keldi', kh.izoh, () => keldiOch(ctx, qayta), kh.eski ? 'eski' : '') : null,
+    // 12.11 (egasi: "shtrix-kod bo'limi asosiy ekranda ko'rinadigan joyda tursin, bosganda ichiga kirsin"): «Tez» qatoridan katta
+    // tugmaga ko'tarildi — izohda guruhlar (Ампула · Катетер · Шприц); bosilsa guruhlar oynasi.
+    shtrixBormi(S) ? katta('shtrix', 'Shtrix-kodlar', shtrixIzoh(S), () => shtrixRoyxatOyna(S), 'shtrix') : null));
 
   // «Tez» qatori: kichik tugmalar (bir qatorda, 320 px da o'raladi).
   const tez = (ik, nom, onclick, cls) => h('button', { type: 'button', class: 'yx-tez-t ' + cls, onclick }, h('span', { 'aria-hidden': 'true' }, ikon(ik)), h('span', {}, nom));
   const tezlar = [
-    shtrixBormi(S) ? tez('shtrix', 'Shtrix-kodlar', () => shtrixRoyxatOyna(S), 'shtrix') : null,
     SERVER ? tez('kassa', 'Kartaga o\'tkazma', () => otkazmaSorashOch(ctx, qayta), 'otkazma') : null,
     retseptRuxsat(S, x) && fy('x_retsept') ? tez('retsept', 'Retseptlar', () => { retseptBosh(); xOch('retsept'); }, 'retsept') : null].filter(Boolean);
   if (tezlar.length) m.append(h('nav', { class: 'yx-tez', 'aria-label': 'Tez tugmalar' }, ...tezlar));
