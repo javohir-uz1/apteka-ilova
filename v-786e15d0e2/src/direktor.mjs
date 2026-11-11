@@ -28,6 +28,7 @@ import { chiqarishView } from './chiqarish.mjs';
 import { kassaView, narxFarqSoni, narxView } from './nazorat.mjs';
 import { kassaKun, kassaKunJami, kassaKunXato, kassaNazoratView, kassaYangila, naqdFarqSoz, otkazmaKarta } from './kassa.mjs';
 import { kirimKarta } from './kirim.mjs';
+import { keldiKarta, keldiOyna } from './keldi.mjs';
 import { funksiyalarView, ochiqSoni } from './funksiya.mjs';
 import { auditView } from './audit.mjs';
 import { harakatOyna, sorovKarta, sorovOyna } from './filial-sorov.mjs';
@@ -1116,6 +1117,7 @@ function bugunView(m, ctx, go, bugun) {
   if (ctx.server) { const ok = otkazmaKarta(ctx.retseptCtx(), () => ctx.rerender()); if (ok) m.append(ok); }
   if (ctx.server) { const kk = kirimKarta(ctx.retseptCtx(), () => ctx.rerender()); if (kk) m.append(kk); }
   if (ctx.server) m.append(sorovKarta(ctx.retseptCtx(), () => ctx.rerender(), { direktor: true }));
+  if (ctx.server) m.append(keldiKarta(ctx.retseptCtx(), () => ctx.rerender()));   // 11.11: «Yangi kelgan dorilar» — amal kartalaridan keyin (keldi.mjs)
   const dq = diqqatQatorlari(ctx, go, bugun);
   m.append(h('section', { class: 'yb', 'aria-label': 'Diqqat qiling' }, h('h2', { class: 'yb-s' }, 'Diqqat qiling'),
     dq.length ? h('div', { class: 'card yb-r' }, ...dq.map(qator))
@@ -1197,6 +1199,7 @@ function omborBolim(m, ctx, go, fil) {
   m.append(...bolimlar([
     { nom: 'Har kungi ish', qatorlar: [
       sv ? { ikon: 'ombor', rang: 'yashil', l: 'Oson qoldig\'i', izoh: 'Tugadi, kam qoldi, ko\'chirsa — hamma filial', onclick: () => go('qoldiq') } : null,
+      sv ? { ikon: 'keldi', rang: 'yashil', l: 'Yangi kelgan dorilar', izoh: 'Oson\'ga bugun kirgan dorilar — har filial', onclick: () => keldiOyna(rc) } : null,   // 11.11
       sv ? { ikon: 'aqlli', rang: 'binafsha', l: 'Aqlli buyurtma', izoh: 'Nima va qancha olish kerak', onclick: () => go('qoldiq', 'buyurtma') } : null,
       { ikon: 'defektura', rang: 'sariq', l: 'Defektura', izoh: def ? def + ' ta dori kerak' : 'Kam qolgan dorilar', diqqat: def > 0, onclick: () => { DEF_TAB.v = 'kerak'; go('more', 'defektura'); } },
       sv ? { ikon: 'kochirish', rang: 'kok', l: 'Filiallararo dori so\'rovlari', izoh: 'Har filial boshqa filialdan so\'raydi', onclick: () => sorovOyna(rc, chiz) } : null,

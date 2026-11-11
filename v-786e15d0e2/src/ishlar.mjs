@@ -27,6 +27,10 @@ export const ISHLAR = {
   xodimVaqtincha: [(S, men, xid, f, gacha) => A.xodimVaqtincha(S, xid, f, gacha), (xid, f, gacha) => ['xodim_vaqtincha', [xid, f || '', gacha || '']]],
   xodimDaraja: [(S, men, xid, d) => A.xodimDaraja(S, xid, d), (xid, d) => ['xodim_daraja', [xid, Number(d) === 2 ? 2 : 1]]],
   bemorOraldi: [(S, men, id, o) => A.bemorOraldi(S, id, o, men.ism), (id, o) => ['bemor_oraldi', [id, !!o]]],
+  // 11.11: QR bemorni boshqa ro'yxatga (punkt yoki «Aptekadagi mijozlar»); eski — ekranda ko'ringan hozirgi punkt.
+  // Natija {id, punktId, punktNom, eskiPunktId, osonEdi, oraldiEdi[, takror]}.
+  bemorKochir: [(S, men, id, punktId, sabab, eski) => A.bemorKochir(S, id, punktId, sabab, eski, men.ism),
+    (id, punktId, sabab, eski) => ['bemor_kochir', [id, punktId, String(sabab || '').slice(0, 200), eski || null]]],
   bemorOson: [(S, men, id, o) => A.bemorOson(S, id, o, men.ism), (id, o) => ['bemor_oson', [id, !!o]]],
   osonToplam: [(S, men, p, kun, o, n) => A.osonToplam(S, p, kun, o, n, men.ism), (p, kun, o, n) => ['oson_toplam', [p, m(kun), !!o, n]]],
   osonMijozlar: [(S, men, idlar) => A.osonMijozlar(S, idlar, men.ism), (idlar) => ['oson_mijozlar', [JSON.stringify(idlar)]]],
@@ -148,6 +152,8 @@ export const ISHLAR = {
   osonFilial: [() => A.osonYoq(), (b, f) => ['oson_filial', [m(b), f == null ? '' : String(f)]]],
   osonMuddat: [() => A.osonYoq(), (oy) => ['oson_muddat', [oy]]],
   osonQidir: [() => A.osonYoq(), (s) => ['oson_qidir', [m(s)]]],
+  // 11.11: «Bugun keldi» — Oson'ga shu kuni kirgan dorilar (kun 'YYYY-MM-DD', bo'sh — bugun).
+  osonKeldi: [() => A.osonYoq(), (kun) => ['oson_keldi', [String(kun || '')]]],
   osonMajbur: [() => A.osonYoq(), () => ['oson_majbur', []]],
   osonMuddatiOtgan: [() => A.osonYoq(), () => ['oson_muddati_otgan', []]],
   // 06.11: Pul nazorati, Aqlli buyurtma (direktor), mijozga «dori keldi» havolasi — faqat serverda.

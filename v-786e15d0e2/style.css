@@ -2008,3 +2008,56 @@ html.matn-katta .buy-hafta-s, html.matn-katta .buy-hafta-iz { font-size: 14px; }
   .top .t h1, .top.yh .t h1, html.matn-katta .top .t h1, html.matn-katta .top.yh .t h1 { font-size: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
   .yozuv-tugma { padding: 0 10px; }
 }
+
+/* ---- Boshqa ro'yxatga ko'chirish (11.11, retsept.mjs kochirOyna; maket E) ---- */
+.kochir-tugma { align-self: flex-start; }
+.kochir-royxat { display: flex; flex-direction: column; gap: 8px; margin: 4px 0; }
+.kochir-v { min-height: 56px; width: 100%; padding: 8px 14px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;
+  text-align: left; font-weight: 400; background: var(--fill-2); color: var(--ink); border: 2px solid transparent; border-radius: 12px; }
+.kochir-v[aria-checked="true"] { background: var(--tint); border-color: var(--accent); }
+.kochir-v-s { display: flex; align-items: center; gap: 8px; }
+.kochir-v-s b { font-weight: 600; font-size: 16px; }
+.kochir-belgi { flex: none; width: 22px; height: 22px; border-radius: 11px; border: 2px solid var(--field-line); display: inline-flex; align-items: center;
+  justify-content: center; font-size: 13px; font-weight: 800; color: var(--on-accent, #FFFFFF); }
+.kochir-v[aria-checked="true"] .kochir-belgi { background: var(--accent); border-color: var(--accent); }
+.kochir-v small { font-size: 14px; color: var(--muted); padding-left: 30px; }
+.kochir-ok { width: 100%; margin-top: 4px; }
+/* Ko'chirish — R1 ko'rigi (11.11): oynadagi ogohlantirishlar va bemor oynasidagi «… ro'yxatidan ko'chirilgan» qatori. */
+.kochir-ogoh { display: flex; flex-direction: column; gap: 8px; }
+.kochir-ogoh:empty { display: none; }
+.kochirildi { font-size: 14px; }
+
+/* ---- «Bugun keldi» (11.11, keldi.mjs) — Oson'ga bugun kirgan dorilar ---- */
+.keldi-karta { display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-height: 64px; padding: 14px 16px; text-align: left; }
+.keldi-karta-s { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 17px; }
+.keldi-o { color: var(--muted); font-size: 22px; line-height: 1; }
+.keldi-eski { color: var(--warn); font-size: 14px; font-weight: 600; }
+.keldi-oyna { display: flex; flex-direction: column; gap: 10px; }
+.keldi-tepa .pill { min-height: 44px; }
+.keldi-jami { font-size: 17px; }
+.keldi-izoh { font-size: 14px; }
+.keldi-royxat { display: flex; flex-direction: column; gap: 12px; }
+.keldi-guruh { display: flex; flex-direction: column; gap: 0; padding: 4px 14px; }
+.keldi-guruh-s { font-size: 17px; font-weight: 700; margin: 10px 0 4px; }
+.keldi-q { display: flex; flex-direction: column; gap: 3px; padding: 12px 0; border-top: 1px solid var(--sep); }
+.keldi-q:first-of-type { border-top: 0; }
+.keldi-q-s { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.keldi-q-s b { font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.keldi-q-s .belgi { flex: none; }
+.keldi-q-son { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; font-size: 16px; }
+.keldi-q-son b { white-space: nowrap; }
+.keldi-kirim { font-size: 14px; }
+.keldi-sora { align-self: flex-start; margin-top: 6px; }
+.keldi-bosh { line-height: 1.45; }
+/* «Yangi kelgan dorilar» — R6 ko'rigi (11.11): belgi, narx qatori, tugagan qator, so'rov tugmasi (filial nomi bilan bir bo'lak). */
+.keldi-karta-s { justify-content: flex-start; }
+.keldi-karta-s b { flex: 1 1 auto; }
+.keldi-ikon { flex: none; width: 32px; height: 32px; border-radius: 9px; background: var(--soft); color: var(--accent); display: inline-flex; align-items: center; justify-content: center; }
+.keldi-ikon svg { width: 20px; height: 20px; }
+.keldi-q-son { justify-content: flex-start; }
+.keldi-narx { font-size: 16px; }
+.keldi-q.tugagan .keldi-narx { color: var(--muted); }
+.keldi-sora { gap: 0; }
+.keldi-soralgan { align-self: flex-start; margin-top: 6px; }
+.keldi-holat { display: flex; flex-direction: column; gap: 6px; }
+.keldi-holat:empty { display: none; }

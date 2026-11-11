@@ -804,7 +804,7 @@ export function guruhXato(guruh) {
   const id = 'g' + (++maydonId);
   const err = h('span', { class: 'err', id, 'aria-live': 'polite' });
   if (guruh) guruh.setAttribute('aria-describedby', id);
-  return { el: err, xato: (m) => { err.textContent = m || ''; }, i: { focus: () => { const b = guruh && (guruh.querySelector('[aria-pressed="true"]') || guruh.querySelector('button')); if (b) b.focus(); } } };
+  return { el: err, xato: (m) => { err.textContent = m || ''; }, i: { focus: () => { const b = guruh && (guruh.querySelector('[aria-pressed="true"], [aria-checked="true"]') || guruh.querySelector('button')); if (b) b.focus(); } } };
 }
 
 // Xatoni (tekshiruv yoki server P0001) eng mos maydon tagiga qo'yadi. juftlar: [[maydon, /kalit so'z/], …, [maydon]] —

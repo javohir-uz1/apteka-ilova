@@ -22,6 +22,7 @@ import { bronKarta } from './bron.mjs';
 import { sorovKarta } from './filial-sorov.mjs';
 import { otkazmaKarta } from './kassa.mjs';
 import { kirimKarta } from './kirim.mjs';
+import { keldiKarta } from './keldi.mjs';
 import { inventarOrqaga, inventarView } from './inventar.mjs';
 import { oyinBanner, oyinBosh, oyinView } from './oyin.mjs';
 import { menDavomat } from './davomat.mjs';
@@ -307,6 +308,7 @@ function renderXodim(x) {
     if (dTab === 'kam' && !fy('x_defektura')) m.append(h('div', { class: 'card muted' }, 'Kam qolgan dorini yozish direktor tomonidan o\'chirilgan.'));
     else if (dTab === 'kam') defekturaXodim(m, { S, amal, amalX, toast, qidir, oson: { ...retseptCtx(x), qidiruvYoq: !fy('x_qidiruv') } }, x);
     if (dTab === 'keldi') m.append(kelganKarta(S));
+    if (dTab === 'keldi' && SERVER && fy('x_qidiruv')) m.append(keldiKarta(retseptCtx(x), () => { if (tab === 'dorilar') rerender(); }, { doim: true }));   // 11.11: Oson'ga bugun kelganlar
     // Oson qoldig'i (02.11): «Qaysi filialda bor?» — har filialdagi soni va Oson'dagi sotuv narxi; prays-list — pastda.
     if (dTab === 'narx' && SERVER && fy('x_qidiruv')) m.append(osonQidiruv(retseptCtx(x), (id) => ((S.filiallar || []).find((f) => f.id === id) || {}).nom || id));
     if (dTab === 'narx') m.append(praysQidiruv({ S, qidir }));
@@ -381,6 +383,8 @@ function boshView(m, x) {
   if (SERVER) { const ok = otkazmaKarta(ctx, () => { if (tab === 'bosh') rerender(); }); if (ok) m.append(ok); }
   // 10.11 kunduz: Oson'da filialga ko'chirilgan dorilar — sanab tasdiqlash (kirim.mjs).
   if (SERVER) { const kk = kirimKarta(ctx, () => { if (tab === 'bosh') rerender(); }); if (kk) m.append(kk); }
+  // 11.11: «Yangi kelgan dorilar» — faqat ma'lumot (keldi.mjs): amal kartalaridan keyin; «Qidiruv» o'chiq bo'lsa — yo'q.
+  if (SERVER && fy('x_qidiruv')) m.append(keldiKarta(ctx, () => { if (tab === 'bosh') rerender(); }));
   const sk = shtrixKarta(S);
   if (sk) { sk.id = 'shtrix-karta'; sk.tabIndex = -1; m.append(sk); }
   // Bugun: kelgan dorilar va bugun yozgan qarzlar.
@@ -577,6 +581,7 @@ function renderXodimYangi(x) {
     if (dTab === 'kam' && !fy('x_defektura')) m.append(h('div', { class: 'card muted' }, 'Kam qolgan dorini yozish direktor tomonidan o\'chirilgan.'));
     else if (dTab === 'kam') defekturaXodim(m, { S, amal, amalX, toast, qidir, oson: { ...retseptCtx(x), qidiruvYoq: !fy('x_qidiruv') } }, x);
     if (dTab === 'keldi') m.append(kelganKarta(S));
+    if (dTab === 'keldi' && SERVER && fy('x_qidiruv')) m.append(keldiKarta(retseptCtx(x), () => { if (tab === 'dorilar') rerender(); }, { doim: true }));   // 11.11: Oson'ga bugun kelganlar
     if (dTab === 'narx' && SERVER && fy('x_qidiruv')) m.append(osonQidiruv(retseptCtx(x), (id) => ((S.filiallar || []).find((f) => f.id === id) || {}).nom || id));
     if (dTab === 'narx') m.append(praysQidiruv({ S, qidir }));
   }
@@ -635,6 +640,8 @@ function xBosh(m, x) {
   if (SERVER) { const ok = otkazmaKarta(ctx, () => { if (tab === 'bosh') rerender(); }); if (ok) m.append(ok); }
   // 10.11 kunduz: Oson'da filialga ko'chirilgan dorilar — sanab tasdiqlash (kirim.mjs).
   if (SERVER) { const kk = kirimKarta(ctx, () => { if (tab === 'bosh') rerender(); }); if (kk) m.append(kk); }
+  // 11.11: «Yangi kelgan dorilar» — faqat ma'lumot (keldi.mjs): amal kartalaridan keyin; «Qidiruv» o'chiq bo'lsa — yo'q.
+  if (SERVER && fy('x_qidiruv')) m.append(keldiKarta(ctx, () => { if (tab === 'bosh') rerender(); }));
   const sk = shtrixKarta(S);
   if (sk) { sk.id = 'shtrix-karta'; sk.tabIndex = -1; m.append(sk); }
   // «Bugun»: kelgan dorilar va bugun yozgan qarzlar (ismsiz — kassa oldida begona ko'rmasin; audit 05.11).

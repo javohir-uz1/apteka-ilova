@@ -818,10 +818,12 @@ function duelOyin(ctx, chiz, box) {
   if (D.nat) {
     const n = D.nat;
     // Vaqt tugagach to'g'ri variant bosilsa — server 0 ball beradi; «Noto'g'ri» emas, «Vaqt tugadi».
-    const tanlovTogri = Array.isArray(n.togriJavob) && (D.tanlov || []).length === 1 && n.togriJavob.includes(D.tanlov[0]);
+    // 11.11: server 'kech' beradi (to'g'ri variant raqibdan yashirin bo'lsa ham «Vaqt tugadi» to'g'ri chiqadi).
+    const tanlovTogri = n.kech === true || (Array.isArray(n.togriJavob) && (D.tanlov || []).length === 1 && n.togriJavob.includes(D.tanlov[0]));
     box.append(h('div', { class: 'card oyin-natija ' + (n.togri ? 'ok' : 'yoq'), role: 'status' },
       h('b', { class: 'oyin-natija-b' }, n.togri ? '✓ To\'g\'ri!' : tanlovTogri ? 'Vaqt tugadi' : '✗ Noto\'g\'ri'),
       h('span', {}, '+' + (n.ball || 0) + ' ball')));
+    if (n.yashirin) box.append(h('div', { class: 'muted' }, 'To\'g\'ri javob va izoh raqib ham shu savolga javob bergach ochiladi — adolatli bo\'lsin.'));
     const nq = n.qoshimcha && Array.isArray(n.qoshimcha.monitor) && Array.isArray(n.qoshimcha.natija) && q.tur === 'simulyator';
     if (nq) box.append(h('div', { class: 'card oyin-savol' }, monitorKarta({ ...q, qoshimcha: n.qoshimcha, togri: n.togriJavob }, { ochiq: true },
       { javob: D.tanlov || [], togri: n.togri, kech: !n.togri && tanlovTogri }, false)));
