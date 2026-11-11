@@ -10,6 +10,8 @@ const FAOL = new Set(['yangi', 'tayyor']);
 const BB = () => ({ j: null, imzo: '', vaqt: 0, yuklanmoqda: null, xato: null, band: '', taymer: 0, oyna: null });
 const B = BB();
 // Sinov uchun (tests): modul holatini tozalash.
+// 11.11 (sodda Bosh): ro'yxat bir marta olinganmi.
+export const bronYuklanganmi = () => !!(B.j || B.xato);
 export function bronUnut() { clearTimeout(B.taymer); Object.assign(B, BB()); }
 
 // Holat yozuvi va rangi (style.css tokenlari; alohida CSS yo'q).
@@ -22,6 +24,7 @@ const asl = (t) => h('span', { 'data-asl': '' }, t);
 function yukla(ctx, chiz, majbur = false) {
   if (B.yuklanmoqda) return B.yuklanmoqda;
   if (!majbur && (B.j || B.xato) && Date.now() - B.vaqt < YANGILASH) return null;
+  const birinchi = !B.j && !B.xato;   // R12: birinchi yuklash xatosi ham chiziladi (Bosh pastki qismi kutib qolmasin)
   B.yuklanmoqda = Promise.resolve().then(() => ctx.oqi('bronlar'))
     .then((j) => {
       if (!Array.isArray(j)) throw new Error('Server javobi tushunarsiz');
@@ -32,7 +35,7 @@ function yukla(ctx, chiz, majbur = false) {
     .then((ozgardi) => {
       B.vaqt = Date.now(); B.yuklanmoqda = null;
       // Xatoda Bosh sahifa qayta chizilmaydi (eski ro'yxat qoladi); ochiq oyna «Yangilanmadi» ni ko'rsatadi.
-      if (ozgardi === true) chiz();
+      if (ozgardi === true || (ozgardi === 'xato' && birinchi)) chiz();
       if (ozgardi && B.oyna) B.oyna();
     });
   return B.yuklanmoqda;

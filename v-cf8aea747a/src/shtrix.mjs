@@ -69,6 +69,18 @@ export function shtrixKarta(S) {
     h('div', { class: 'shtrix-turlar' }, ...gs.map((g) => h('button', { type: 'button', class: 'shtrix-tugma', onclick: () => shtrixOyna(g) }, g.guruh))));
 }
 
+// Xodim yangi ko'rinishi (11.11, sodda Bosh): «Shtrix-kodlar» tugmasi — oynada guruhlar; bittasi bo'lsa — darhol uning oynasi.
+export const shtrixBormi = (S) => shtrixGuruhlar(S.shtrixlar).length > 0;
+export function shtrixRoyxatOyna(S) {
+  const gs = shtrixGuruhlar(S.shtrixlar);
+  if (!gs.length) return;
+  if (gs.length === 1) { shtrixOyna(gs[0]); return; }
+  sheet('Shtrix-kodlar', (box, close) => {
+    box.append(h('div', { class: 'muted' }, 'Nomini tanlang — shtrix-kod chiqadi'),
+      h('div', { class: 'shtrix-turlar' }, ...gs.map((g) => h('button', { type: 'button', class: 'shtrix-tugma', onclick: () => { close(); shtrixOyna(g); } }, g.guruh))));
+  }, { fokus: false });
+}
+
 // Direktor: qo'shish (nomi, turi, raqami) va ro'yxat (ko'rish, o'chirish).
 let tanlanganGuruh = '';
 export function shtrixDirektor(m, ctx) {
@@ -92,7 +104,7 @@ export function shtrixDirektor(m, ctx) {
     else ish();
   };
   m.append(h('div', { class: 'card' }, kartaSarlavha('Yangi shtrix-kod'),
-    h('div', { class: 'muted' }, 'Xodimlar asosiy ekranda nomini bosadi → turini tanlaydi → shtrix-kod chiqadi va skanerga tutadi. Hamma filialda bir xil. Faqat raqamni yozing — chizig\'ini ilova o\'zi chizadi.'),
+    h('div', { class: 'muted' }, 'Xodimlar asosiy ekranda «Shtrix-kodlar» tugmasini bosadi → nomini → turini tanlaydi → shtrix-kod chiqadi va skanerga tutadi. Hamma filialda bir xil. Faqat raqamni yozing — chizig\'ini ilova o\'zi chizadi.'),
     gs.length ? h('div', { class: 'pills', role: 'group', 'aria-label': 'Bor nomlar' }, ...gs.map((g) => h('button', { type: 'button', class: 'pill',
       onclick: () => { guruh.qiymat(g.guruh); guruh.xato(''); tur.i.focus(); } }, g.guruh))) : null,
     guruh.el, tur.el, kod.el,

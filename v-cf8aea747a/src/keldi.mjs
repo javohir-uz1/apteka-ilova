@@ -4,17 +4,18 @@
 // «📦 Kelgan dorilar» (kirim.mjs — ko'chirishni sanash) bilan adashmasin: bu karta faqat ma'lumot, nomi va belgisi boshqa.
 //   keldiKarta(ctx, chiz, { doim })  — karta «Yangi kelgan dorilar — bugun N xil» (N = 0 va Oson yangi — yashirin; doim — «Dorilar»da
 //                                      bo'sh bo'lsa ham kirish joyi); bosilsa — keldiOyna.
-//   keldiOyna(ctx)                    — oyna: «Bugun | Kecha» (sarlavha shunga qarab), Oson vaqti / eski ogohlantirish, filial bo'yicha
-//                                      guruhlar (Osnovnoy birinchi), 15 tadan ko'p qatorda — qidiruv.
+//   keldiOyna(ctx)                    — oyna: «Bugun | Kecha» (sarlavha shunga qarab), bitta holat qatori («Keldi: Osnovnoy · N xil ·
+//                                      yangilandi HH:MM»), eski bo'lsa — bitta sariq qator, jadval Nomi | Soni | Narxi | (+) (egasi «B»),
+//                                      15 tadan ko'p qatorda — qidiruv.
 //   keldiView(joy, ctx, qayta)        — oyna ichi (testda ham). Tuzilma bir marta quriladi (qidiruv maydoni, ro'yxat joyi — doimiy),
 //                                      har yangilanishda faqat qismlar qayta chiziladi va doim hozirgi ma'lumotdan.
 // Chaqiruvchilar «Qidiruv» funksiyasi (x_qidiruv) bilan cheklaydi — o'chiq bo'lsa karta ham, so'rov ham yo'q.
 // Yangilash: taymer yo'q (eng arzon) — karta yoki oyna chizilganda ma'lumot 5 daqiqadan eski bo'lsa qayta olinadi. Saboq 24: har kun
 // uchun so'rov raqami — kech kelgan eski javob yangisini bosmaydi; javob boshqa kunniki bo'lsa (yarim tun) — o'z kuniga yoziladi.
 import * as H from './hisob.mjs';
-import { h, input, pills, sheet } from './ui.mjs';
+import { h, input, pills, sheet, vaqt } from './ui.mjs';
 import { ikon } from './ikon.mjs';
-import { osonEskimi, osonVaqtEl, qoldiqMatn } from './oson-qoldiq.mjs';
+import { osonEskimi } from './oson-qoldiq.mjs';
 import { sorashOch, sorovHolati, sorovYukla } from './filial-sorov.mjs';
 
 export const KELDI_ESKI = 5 * 60000;   // shundan eski ro'yxat karta/oyna chizilganda qayta olinadi
@@ -127,32 +128,31 @@ function ochiqSorov(ctx, j, q) {
   return null;
 }
 
-function qatorEl(ctx, j, q) {
-  const dir = direktormi(ctx);
-  // soni — haqiqiy qoldiq: > 0 bo'lsa so'rash mumkin (belgilardan qat'i nazar); faqat 0 — «tugadi».
+// Jadval (11.11, egasi «B variant»: "tushunarli, soddaroq — nomi, soni, narxi yetadi"): Nomi | Soni | Narxi | (+).
+// Soni — «keldi» (kq, taxminiy) ma'lum bo'lsa o'sha, bo'lmasa hozirgi qoldiq; birligi — jadval tagidagi izohda (quti). Tugagan — «tugadi».
+// «+» — faqat so'ray oladigan xodimga (Osnovnoy bo'lmagan filial, Osnovnoy qatori, qoldig'i bor); so'ralgan bo'lsa — «✓».
+// Direktor — nom ostida kirim narxi. Ishlab chiqaruvchi, firma, muddat va boshqa belgilar ro'yxatda yo'q (sodda).
+const sonKor = (v) => { const n = Number(v); if (!Number.isFinite(n)) return ''; const r = Math.round(n * 100) / 100; return String(r).replace('.', ','); };
+const narxKor = (v) => H.som(v).replace(/ so'm$/, '');
+function qatorEl(ctx, j, q, plus) {
   const tugagan = !(Number(q.soni) > 0);
-  const qoldiq = tugagan ? 'qoldiq: tugadi' : (q.boshqaPartiya ? 'bu partiya sotilgan · ' : '') + 'qoldiq: ' + qoldiqMatn(q.soni, q.dona);
-  const mm = muddatMatn(q.muddat);
-  let sorov = null;
-  if (sorashMumkin(ctx, j, q)) {
-    const bor = ochiqSorov(ctx, j, q);
-    const fl = sorashFiliallar(ctx, j);
-    sorov = bor ? h('span', { class: 'belgi ok keldi-soralgan' }, 'So\'ralgan ✓ (' + OCHIQ_SOROV[bor.holat] + ')')
-      : h('button', { type: 'button', class: 's keldi-sora',
-        onclick: () => sorashOch(ctx, { nom: q.nom, filial: fl[0], manba: q.f, qoldiq: [{ f: q.f, soni: q.soni, dona: q.dona }], vaqt: j.vaqt }, yangila) },
-      h('span', {}, '+ ', asl(filialNom(ctx, fl[0])), ' uchun kerak'));
+  const son = tugagan ? 'tugadi' : sonKor(q.kq != null ? q.kq : q.soni);
+  let ust = null;
+  if (plus) {
+    if (sorashMumkin(ctx, j, q)) {
+      const bor = ochiqSorov(ctx, j, q);
+      const fl = sorashFiliallar(ctx, j);
+      ust = bor ? h('span', { class: 'keldi-soralgan', role: 'img', 'aria-label': 'So\'ralgan — ' + OCHIQ_SOROV[bor.holat] }, '✓')
+        : h('button', { type: 'button', class: 'keldi-plus', 'aria-label': '+ ' + filialNom(ctx, fl[0]) + ' uchun so\'rash',
+          onclick: () => sorashOch(ctx, { nom: q.nom, filial: fl[0], manba: q.f, qoldiq: [{ f: q.f, soni: q.soni, dona: q.dona }], vaqt: j.vaqt }, yangila) }, '+');
+    }
   }
-  return h('div', { class: 'keldi-q' + (tugagan ? ' tugagan' : ''), 'data-rk': String(q.f) + '|' + String(q.p != null ? q.p : q.nom) },
-    h('div', { class: 'keldi-q-s' }, h('b', { 'data-asl': '' }, q.nom || ''), q.defekturada ? h('span', { class: 'belgi ok' }, 'defekturada edi ✓') : null),
-    q.ishlab ? h('div', { class: 'muted' }, asl(q.ishlab)) : null,
-    h('div', { class: 'keldi-q-son' },
-      q.kq != null ? h('span', {}, 'keldi: ~' + qoldiqMatn(q.kq, q.dona)) : null,   // kq — taxminiy (kamida shuncha keldi)
-      h('span', { class: tugagan ? 'muted' : null }, qoldiq),
-      q.yanaKeldi ? h('span', { class: 'muted' }, 'keyin yana keldi') : null),
-    q.narx ? h('div', { class: 'keldi-narx' }, 'narxi: ', h('b', {}, H.som(q.narx)), ' (1 quti)') : null,
-    mm || q.firma ? h('div', { class: 'muted' }, mm ? 'muddati ' + mm : '', mm && q.firma ? ' · ' : '', q.firma ? asl(q.firma) : '') : null,
-    dir && q.kirimNarx != null ? h('div', { class: 'muted keldi-kirim' }, 'kirim narxi: ' + H.som(q.kirimNarx)) : null,
-    sorov);
+  return h('tr', { class: tugagan ? 'tugagan' : null, 'data-rk': String(q.f) + '|' + String(q.p != null ? q.p : q.nom) },
+    h('td', { class: 'keldi-nom' }, h('span', { 'data-asl': '' }, q.nom || ''),
+      direktormi(ctx) && q.kirimNarx != null ? h('span', { class: 'keldi-kirim' }, 'kirim: ' + narxKor(q.kirimNarx)) : null),
+    h('td', { class: 'son' }, son),
+    h('td', { class: 'son' }, q.narx ? narxKor(q.narx) : '—'),
+    plus ? h('td', { class: 'keldi-plus-td' }, ust) : null);
 }
 
 const sarlavha = () => KELDI_NOM + ' — ' + (K.tanlov === 'kecha' ? 'kecha' : 'bugun');
@@ -161,13 +161,12 @@ const sarlavha = () => KELDI_NOM + ' — ' + (K.tanlov === 'kecha' ? 'kecha' : '
 // tinglovchi K.oyna orqali hozirgi ma'lumotni o'qiydi — fonda yangilangandan keyin ham yangi ro'yxatni filtrlaydi).
 export function keldiView(joy, ctx, qayta) {
   if (!joy._keldi) {
-    const q = input('Qidirish', { inputmode: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Dori, firma yoki ishlab chiqaruvchi', pul: false });
+    const q = input('Qidirish', { inputmode: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Dori nomi', pul: false });
     q.el.classList.add('keldi-qidir');
     q.i.addEventListener('input', () => { K.soz = q.i.value; qayta(); });
-    joy._keldi = { tepa: h('div', { class: 'keldi-tepa' }), holat: h('div', { class: 'keldi-holat' }), jami: h('div', { class: 'keldi-jami' }),
-      q, royxat: h('div', { class: 'keldi-royxat' }) };
+    joy._keldi = { tepa: h('div', { class: 'keldi-tepa' }), holat: h('div', { class: 'keldi-holat' }), q, royxat: h('div', { class: 'keldi-royxat' }) };
     const t = joy._keldi;
-    joy.replaceChildren(t.tepa, t.holat, t.jami, q.el, t.royxat);
+    joy.replaceChildren(t.tepa, t.holat, q.el, t.royxat);
   }
   const t = joy._keldi;
   const kun = kunOl(K.tanlov);
@@ -188,39 +187,48 @@ export function keldiView(joy, ctx, qayta) {
     t.holat.replaceChildren(s.xato ? h('div', { class: 'msg warn', role: 'status' }, 'Ro\'yxat olinmadi: ' + s.xato + ' ',
       h('button', { type: 'button', class: 's', onclick: () => { yukla(ctx, kun, qayta, true); } }, 'Qayta urinish'))
       : h('div', { class: 'muted', 'aria-live': 'polite' }, 'Yuklanmoqda…'));
-    t.jami.replaceChildren(); t.royxat.replaceChildren();
+    t.royxat.replaceChildren();
     return;
   }
   const eski = keldiEskimi(j);
-  // Oson vaqti: yangi — kulrang, eski (45 daqiqadan ko'p) yoki yo'q — sariq ogohlantirish; server «eski» desa ham.
+  const hammasi = j.qatorlar;
+  const asosiy = asosiyId(ctx), ozi = (j.men && j.men.filial) || (ctx.x && ctx.x.filialId) || null;
+  const gs0 = keldiGuruhlar(hammasi, asosiy, ozi);
+  // Bitta qator: «Keldi: Osnovnoy · N xil · yangilandi HH:MM»; eski bo'lsa — bitta sariq qator; chala va xato — alohida.
   const holat = [];
-  const ve = osonVaqtEl(j.vaqt == null ? null : j.vaqt, { izoh: 'ro\'yxat to\'liq bo\'lmasligi mumkin' });
-  if (ve) holat.push(ve);
-  if (j.eski && j.vaqt != null && !osonEskimi(j.vaqt)) holat.push(h('div', { class: 'oson-vaqt eski', role: 'status' }, '⚠ ' + ESKI_MATN));
+  // R11: kirill rejimida asl nomga qo'shimcha ulanmasin («Osnovnoy'ga» → «Osnovnoyга») — «Keldi: Osnovnoy».
+  const qayerga = gs0.length === 1 ? ['Keldi: ', asl(gs0[0].fn)] : [K.tanlov === 'kecha' ? 'Kecha keldi' : 'Bugun keldi'];
+  const vq = j.vaqt != null && Number.isFinite(Number(j.vaqt)) && Number(j.vaqt) > 0 ? ' · yangilandi ' + vaqt(Number(j.vaqt)) : '';
+  if (hammasi.length) holat.push(h('div', { class: 'keldi-jami' }, ...qayerga, ' · ' + xilJami(j) + ' xil' + vq));
+  if (eski) holat.push(h('div', { class: 'oson-vaqt eski', role: 'status' }, '⚠ ' + ESKI_MATN));
   if (j.chala) holat.push(h('div', { class: 'msg warn', role: 'status' }, 'Ro\'yxat to\'liq emas — ' + chalaJami(j) + ' xildan ' + j.qatorlar.length + ' tasi ko\'rsatilgan'));
   if (s.xato) holat.push(h('div', { class: 'muted' }, 'Yangilanmadi (' + s.xato + ') — oldingi ro\'yxat.'));
-  holat.push(h('div', { class: 'muted keldi-izoh' }, 'Oson\'dan taxminan har 30 daqiqada yangilanadi.'));
   t.holat.replaceChildren(...holat);
-  const hammasi = j.qatorlar;
   if (!hammasi.length) {
-    t.jami.replaceChildren();
     t.royxat.replaceChildren(h('div', { class: 'card muted keldi-bosh' }, eski ? '⚠ ' + ESKI_MATN + '.'
       : K.tanlov === 'kecha' ? 'Kecha yangi dori kelmagan.' : 'Bugun hali yangi dori kelmagan. Oson\'ga kirim qilinsa, ~30 daqiqada shu yerda chiqadi.'));
     return;
   }
-  t.jami.replaceChildren(h('b', {}, xilJami(j) + ' xil dori'), K.tanlov === 'kecha' ? ' — kecha keldi' : ' — bugun keldi');
-  // So'ralganini ko'rsatish uchun filiallararo so'rovlar ro'yxati (bir marta; so'rov yuborilgach filial-sorov o'zi yangilaydi).
-  // So'rovlar holati (So'ralgan ✓ …): har chizishda — 60 s dan eski bo'lsa filial-sorov o'zi qayta oladi, o'zgarsa — yangila().
-  if (hammasi.some((q) => sorashMumkin(ctx, j, q))) sorovYukla(ctx, yangila);
+  // So'rovlar holati («✓»): har chizishda — 60 s dan eski bo'lsa filial-sorov o'zi qayta oladi, o'zgarsa — yangila().
+  const plus = hammasi.some((q) => sorashMumkin(ctx, j, q));
+  if (plus) sorovYukla(ctx, yangila);
   const soz = qidiruv ? H.qidiruvKalit(K.soz) : '';
-  const kor = soz ? hammasi.filter((q) => H.qidiruvKalit(q.nom + ' ' + (q.ishlab || '') + ' ' + (q.firma || '')).includes(soz)) : hammasi;
-  const asosiy = asosiyId(ctx), ozi = (j.men && j.men.filial) || (ctx.x && ctx.x.filialId) || null;
+  const kor = soz ? hammasi.filter((q) => H.qidiruvKalit(q.nom).includes(soz)) : hammasi;
   const gs = keldiGuruhlar(kor, asosiy, ozi);
-  t.royxat.replaceChildren(...(gs.length ? gs.map((g) => h('section', { class: 'card keldi-guruh', 'aria-label': g.fn },
-    // Bitta filial (server endi faqat Osnovnoy beradi) — sarlavhada faqat nomi; bir nechta — nom va soni.
-    h('h3', { class: 'keldi-guruh-s' }, asl(g.fn), gs.length > 1 ? h('span', { class: 'muted' }, ' · ' + xilSoni(g.qatorlar) + ' xil') : null),
-    ...g.qatorlar.map((q) => qatorEl(ctx, j, q))))
-    : [h('div', { class: 'muted' }, 'Bu so\'z bo\'yicha topilmadi.')]));
+  if (!gs.length) { t.royxat.replaceChildren(h('div', { class: 'muted' }, 'Bu so\'z bo\'yicha topilmadi.')); return; }
+  const ustunlar = plus ? 4 : 3;
+  const tbody = h('tbody', {});
+  gs.forEach((g) => {
+    if (gs0.length > 1) tbody.append(h('tr', { class: 'keldi-guruh-tr' }, h('th', { scope: 'rowgroup', colspan: String(ustunlar) }, asl(g.fn))));
+    g.qatorlar.forEach((q) => tbody.append(qatorEl(ctx, j, q, plus)));
+  });
+  const jadval = h('table', { class: 'keldi-jadval' + (plus ? ' plusli' : '') },
+    h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Nomi'), h('th', { scope: 'col', class: 'son' }, 'Soni'), h('th', { scope: 'col', class: 'son' }, 'Narxi'),
+      plus ? h('th', { scope: 'col', class: 'keldi-plus-td' }, h('span', { class: 'yashirin' }, 'So\'rash')) : null)),
+    tbody);
+  const fl = plus ? sorashFiliallar(ctx, j) : [];
+  t.royxat.replaceChildren(h('div', { class: 'keldi-jadval-joy' }, jadval),
+    h('div', { class: 'muted keldi-izoh' }, 'Soni — quti. Narxi — 1 quti, so\'m.', plus ? [' «+» — ', asl(filialNom(ctx, fl[0])), ' uchun so\'rash.'] : null));
 }
 
 export function keldiOyna(ctx) {
@@ -252,4 +260,30 @@ export function keldiKarta(ctx, chiz, o = {}) {
       h('b', {}, KELDI_NOM + (n ? ' — bugun ' + n + ' xil' : '')), h('span', { class: 'keldi-o', 'aria-hidden': 'true' }, '›')),
     izoh ? h('span', { class: 'muted' }, ...[].concat(izoh)) : null,
     eski ? h('span', { class: 'keldi-eski' }, '⚠ ' + ESKI_MATN) : null);
+}
+
+// Xodim Bosh sahifasidagi katta tugma uchun (11.11, sodda Bosh): holat va bir qatorli izoh — karta o'rniga. null — serversiz.
+// { n, eski, xato, izoh } ; bosilsa — keldiOch(ctx, chiz).
+export function keldiHolat(ctx, chiz) {
+  if (!ctx.server) return null;
+  const kun = bugunKun();
+  yukla(ctx, kun, chiz);
+  const s = kunHolat(kun), j = s.j;
+  const n = xilJami(j), eski = keldiEskimi(j);
+  // Bir qator (R9/R10, 11.11): uzun ogohlantirish — oynada; tugmada qisqa.
+  // R11: filial xodimi (Osnovnoy'da ishlamaydi) — qayerga kelgani aytiladi («Osnovnoy: 3 xil keldi»), o'z filialiga kelgan deb o'ylamasin.
+  // Nom — data-asl, qo'shimchasiz (kirill rejimida «Osnovnoy'ga» buzilmasin).
+  const asosiy = asosiyId(ctx);
+  const begona = !!j && !direktormi(ctx) && !!(j.men && j.men.filial) && j.men.filial !== asosiy && !(j.men.filiallar || []).includes(asosiy);
+  const fn = (((j && j.qatorlar) || []).find((q) => q.f === asosiy) || {}).fn || filialNom(ctx, asosiy);
+  const izoh = !j ? (s.xato ? 'Olinmadi — bosing, qayta urinadi' : 'Yuklanmoqda…')
+    : eski ? '⚠ Oson yangilanmagan' + (n ? ' · ' + n + ' xil' : '')
+      : !n ? 'Bugun hali kelmagan' : begona ? [asl(fn), ': ' + n + ' xil keldi'] : n + ' xil dori keldi';
+  return { n, eski, xato: !!s.xato, izoh };
+}
+export function keldiOch(ctx, chiz) {
+  const kun = bugunKun(), s = kunHolat(kun);
+  K.tanlov = 'bugun';
+  if (s.xato) yukla(ctx, kun, chiz, true);
+  keldiOyna(ctx);
 }

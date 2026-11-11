@@ -16,7 +16,7 @@ import { skanerTugma } from './shtrix-skan.mjs';
 import { chiqarishOyna, chiqarishRuxsat, chiqarishTugma } from './chiqarish.mjs';
 import { ozFilialmi, sorashOch } from './filial-sorov.mjs';
 
-const BOSH = () => ({ j: null, vaqt: 0, yuklanmoqda: null, keyin: false, xato: null, filial: '', ochiq: {}, tartib: {}, rejim: 'tugadi', defda: new Map(),
+const BOSH = () => ({ j: null, vaqt: 0, yuklanmoqda: null, keyin: false, xato: null, filial: '', ochiq: {}, tartib: {}, rejim: 'tugadi', zavodOchiq: false, defda: new Map(),
   muddat: { oy: 3, j: null, vaqt: 0, yuklanmoqda: null, xato: null }, otgan: { j: null, vaqt: 0, yuklanmoqda: null, ochiq: false }, qidir: { soz: '', jSoz: null, j: null, xato: null, taymer: 0, avlod: 0, chiz: null } });
 const O = BOSH();
 const KORINADI = 12;   // har bo'limda boshida nechta qator (qolgani «Yana N ta»)
@@ -234,7 +234,7 @@ export function osonKarta(ctx, fil, chiz, o = {}) {
   if (!ctx.qidiruvYoq) k.append(osonQidiruv(ctx, fil, { ichida: true, ixcham: true }));   // 07.11: direktor «Dori qidirish»ni o'chirgan (xodim)
   if (!['tugadi', 'hammada', 'kam', 'kochir', 'muddat'].includes(O.rejim)) O.rejim = 'tugadi';
   const san = (j.sanoq && j.sanoq[O.filial || '']) || { t: 0, k: 0 };
-  const kochir = kesh('kochir:' + (O.filial || ''), () => j.qatorlar.filter((q) => (!O.filial || q.b === O.filial) && boshqaBor(q).length).length);
+  const kochir = kesh('kochir:' + (O.filial || ''), () => j.qatorlar.filter((q) => (!O.filial || q.b === O.filial) && !q.ozidaBor && boshqaBor(q).length).length);
   const M = O.muddat;
   const muddatSoni = M.j && M.j.oy === M.oy ? M.j.q.filter((q) => !O.filial || q.b === O.filial).length : null;
   // Tabdagi son uchun muddat ro'yxati fonda bir marta olinadi (xatoda — «…» qoladi, tab bosilganda qayta urinadi).
@@ -263,11 +263,12 @@ export function osonKarta(ctx, fil, chiz, o = {}) {
 
 // 08.11 (egasi: "firmamizda umuman qolmagan — 3 ta filialda ham yo'q dorini ko'rsat; tugagan dorini hech qachon unutmasin"):
 // server har qatorga 'hammada' beradi (shu nomli/katalogdagi dori hech bir filialda qoldig'i yo'q). Bir dori — bitta qator
-// (talaffuz kaliti bo'yicha), filiallar tanlovidan qat'i nazar; eng oxirgi tugagani tepada.
+// (12.11: server bergan dori guruhi 'g' — kalit + aynan bir xil nom; eski server — talaffuz kaliti), filiallar tanlovidan qat'i
+// nazar; eng oxirgi tugagani tepada.
 export function hammadaGuruh(qatorlar) {
   const m = new Map();
   (qatorlar || []).filter((q) => q.hammada).forEach((q) => {
-    const k = q.kalit || q.nom;
+    const k = q.g || q.kalit || q.nom;
     const g = m.get(k);
     if (!g) m.set(k, { k, nom: q.nom, qatorlar: [q], tugadi: q.tugadi || 0, def: !!q.def });
     else { g.qatorlar.push(q); g.tugadi = Math.max(g.tugadi, q.tugadi || 0); g.def = g.def || !!q.def; }
@@ -305,6 +306,39 @@ function hammadaView(k, ctx, fil, chiz) {
   k.append(ro);
   if (O.j.hammadaJami != null && O.j.hammadaJami > gs.length) k.append(h('div', { class: 'muted' }, 'Ro\'yxatda ' + gs.length + ' tasi (jami ' + O.j.hammadaJami + ').'));
   royxatHarakat(ro, 'oq:hammada:' + (O.tartib.hammada || ''));
+}
+
+// 12.11 (egasi: "«Tugayapti» ham tuzat"): shu filialda shu dorining boshqa zavodnikisi javonda turgan qatorlar (server 'ozidaBor') —
+// dori aslida bor, buyurtma shart emas. 04.11 qarori: yashirilmaydi — Tugadi (tugaganlari) va Kam qoldi (kam qolganlari) pastida
+// yig'iq «Boshqa zavodnikisi javonda» bo'limi, har qatorda yashil «✓ Синтез'niki tugadi, Озон'niki bor». Ochiq/yopiqligi eslab
+// qolinadi. 1-audit: bir filialda bir dorining (server 'g') bir nechta zavodi tugagan bo'lsa — bitta yozuv («Merrymed'niki ham
+// tugadi»); vakili — ko'proq sotilgani. Natija: { l: yozuvlar [{ q, yana }], el: bo'lim } yoki null.
+function boshqaZavod(rejim, qatorEl, chiz) {
+  const j = O.j;
+  const l = kesh('zavod:' + rejim + ':' + (O.filial || ''), () => {
+    const m = new Map();
+    j.qatorlar.filter((q) => q.ozidaBor && (!O.filial || q.b === O.filial) && (rejim === 'tugadi' ? !!q.tugadi : !q.tugadi)).forEach((q) => {
+      const k = q.b + '|' + (q.g || q.p);
+      if (!m.has(k)) m.set(k, []);
+      m.get(k).push(q);
+    });
+    return [...m.values()].map((g) => {
+      const s = g.slice().sort((a, b) => (Number(b.sotildi8) || 0) - (Number(a.sotildi8) || 0) || nomTartib(a, b) || String(a.p).localeCompare(String(b.p)));
+      return { q: s[0], yana: s.slice(1) };
+    }).sort((a, b) => nomTartib(a.q, b.q));
+  });
+  if (!l.length) return null;
+  const el = h('details', { class: 'oq-zavod' }, h('summary', {}, 'Boshqa zavodnikisi javonda (' + l.length + ')'));
+  if (O.zavodOchiq) el.open = true;
+  el.addEventListener('toggle', () => { O.zavodOchiq = el.open; });
+  // 2-audit: «Kam qoldi»da guruh baribir bir marta (vakil, jami qoldiq bilan) sanaladi — matn shuni aytadi.
+  el.append(h('div', { class: 'muted oq-zavod-izoh' }, rejim === 'tugadi'
+    ? 'Bu dorilar bor — boshqa zavodnikisi javonda. Shuning uchun «Tugadi» soniga kirmaydi.'
+    : 'Bu dorining boshqa zavodnikisi javonda — «Kam qoldi»da bir marta, jami qoldiq bilan sanaladi.'));
+  const ro = h('div', { class: 'oq-royxat' });
+  yanaRoyxat(ro, l, Number(O.ochiq['zavod:' + rejim]) || KORINADI, (e) => qatorEl(e.q, e.yana), (n) => { O.ochiq['zavod:' + rejim] = n; }, { boshi: KORINADI, yig: chiz });
+  el.append(ro);
+  return { l, el };
 }
 
 // «Kerak emas» deb belgilanganlar (08.11): yo'qolib ketmasin — Tugadi bo'limi pastida yig'iq ro'yxat, direktor qaytaradi.
@@ -393,12 +427,69 @@ export function ozidaEl(q, cls = 'oq-oz') {
   if (!oz.length) return null;
   const bu = ishlabQisqa(q.ishlab), u = ishlabQisqa(oz[0].ishlab);
   // Bir ishlab chiqaruvchining ikki Oson kartasi bo'lsa — «Navbahor'niki tugadi, Navbahor'niki bor» emas (audit 04.11).
-  const bir = (a, b) => { a = a.toLowerCase(); b = b.toLowerCase(); return !!a && !!b && (a.startsWith(b) || b.startsWith(a)); };
-  const ikkinchi = !u ? ['boshqa ishlab chiqaruvchiniki bor — '] : bir(u, bu) ?['boshqa Oson kartasida bor — '] : [asl(u), '\'niki bor — '];
+  const ikkinchi = !u ? ['boshqa ishlab chiqaruvchiniki bor — '] : birZavod(u, bu) ?['boshqa Oson kartasida bor — '] : [asl(u), '\'niki bor — '];
+  // Sotuv tarixi necha haftalik: 1-audit — javob tepasida filial bo'yicha (eski javob — qatorda).
+  const hafta = q.sotHafta != null ? q.sotHafta : (O.j && O.j.sotHafta ? O.j.sotHafta[q.b] : null);
+  const azolar = [{ ishlab: q.ishlab, sotildi8: q.sotildi8, borKun8: q.borKun8, bu: true, tugadi: !!q.tugadi || !(q.soni > 0) }, ...oz];
   return h('span', { class: cls },
     '✓ ', bu ? asl(bu) : null, bu ? '\'niki ' : 'Bunisi ', q.tugadi ? 'tugadi' : qoldiqMatn(q.soni, q.dona) + ' qoldi', ', ',
     ...ikkinchi, qoldiqMatn(oz[0].soni, oz[0].dona),
-    oz.length > 1 ? ' (yana ' + (oz.length - 1) + ' xil)' : '');
+    oz.length > 1 ? ' (yana ' + (oz.length - 1) + ' xil)' : '',
+    tezTugaydi(azolar, oz, hafta) ? ' — tez tugaydi' : '',
+    tezlikEl(azolar, hafta));
+}
+// Ikki zavod nomi bir xilmi (biri ikkinchisining boshi: «World Medicine» va «World Medicine Ilac»).
+export const birZavod = (a, b) => { a = String(a || '').toLowerCase(); b = String(b || '').toLowerCase(); return !!a && !!b && (a.startsWith(b) || b.startsWith(a)); };
+// 12.11 (egasi: "qaysi zavodniki ko'p sotilayotganini ham aniqlash"): 8 haftalik sotuv (server 'sotildi8') va shu haftalarda
+// javonda bo'lgan kunlar ('borKun8'; 1-audit: prod'da Озон 10.11 kelib yarim kunda 19 quti sotgan — 8 haftaga bo'linsa «sekin»
+// ko'rinardi). Natija: { tur: 'tez' | 'yangi' | 'qisqa' | 'yoq', matn, haftalik, kun } yoki null (tarix yo'q). Javonda 7 kundan
+// kam — «yangi keldi, 1 kunda 19 quti»; 2-audit: shu zavod tugagan bo'lsa (tugadi — a.tugadi; prod: Гепарин Radiks 4,6 kunda 2 quti
+// sotib tugagan, «yangi keldi» derdi) — «5 kunda 2 quti sotilib tugadi» / «sotilmay tugadi». Aks holda haftasiga «~14 quti» /
+// «1 qutidan kam» / «sotilmayapti». Eski javob (borKun8 yo'q) — hafta (necha haftalik tarix) bo'yicha.
+export function sotuvTezlik(a, hafta, tugadi = !!(a && a.tugadi)) {
+  if (!a || a.sotildi8 == null) return null;
+  const s = Number(a.sotildi8);
+  if (!Number.isFinite(s)) return null;
+  const son = (x) => (x >= 10 ? String(Math.round(x)) : String(Math.round(x * 10) / 10).replace('.', ','));
+  let kun;
+  if (a.borKun8 != null) {
+    kun = Number(a.borKun8);
+    if (!(kun > 0)) return s > 0 ? null : { tur: 'yoq', matn: 'sotilmayapti', haftalik: 0, kun: 0 };
+    const nk = Math.max(1, Math.round(kun)) + ' kunda ' + son(s) + ' quti';
+    if (kun < 7 && tugadi) return { tur: 'qisqa', matn: s > 0 ? nk + ' sotilib tugadi' : 'sotilmay tugadi', haftalik: s / kun * 7, kun };
+    if (kun < 7) return { tur: 'yangi', matn: s > 0 ? 'yangi keldi, ' + nk : 'yangi keldi, hali sotilmadi', haftalik: s / kun * 7, kun };
+  } else {
+    const n = Number(hafta);
+    if (!(n > 0)) return null;
+    kun = n * 7;
+  }
+  const r = s / kun * 7;
+  if (!(r > 0)) return { tur: 'yoq', matn: 'sotilmayapti', haftalik: 0, kun };
+  return { tur: 'tez', matn: r < 1 ? '1 qutidan kam' : '~' + son(r) + ' quti', haftalik: r, kun };
+}
+// Yashil satr ostida «Haftalik sotuv:» — har zavod alohida qatorda (tezi tepada, keyin yangi kelgani, sotilmayotgani oxirida;
+// ko'pi bilan 3 ta). 1-audit: qisqa nomlari bir xil bo'lsa — qatorning o'zi «bu karta», boshqasi «boshqa karta»; ikki boshqa a'zo
+// bir xil bo'lsa — satr yo'q (adashtirmasin). Tarix yo'q yoki hech biri sotilmagan — satr yo'q.
+function tezlikEl(azolar, hafta) {
+  const TARTIB = { tez: 0, yangi: 1, qisqa: 1, yoq: 2 };
+  const l = azolar.map((a) => ({ a, t: sotuvTezlik(a, hafta), n: ishlabQisqa(a.ishlab) })).filter((x) => x.t)
+    .sort((x, y) => (TARTIB[x.t.tur] - TARTIB[y.t.tur]) || (y.t.haftalik - x.t.haftalik)).slice(0, 3);
+  if (l.length < 2 || !l.some((x) => Number(x.a.sotildi8) > 0)) return null;
+  const tak = (x) => l.some((y) => y !== x && birZavod(x.n, y.n));
+  if (l.some((x) => !x.a.bu && l.some((y) => y !== x && !y.a.bu && birZavod(x.n, y.n)))) return null;
+  return h('span', { class: 'oq-oz-tez' }, h('span', { class: 'oq-oz-tez-s' }, 'Haftalik sotuv:'),
+    ...l.map((x) => h('span', { class: 'oq-oz-tez-q' }, '• ',
+      tak(x) ? (x.a.bu ? 'bu karta' : 'boshqa karta') : x.n ? asl(x.n) : 'zavod nomi yo\'q', ' — ' + x.t.matn)));
+}
+// 1-audit: boshqa zavodnikining javondagi qutisi guruhning bir haftalik sotuvidan kam — «tez tugaydi» (qator bo'limda qoladi).
+// Haftalik sotuv — hamma a'zoning sotuvi / eng uzoq javonda bo'lgan a'zoning kunlari (kamida 7 kun bo'lsa).
+function tezTugaydi(azolar, oz, hafta) {
+  const t = azolar.map((a) => sotuvTezlik(a, hafta));
+  if (t.some((x) => !x)) return false;
+  const kun = Math.max(...t.map((x) => x.kun));
+  if (!(kun >= 7)) return false;
+  const haftalik = azolar.reduce((s, a) => s + Number(a.sotildi8 || 0), 0) / kun * 7;
+  return haftalik > 0 && oz.reduce((s, z) => s + Number(z.soni || 0), 0) < haftalik;
 }
 // Tartib (03.11, foydalanuvchi: "Kam qoldi degan joyida filtr qo'yib ber — alfavit bo'yicha yoki quti dona soniga qarab").
 // '' — tugaganlar: server tartibi (oxirgi tugagan tepada); qolganlar: eng kam qolgan tepada. soni — quti (0,5 = yarim quti).
@@ -477,8 +568,10 @@ function tugayaptiView(k, ctx, fil, chiz) {
   const variant = TARTIBLAR[O.rejim === 'tugadi' ? 'tugadi' : 'boshqa'];
   if (!variant.some(([v]) => v === (O.tartib[O.rejim] || ''))) O.tartib[O.rejim] = '';
   const rejim = O.rejim;
+  // 12.11: 'ozidaBor' (shu filialda shu dorining boshqa zavodnikisi bor) — «Tugadi»/«Kam qoldi»/«Ko'chirsa»da emas, pastda yig'iq
+  // «Boshqa zavodniki bor» bo'limida (eski server — maydon yo'q, hammasi avvalgidek).
   const qatorlar = kesh(rejim + ':' + (O.filial || '') + ':' + (O.tartib[rejim] || ''), () => tartibla(j.qatorlar.filter((q) => (!O.filial || q.b === O.filial)
-    && (rejim === 'tugadi' ? q.tugadi : rejim === 'kam' ? !q.tugadi : boshqaBor(q).length)), O.tartib[rejim], rejim === 'tugadi'));
+    && !q.ozidaBor && (rejim === 'tugadi' ? q.tugadi : rejim === 'kam' ? !q.tugadi : boshqaBor(q).length)), O.tartib[rejim], rejim === 'tugadi'));
   const SARLAVHA = { tugadi: ['qizil', 'Tugadi — buyurtma kerak'], kam: ['sariq', 'Kam qoldi'], kochir: ['kok', 'Boshqa filialda bor — ko\'chirsa bo\'ladi'] };
   const [rang, sarlavha] = SARLAVHA[O.rejim];
   const ro = h('div', { class: 'oq-royxat' }, h('div', { class: 'oq-bolim ' + rang }, h('span', {}, sarlavha), h('span', {}, String(qatorlar.length))));
@@ -487,8 +580,10 @@ function tugayaptiView(k, ctx, fil, chiz) {
       : O.rejim === 'kam' ? (j.chegara === 0 ? 'Sozlashda «Faqat tugaganlar» tanlangan — kam qolganlar ko\'rsatilmaydi (⚙︎).' : '✓ Kam qolgan dori yo\'q')
         : 'Boshqa filialda butun qutisi bor dori yo\'q'));
   }
-  const qatorEl = (q) => {
+  const qatorEl = (q, yana = null) => {
     const b = boshqaBor(q);
+    // 1-audit: «Kam qoldi»dagi dori — guruhning shu filialdagi jami qoldig'i (boshqa zavodniki bilan) o'zinikidan farq qilsa.
+    const gs = !q.tugadi && q.guruhSoni != null && Math.abs(Number(q.guruhSoni) - Number(q.soni)) > 0.001 ? Number(q.guruhSoni) : null;
     const qoldiq = q.tugadi ? h('div', { class: 'oq-q qizil' }, '0', h('small', {}, 'tugadi'))
       : h('div', { class: 'oq-q sariq' }, qoldiqMatn(q.soni, q.dona), h('small', {}, 'qoldi'));
     return h('div', { class: 'oq-r', 'data-rk': q.b + '|' + (q.p != null ? q.p : q.nom) },
@@ -497,19 +592,35 @@ function tugayaptiView(k, ctx, fil, chiz) {
         izohEl([filBelgi(fNom, q.b),
           q.tugadi ? sana(q.tugadi) + ' ' + vaqt(q.tugadi) + ' tugadi' : q.firma ? asl(q.firma) : null], 'oq-i'),
         ozidaEl(q),
+        yana && yana.length ? h('span', { class: 'oq-oz-yana' }, 'Shu dori: ', ...yana.flatMap((z, i) => {
+          const n = ishlabQisqa(z.ishlab);
+          return [i ? '; ' : '', n ? asl(n) : 'boshqa kartasi', (n ? '\'niki' : '') + (z.tugadi ? ' ham tugadi' : ' ' + qoldiqMatn(z.soni, z.dona) + ' qoldi')];
+        })) : null,
+        gs != null ? h('div', { class: 'oq-i' }, 'jami ' + qoldiqMatn(gs, q.dona) + ' (boshqa zavod bilan)') : null,
         q.tugadi && q.hammada ? h('span', { class: 'oq-hech' }, 'Hech bir filialda yo\'q') : null,
         kutishEl(j, q, true),
-        b.length ? h('span', { class: 'oq-k' }, '↔ ', filBelgi(fNom, b[0].b), ' da ' + qoldiqMatn(b[0].soni, b[0].dona) + ' bor' + (b.length > 1 ? ' (+' + (b.length - 1) + ' filial)' : '') + ' — ko\'chirsa bo\'ladi') : null),
+        b.length && !q.ozidaBor ? h('span', { class: 'oq-k' }, '↔ ', filBelgi(fNom, b[0].b), ' da ' + qoldiqMatn(b[0].soni, b[0].dona) + ' bor' + (b.length > 1 ? ' (+' + (b.length - 1) + ' filial)' : '') + ' — ko\'chirsa bo\'ladi') : null),
       qoldiq,
       plusEl(ctx, q, q.nom, chiz));
   };
+  // 1-audit: «Boshqa zavodnikisi javonda» bo'limi ro'yxat ostida — tepada ishora (bosilsa bo'lim ochilib, unga o'tiladi):
+  // plitka soni kamaygani (prod: 108 → 94) bilinsin.
+  const bz = rejim === 'tugadi' || rejim === 'kam' ? boshqaZavod(rejim, (q, yana) => qatorEl(q, yana), chiz) : null;
+  if (bz) {
+    ro.firstChild.after(h('button', { type: 'button', class: 'oq-zavod-ishora',   // 2-audit: aria-label yo'q — ko'rinadigan matn o'qiladi
+      onclick: () => { bz.el.open = true; O.zavodOchiq = true; bz.el.scrollIntoView({ block: 'start' }); } },
+    '+ ' + bz.l.length + ' tasining boshqa zavodnikisi javonda ▾'));
+  }
   yanaRoyxat(ro, qatorlar, Number(O.ochiq[rejim]) || KORINADI * 2, qatorEl, (n) => { O.ochiq[rejim] = n; }, { boshi: KORINADI * 2, yig: chiz });
   k.append(ro);
+  if (bz) k.append(bz.el);
   if (O.rejim === 'tugadi' || O.rejim === 'kam') { const ke = kerakEmasEl(ctx, fil, chiz); if (ke) k.append(ke); }
   // 07.11 tun: dori tugasa/qaytsa (fondagi yangilanish) — qatorlar yumshoq suriladi; bo'lim/filial/tartib almashsa — boshqa ro'yxat.
   royxatHarakat(ro, 'oq:' + O.rejim + ':' + (O.filial || '') + ':' + (O.tartib[O.rejim] || ''));
   // ⚙︎ faqat direktorda (audit 03.11: xodimga yo'q tugmani aytmaslik).
-  if (j.jami > j.qatorlar.length) k.append(h('div', { class: 'muted' }, 'Ro\'yxatda birinchi ' + j.qatorlar.length + ' tasi (jami ' + j.jami + ').'
+  // 12.11: jami — «Boshqa zavodniki bor»siz (server 'jami' ham ularni sanamaydi).
+  const sanaldi = kesh('sanaldi', () => j.qatorlar.filter((q) => !q.ozidaBor).length);
+  if (j.jami > sanaldi) k.append(h('div', { class: 'muted' }, 'Ro\'yxatda birinchi ' + sanaldi + ' tasi (jami ' + j.jami + ').'
     + (j.direktor ? ' Kamroq ko\'rish uchun ⚙︎ → chegarani kamaytiring yoki «Faqat tugaganlar».' : '')));
 }
 

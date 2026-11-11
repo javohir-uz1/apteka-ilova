@@ -2061,3 +2061,90 @@ html.matn-katta .buy-hafta-s, html.matn-katta .buy-hafta-iz { font-size: 14px; }
 .keldi-soralgan { align-self: flex-start; margin-top: 6px; }
 .keldi-holat { display: flex; flex-direction: column; gap: 6px; }
 .keldi-holat:empty { display: none; }
+
+/* ---- Xodim Bosh — sodda (11.11, app.mjs xBosh; yangi qobiq): 3 ta katta tugma, Retseptlar qatori, «Boshqa» yopiq ---- */
+.yx-asosiy { display: flex; flex-direction: column; gap: 10px; }
+.yx-katta { width: 100%; min-height: 76px; padding: 12px 14px; display: flex; align-items: center; justify-content: flex-start; gap: 14px; text-align: left;
+  background: var(--card); color: var(--ink); border-radius: var(--r-card, 16px); font-weight: 400; }
+.yx-katta-i { flex: none; width: 48px; height: 48px; border-radius: 14px; background: var(--soft); color: var(--accent); display: inline-flex; align-items: center; justify-content: center; }
+.yx-katta-i svg { width: 28px; height: 28px; }
+.yx-katta-m { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.yx-katta-m b { font-size: 19px; font-weight: 700; line-height: 1.25; }
+.yx-katta-iz { font-size: 15px; color: var(--muted); line-height: 1.3; }
+.yx-katta-o { flex: none; color: var(--muted); display: inline-flex; }
+.yx-katta-o svg { width: 20px; height: 20px; }
+.yx-katta.asosiy { background: var(--accent); color: #FFFFFF; min-height: 88px; }
+.yx-katta.asosiy .yx-katta-i { background: rgba(255, 255, 255, .18); color: #FFFFFF; }
+.yx-katta.asosiy .yx-katta-iz, .yx-katta.asosiy .yx-katta-o { color: #FFFFFF; }
+.yx-katta.asosiy .yx-katta-m b { font-size: 21px; }
+.yx-katta.eski .yx-katta-iz { color: var(--warn); font-weight: 600; }
+.yx-retsept { padding: 0; }
+.yx-boshqa > summary { min-height: 52px; }
+.yx-boshqa .ochil-ich { display: flex; flex-direction: column; gap: 12px; padding-top: 10px; }
+/* Xodim Bosh — R9/R10 (11.11): «Tez» qatori, bir qatorli izoh, «Boshqa bo'limlar» kartasi, A+, Bosh'da ikkinchi darajali tugmalar chiziqli. */
+.yx-tez { display: flex; flex-wrap: wrap; gap: 8px; }
+.yx-tez-t { flex: 1 1 auto; min-height: 48px; padding: 6px 14px; gap: 8px; background: var(--card); color: var(--accent);
+  box-shadow: inset 0 0 0 1.5px var(--accent); font-size: 15px; font-weight: 600; border-radius: 12px; }
+.yx-tez-t svg { width: 20px; height: 20px; flex: none; }
+.yx-katta-iz { display: block; min-height: 1.3em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yx-katta-m { overflow: hidden; }
+.yx-kutish { min-height: 48px; padding: 12px 4px; }
+details.yx-boshqa { background: var(--card); border-radius: var(--r-card, 16px); padding: 0 14px; }
+details.yx-boshqa > summary { min-height: 60px; padding: 10px 0; }
+details.yx-boshqa > summary::after { color: var(--muted); }
+details.yx-boshqa .ochil-s { display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; row-gap: 2px; }
+details.yx-boshqa .ochil-s > span:first-child { display: inline-flex; align-items: center; gap: 12px; font-size: 18px; }
+.yx-boshqa-i { flex: none; width: 36px; height: 36px; border-radius: 10px; background: var(--soft); color: var(--accent); display: inline-flex; align-items: center; justify-content: center; }
+.yx-boshqa-i svg { width: 22px; height: 22px; }
+details.yx-boshqa .ochil-s > .muted { flex-basis: 100%; padding-left: 48px; font-size: 15px; }
+details.yx-boshqa[open] { padding-bottom: 12px; }
+html.matn-katta .yx-katta-m b { font-size: 22px; }
+html.matn-katta .yx-katta-iz { font-size: 17px; }
+html.matn-katta .yx-katta.asosiy .yx-katta-m b { font-size: 24px; }
+html.matn-katta .yx-tez-t { font-size: 17px; min-height: 52px; }
+main.yx .card button.p, main.yx .card .btn.p { background: var(--card); color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+/* «Bugun nima keldi» — jadval (11.11, egasi «B»): Nomi | Soni | Narxi | (+). 320 px ga sig'adi; overflow — faqat zaxira. */
+.keldi-jadval-joy { overflow-x: auto; background: var(--card); border-radius: var(--r-card, 16px); }
+.keldi-jadval { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 16px; }
+.keldi-jadval th, .keldi-jadval td { padding: 10px 8px; text-align: left; vertical-align: top; border-top: 1px solid var(--sep); }
+.keldi-jadval thead th { border-top: 0; font-size: 14px; font-weight: 600; color: var(--muted); padding-top: 12px; padding-bottom: 8px; }
+.keldi-jadval th.son, .keldi-jadval td.son { width: 3.8em; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.keldi-jadval td.son + td.son, .keldi-jadval th.son + th.son { width: 5em; }
+.keldi-jadval .keldi-nom { overflow-wrap: anywhere; word-break: break-word; }
+.keldi-jadval .keldi-nom > span[data-asl] { font-weight: 600; }
+.keldi-jadval .keldi-kirim { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+.keldi-jadval .keldi-plus-td { width: 48px; padding: 4px 4px 4px 0; text-align: center; vertical-align: middle; }
+.keldi-jadval tr.tugagan td { color: var(--muted); }
+.keldi-jadval tr.tugagan .keldi-nom > span[data-asl] { font-weight: 500; }
+.keldi-jadval .keldi-guruh-tr th { font-size: 15px; font-weight: 700; color: var(--ink); background: var(--fill-2); }
+.keldi-plus { width: 44px; min-width: 44px; min-height: 44px; padding: 0; border-radius: 12px; font-size: 24px; font-weight: 700; line-height: 1;
+  background: var(--card); color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.keldi-soralgan { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: var(--accent); }
+.keldi-jami { font-size: 16px; }
+html.matn-katta .keldi-jadval { font-size: 18px; }
+/* R11 (11.11, deploy oldidan): «Boshqa» sarlavhasi chapda; jadval 320 px; Bosh'dagi Bilimdon banneri — yumshoq (to'ldirilgan faqat Defektura). */
+details.yx-boshqa .ochil-s { flex: 1 1 auto; flex-direction: row; justify-content: flex-start; align-items: center; text-align: left; }
+details.yx-boshqa .ochil-s > span:first-child { justify-content: flex-start; }
+.keldi-jadval .keldi-nom { overflow-wrap: break-word; word-break: normal; hyphens: auto; }
+html.matn-katta .keldi-jadval { font-size: 17px; }
+@media (max-width: 340px) {
+  .keldi-jadval th, .keldi-jadval td { padding: 8px 4px; }
+  .keldi-jadval th.son, .keldi-jadval td.son { width: 3.1em; }
+  .keldi-jadval td.son + td.son, .keldi-jadval th.son + th.son { width: 4.6em; }
+  .keldi-jadval .keldi-plus-td { width: 46px; }
+  html.matn-katta .keldi-jadval { font-size: 16px; }
+}
+main.yx .oyin-banner { background: var(--soft); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--accent); }
+main.yx .oyin-banner-b { background: var(--card); color: var(--accent); }
+main.yx .oyin-banner .qator-o { color: var(--accent); }
+
+/* 12.11: «Tugayapti» — boshqa zavodniki bor (yig'iq bo'lim) va zavodlar sotuv tezligi */
+.oq-zavod { margin-top: 10px; background: var(--card); border-radius: var(--r-card); padding: 0 16px; }
+.oq-zavod > summary { min-height: 48px; display: flex; align-items: center; color: var(--kirim); font-weight: 600; }
+.oq-zavod .oq-zavod-izoh { padding: 0 0 8px; }
+.oq-oz-tez { display: block; margin-top: 2px; font-weight: 500; }
+.oq-oz-tez-s, .oq-oz-tez-q { display: block; }
+.oq-oz-yana { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
+.oq-zavod-ishora { display: flex; align-items: center; width: 100%; min-height: 44px; margin: 4px 0 8px; padding: 0 12px; border: 0;
+  border-radius: 12px; background: var(--kirim-bg); color: var(--kirim); font-size: 15px; font-weight: 600; text-align: left; }
+.oq-zavod-ishora + .oq-r { border-top: 0; }   /* 2-audit: ishora tugmasidan keyingi qator — sarlavhadan keyingidek, chiziqsiz */
