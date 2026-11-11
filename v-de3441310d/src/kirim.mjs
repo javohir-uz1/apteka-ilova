@@ -12,6 +12,8 @@ const SS = () => ({ j: null, xato: null, vaqt: 0, okVaqt: 0, avlod: 0, yuklanmoq
 const YUB = new Set();
 const S = SS();
 // Sinov uchun (tests): modul holatini tozalash.
+// 11.11 (sodda Bosh): ro'yxat bir marta olinganmi (javob yoki xato) — joy sakramasin.
+export const kirimYuklanganmi = () => !!(S.j || S.xato);
 export function kirimUnut() { clearTimeout(S.taymer); Object.assign(S, SS()); YUB.clear(); }
 
 export const SINX = 'Oson kassa dasturida «Sinxronizatsiya»ni bosing — shunda dorilar filialingiz Oson\'ida ko\'rinadi.';

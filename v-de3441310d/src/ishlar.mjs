@@ -152,6 +152,8 @@ export const ISHLAR = {
   osonFilial: [() => A.osonYoq(), (b, f) => ['oson_filial', [m(b), f == null ? '' : String(f)]]],
   osonMuddat: [() => A.osonYoq(), (oy) => ['oson_muddat', [oy]]],
   osonQidir: [() => A.osonYoq(), (s) => ['oson_qidir', [m(s)]]],
+  // 11.11: «Bugun keldi» — Oson'ga shu kuni kirgan dorilar (kun 'YYYY-MM-DD', bo'sh — bugun).
+  osonKeldi: [() => A.osonYoq(), (kun) => ['oson_keldi', [String(kun || '')]]],
   osonMajbur: [() => A.osonYoq(), () => ['oson_majbur', []]],
   osonMuddatiOtgan: [() => A.osonYoq(), () => ['oson_muddati_otgan', []]],
   // 06.11: Pul nazorati, Aqlli buyurtma (direktor), mijozga «dori keldi» havolasi — faqat serverda.

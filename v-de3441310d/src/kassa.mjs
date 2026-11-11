@@ -18,6 +18,9 @@ export function kassaUnut() { clearTimeout(S.taymer); Object.assign(S, SS()); Ob
 // Audit 1: o'tkazmaga javob, savdo kiritish yoki yopishdan keyin — «Savdo kiritish» va «Kassa nazorati» keshi eskirgan (qayta so'raladi).
 export function kassaYangila() { KK.clear(); KF.vaqt = 0; }
 
+// 11.11 (sodda Bosh): «Kartaga o'tkazma» — Direktordan so'rash oynasi tashqaridan; ro'yxat bir marta olinganmi (joy sakramasin).
+export const otkazmaSorashOch = (ctx, chiz) => sorashOyna(ctx, chiz);
+export const otkazmaYuklanganmi = () => !!(S.j || S.xato);
 export const TURI = { payme: 'Payme', click: 'Click', boshqa: 'Boshqa' };
 const asl = (t) => h('span', { 'data-asl': '' }, t || '');
 // Audit 11.11: Payme/Click — nom, kirillga o'girilmaydi («Boshqa» — oddiy so'z, o'giriladi).

@@ -453,6 +453,17 @@ function doriOyna(ctx, x, fil, chiz) {
       const t = buyTuri(x), yk = yetkKun(x), jk = jamiKun(x), kunlik = Number(x.kunlik) || 0;
       const soni = qSoni(x), on = tanlanganmi(x), f = qFirma(x, fm), n = qutiNarx(x, f);
       ich.append(h('div', { class: 'muted' }, asl(filNom(fil, x)), ' · ' + (t === 'tugagan' ? 'hozir tugagan' : 'hozir ' + qoldiqMatn(x.qoldiq, x.dona) + ' bor')));
+      // 12.11: bir xil nomli dori bir necha ishlab chiqaruvchidan — server bitta dori qilib hisoblagan.
+      const ishl = Array.isArray(x.ishlablar) ? x.ishlablar.filter((a) => a && typeof a === 'object') : [];
+      if (ishl.length > 1) {
+        // 1-audit: keksa direktor uchun — qisqa kirish, har zavod alohida qatorda, oddiy rangda.
+        ich.append(h('div', { class: 'buy-ishlab' },
+          h('div', {}, 'Bu dori ' + ishl.length + ' ta zavoddan — hammasi bitta dori deb hisoblandi:'),
+          ...ishl.map((a) => {
+            const nm = String(a.ishlab || '').split(',')[0].replace(/\s*\([^)]*\)\s*$/, '').trim();
+            return h('div', {}, '• ', nm ? asl(nm) : 'zavod nomi yo\'q', ' — ' + (Number(a.qoldiq) > 0 ? qoldiqMatn(a.qoldiq, x.dona) : 'tugagan'));
+          })));
+      }
       ich.append(h('div', { class: 'buy-javob' }, h('b', {}, 'Bugun ' + x.kerak + ' quti buyurtma bering'),
         h('span', {}, kunlik > 0 && x.sekin ? (x.kerak > 1 ? 'Sekin sotiladi — bu qutilar uzoq yetadi.' : 'Sekin sotiladi — bu quti uzoq yetadi.')
           : kunlik > 0 ? 'Firma ' + yk + ' kunda olib keladi, bu qutilar keyingi ' + Math.max(1, jk - yk) + ' kunga yetadi.'
