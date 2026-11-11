@@ -15,13 +15,18 @@ export const TANISHUV = {
       'Xodimlar — davomat va sozlamalar.', 'Tepadagi 🔍 — kerakli bo\'limni, xodimni yoki dorini nomi bilan topadi.'] },
     { ikon: 'sozlama', sarlavha: 'Funksiyalar va eski ko\'rinish', matn: ['Xodimlar → «Funksiyalar»: xodimlar nimani ishlatishini yoqasiz yoki o\'chirasiz.',
       'Yangi ko\'rinish tushunarsiz bo\'lsa: Xodimlar → «Ko\'rinish» → «Eski ko\'rinish».', 'Bu yo\'riqnoma o\'sha yerda: «Qanday ishlatiladi?».'] }],
+  // 11.11: sodda Bosh — 3 ta katta tugma, «Tez» qatori, kartalar, «Boshqa bo'limlar» (app.mjs xBosh).
+  // Satr: matn | [funksiya kaliti, matn] (o'chiq bo'lsa — ko'rsatilmaydi) | (fy) => matn | null. R12: o'chirilgan tugma tilga olinmaydi.
   xodim: [
-    { ikon: 'qidir', sarlavha: 'Dori qidirish', matn: ['Eng tepadagi katta tugma — dori qidirish.', 'Narxi va qaysi filialda borligini ko\'rasiz.',
-      'Yonidagi tugma qutidagi shtrix-kodni kamera bilan o\'qiydi.'] },
-    { ikon: 'qarzYoz', sarlavha: '4 ta katta tugma', matn: ['Qarz yozish — mijoz pulsiz olsa.', 'Kam qolgan — tugayotgan dorini yozing, direktor buyurtma beradi.',
-      'Retseptlar va Inventar — direktor ruxsat bergan bo\'lsa.'] },
-    { ikon: 'men', sarlavha: 'Men', matn: ['Bosh sahifaning pastida — «Men».', 'U yerda qarzlaringiz, oyligingiz, davomat va Bilimdon o\'yini.',
-      'Bu yo\'riqnomani yana ko\'rish: Men → «Qanday ishlatiladi?».'] }]
+    { ikon: 'dori', sarlavha: 'Katta tugmalar', matn: ['Eng tepada — katta tugmalar:',
+      ['x_defektura', 'Defekturaga yozish — kam qolgan yoki tugagan dorini yozing, direktor buyurtma beradi.'],
+      ['x_qidiruv', 'Dori qidirish — narxi va qaysi filialda bor. Ichida shtrix-kodni kamera bilan o\'qish ham bor.'],
+      ['x_qidiruv', 'Bugun nima keldi — Oson\'ga bugun kirgan dorilar.']] },
+    { ikon: 'shtrix', sarlavha: 'Kichik tugmalar va kartalar', matn: ['Katta tugmalar ostida — kichik tugmalar (masalan, Kartaga o\'tkazma).',
+      'Ish chiqsa — karta paydo bo\'ladi (masalan, kelgan dorilarni sanash). Ish bo\'lmasa — karta yo\'q.', 'Pastroqda — boshqa filialdan dori so\'rash.'] },
+    { ikon: 'men', sarlavha: 'Boshqa bo\'limlar', matn: ['Eng pastda — «Boshqa bo\'limlar».',
+      (fy) => 'U yerda: ' + [fy('x_qarz') ? 'qarz yozish' : null, 'qarzlarim', 'oylik', fy('x_oyin') ? 'Bilimdon' : null, 'sozlamalar'].filter(Boolean).join(', ') + '.',
+      'Bu yo\'riqnomani yana ko\'rish: Boshqa bo\'limlar → Men va sozlamalar → «Qanday ishlatiladi?».'] }]
 };
 
 // Audit 09.11: kalitda Telegram id ochiq turmasin — uning izi (sorov.mjs idIzi, oflayn navbatdagi kimIzi bilan bir xil).
@@ -50,6 +55,9 @@ export function tanishuvBelgila(id) {
 }
 
 // Oyna: o.id — yopilganda (o'tkazib yuborilsa ham, oxirigacha ko'rilsa ham) shu akkaunt uchun «ko'rildi» belgisi.
+// Satrlar Funksiyalar bo'yicha (o.fy — app.mjs fy; berilmasa — hammasi yoqiq).
+export const satrlar = (matn, fy) => { const y = typeof fy === 'function' ? fy : () => true;
+  return matn.map((m) => (typeof m === 'function' ? m(y) : Array.isArray(m) ? (y(m[0]) ? m[1] : null) : m)).filter(Boolean); };
 export function tanishuvOch(rol, o = {}) {
   const ekranlar = TANISHUV[rol] || TANISHUV.xodim;
   let i = 0, chizish = null;
@@ -65,7 +73,7 @@ export function tanishuvOch(rol, o = {}) {
         h('div', { class: 'tn-ekran' },
           h('span', { class: 'tn-ikon', 'aria-hidden': 'true' }, ikon(e.ikon)),
           h('h3', { class: 'tn-s', tabindex: '-1' }, e.sarlavha),
-          ...e.matn.map((m) => h('p', {}, m))),
+          ...satrlar(e.matn, o.fy).map((m) => h('p', {}, m))),
         h('div', { class: 'tn-tugmalar' },
           h('button', { type: 'button', class: 'p katta tn-keyingi', onclick: () => { if (oxirgi) close(); else { i += 1; chiz(); } } }, oxirgi ? 'Tushunarli — boshlash' : 'Keyingisi ›'),
           oxirgi ? null : h('button', { type: 'button', class: 'katta tn-otkaz', onclick: close }, 'O\'tkazib yuborish')));
@@ -79,14 +87,14 @@ export function tanishuvOch(rol, o = {}) {
 
 // Birinchi ochilish: Telegram ichida, shu akkaunt hali ko'rmagan bo'lsa — panel chizilgandan keyin bir marta (shu ochilishda).
 let avtoBoldi = false;
-export function tanishuvAvto(rol) {
+export function tanishuvAvto(rol, o = {}) {
   if (avtoBoldi) return false;
   const id = tgFoydalanuvchi();
   if (!id || tanishuvKorildimi(id)) return false;
   avtoBoldi = true;
   setTimeout(() => {
     if (document.querySelector('.sheet-bg:not(.yopilmoqda)')) { avtoBoldi = false; return; }   // boshqa oyna ochiq — keyingi chizishda
-    tanishuvOch(rol, { id });
+    tanishuvOch(rol, { ...o, id });
   }, 500);
   return true;
 }

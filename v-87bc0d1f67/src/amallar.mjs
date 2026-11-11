@@ -670,6 +670,39 @@ export function bemorOraldi(s, id, oraldi, kim) {
   if (!oraldi) { delete b.oraldi; delete b.oraldiKim; return; }
   if (!b.oraldi) { b.oraldi = Date.now(); if (kim) b.oraldiKim = kim; }
 }
+// 11.11: QR bemorni boshqa ro'yxatga ko'chirish (SQL bemor_kochir_ish): faqat QR / kengaytma bemori (sinovQr = SQL bemor_qr) va
+// «berildi»; eski — ekranda ko'ringan punkt (boshqacha bo'lsa: aynan shu ko'chirish bajarilgan — takror, aks holda «Ro'yxat
+// o'zgargan»); o'ralgan / Oson'dan chiqarilgan — faqat direktor. Tartib — yangi punktning o'sha kunidagi oxirgisidan keyin.
+export function bemorKochir(s, id, punktId, sabab, eski, kim) {
+  const r = rs(s);
+  const b = r.bemorlar.find((z) => z.id === id);
+  if (!b) throw new Error("Bemor topilmadi — ro'yxatni yangilang");
+  if (!punktId) throw new Error("Qaysi ro'yxatga ko'chirishni tanlang");
+  const p = r.punktlar.find((z) => z.id === punktId && z.faol !== false);
+  if (!p) throw new Error("Ro'yxat topilmadi — punktni qayta tanlang");
+  const javob = (e, takror) => ({ id: b.id, punktId: p.id, punktNom: p.nom, eskiPunktId: e, osonEdi: !!b.oson, oraldiEdi: !!b.oraldi, excelEdi: !!b.excel,
+    ...(takror ? { takror: true } : {}) });
+  if (eski && b.punktId !== eski) {
+    const k = (r.kochirishlar || []).filter((z) => z.bemorId === b.id).at(-1);
+    if (k && k.yangiPunkt === p.id && k.eskiPunkt === eski && b.punktId === p.id) return javob(eski, true);
+    throw new Error("Ro'yxat o'zgargan — ro'yxatni yangilang");
+  }
+  if (b.punktId === p.id) throw new Error("Bemor allaqachon shu ro'yxatda");
+  if (!sinovQr(b)) throw new Error("Bu bemor punktning o'z ro'yxatidan — ko'chirib bo'lmaydi");
+  if (b.holat === 'olindi') throw new Error("Bemor punktga berib yuborilgan (olib ketilgan) — boshqa ro'yxatga ko'chirib bo'lmaydi");
+  if (b.holat !== 'berildi') throw new Error("Faqat berilgan bemor ko'chiriladi — ro'yxatni yangilang");
+  if ((b.oraldi || b.oson) && !sinovDirektor(s, kim)) throw new Error("O'ralgan yoki Oson'dan chiqarilgan bemorni faqat direktor ko'chiradi");
+  const kun = H.kunKey(b.ts);
+  const n = r.bemorlar.filter((z) => z.punktId === p.id && H.kunKey(z.ts) === kun).reduce((x, z) => Math.max(x, Number(z.n) || 0), 0) + 1;
+  const old = b.punktId;
+  const oldNom = (r.punktlar.find((z) => z.id === old) || {}).nom || null;
+  b.punktId = p.id;
+  b.n = n;
+  b.kochirildi = { dan: oldNom, danId: old, vaqt: Date.now() };
+  (r.kochirishlar = r.kochirishlar || []).push({ bemorId: b.id, eskiPunkt: old, yangiPunkt: p.id, kim: kim || null,
+    sabab: String(sabab || '').trim().slice(0, 200) || null, vaqt: Date.now() });
+  return javob(old, false);
+}
 // Oson Apteka'dan chiqarildi (SQL bemor_oson): birinchi qo'ygan va vaqt saqlanadi.
 export function bemorOson(s, id, belgi, kim) {
   const b = rs(s).bemorlar.find((z) => z.id === id && (z.holat === 'berildi' || z.holat === 'olindi'));

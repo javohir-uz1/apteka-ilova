@@ -291,9 +291,14 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window.
     const t = e.target;
     if (t && !(k.nishon === t || (k.nishon.contains && k.nishon.contains(t)))) { e.preventDefault(); e.stopPropagation(); }
   }, true);
+  // 11.11 (R11): bosishdan OLDIN fokusda bo'lgan maydon eslanadi (capture) — tugma o'zi yangi maydonga fokus bersa (masalan «Dori
+  // qidirish» → qidiruv maydoni), o'sha yangi maydon yopilmaydi; faqat bosishdan oldin yozilayotgan maydonning klaviaturasi yopiladi.
+  let bosishOldin = null;
+  document.addEventListener('click', () => { bosishOldin = document.activeElement; }, true);
   document.addEventListener('click', (e) => {
     const a = document.activeElement;
     const t = e.target && e.target.closest ? e.target : null;
+    if (a !== bosishOldin) return;   // bosish ichida boshqa maydonga fokus berildi — u ochiq qoladi
     if (!a || !a.matches || !a.matches(YOZISH) || !t || !t.closest(BOSILADI) || t.closest(YOZISH + ', label')) return;
     // "Qo'shish va keyingisi" kabi tugmalar (data-klav="qoldir") — keyingi maydonga o'tiladi, klaviatura yopilmasin.
     if (t.closest('[data-klav="qoldir"]')) return;
@@ -804,7 +809,7 @@ export function guruhXato(guruh) {
   const id = 'g' + (++maydonId);
   const err = h('span', { class: 'err', id, 'aria-live': 'polite' });
   if (guruh) guruh.setAttribute('aria-describedby', id);
-  return { el: err, xato: (m) => { err.textContent = m || ''; }, i: { focus: () => { const b = guruh && (guruh.querySelector('[aria-pressed="true"]') || guruh.querySelector('button')); if (b) b.focus(); } } };
+  return { el: err, xato: (m) => { err.textContent = m || ''; }, i: { focus: () => { const b = guruh && (guruh.querySelector('[aria-pressed="true"], [aria-checked="true"]') || guruh.querySelector('button')); if (b) b.focus(); } } };
 }
 
 // Xatoni (tekshiruv yoki server P0001) eng mos maydon tagiga qo'yadi. juftlar: [[maydon, /kalit so'z/], …, [maydon]] —

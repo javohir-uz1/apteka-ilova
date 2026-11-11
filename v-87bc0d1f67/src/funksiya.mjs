@@ -5,7 +5,7 @@
 import { h, kartaSarlavha, qaytaOchOldin, tasdiqlash } from './ui.mjs';
 
 export const FUNKSIYALAR = [
-  { k: 'x_qidiruv', guruh: 'xodim', nom: 'Dori qidirish', izoh: 'Narxi va qaysi filialda borligi' },
+  { k: 'x_qidiruv', guruh: 'xodim', nom: 'Dori qidirish', izoh: 'Narxi, qaysi filialda borligi va yangi kelgan dorilar' },
   { k: 'x_qarz', guruh: 'xodim', nom: 'Qarz yozish', izoh: 'Mijozga qarzga dori berish' },
   { k: 'x_defektura', guruh: 'xodim', nom: 'Kam qolgan (defektura)', izoh: 'Kerak dorini yozish' },
   { k: 'x_inventar', guruh: 'xodim', nom: 'Inventarizatsiya', izoh: 'Telefon bilan sanash' },

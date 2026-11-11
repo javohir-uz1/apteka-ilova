@@ -3,7 +3,7 @@
 // kengaytma (serverdan o'zi oladi) va direktorning punkt Excel'ida.
 import * as H from './hisob.mjs';
 import { BOT_USERNAME } from './config.mjs';
-import { h, input, ishQator, kartaSarlavha, kunNomi, matnMaydon, nusxaOl, ochiladi, pills, sana, sheet, tasdiqlash, vaqt, xatoJoyla, yordam, qaytaOchOldin } from './ui.mjs';
+import { guruhXato, h, input, ishQator, kartaSarlavha, kunNomi, matnMaydon, nusxaOl, ochiladi, pills, sana, sheet, tasdiqlash, vaqt, xatoJoyla, yordam, qaytaOchOldin } from './ui.mjs';
 import { qrOqi } from './qr.mjs';
 import { raqamMaydon } from './punkt.mjs';
 import { qoldiqMatn } from './oson-qoldiq.mjs';
@@ -72,8 +72,11 @@ const mijozmi = (z) => !!R && !!R.ichki && z.punktId === R.ichki;
 // Belgilar (O'raldi, Oson) — fonda: tugmalar bloklanmaydi, ekran o'zi optimistik yangilanadi (app.mjs amalFon). Eski ctx — amal.
 const fon = (ctx) => ctx.amalFon || ctx.amal;
 
+// Promise qaytaradi: ro'yxat (R) yangilangach (shu yoki navbatdagi «yana» yuklashidan keyin) bajariladi — xatoda ham.
+let yukKut = [];
 function yukla(ctx) {
-  if (yuklanmoqda) { yana = true; return; }
+  const tayyor = new Promise((res) => yukKut.push(res));
+  if (yuklanmoqda) { yana = true; return tayyor; }
   yuklanmoqda = true;
   if (!R) yuklashXato = null;
   const boshlandi = Date.now();
@@ -91,9 +94,10 @@ function yukla(ctx) {
     (e) => { yuklashXato = (e && e.message) || 'Ro\'yxat ochilmadi'; yuklandi = Date.now(); })
     .finally(() => {
       yuklanmoqda = false;
-      if (yana) { yana = false; yukla(ctx); }
+      if (yana) { yana = false; yukla(ctx); } else { const k = yukKut; yukKut = []; k.forEach((f) => f()); }
       ctx.rerender();
     });
+  return tayyor;
 }
 
 // Bosh ekranda va punktning «Bemorlar» yorlig'ida ro'yxat eskirsa to'liq qayta olinadi; O'rash/Oson'da — faqat jonli belgilar.
@@ -848,7 +852,8 @@ function mijozView(m, ctx) {
           .then((ha) => ha && qoy([z], false, () => fon(ctx)('bemorOson', z.id, false))) }, 'Olib tashlash'))
       : faqatOddiy(z) ? h('span', { class: 'muted' }, 'Oddiy retsept — Oson\'dan chiqarilmaydi')
       : h('button', { class: 'p s', style: 'align-self:flex-start', onclick: () => tasdiqlash((z.ism || 'Mijoz') + ' — dorilar Oson Apteka\'dan chiqarildimi?')
-        .then((ha) => ha && qoy([z], true, () => fon(ctx)('bemorOson', z.id, true))) }, 'Oson\'dan chiqardim')))));
+        .then((ha) => ha && qoy([z], true, () => fon(ctx)('bemorOson', z.id, true))) }, 'Oson\'dan chiqardim'),
+    kochirTugma(z, ctx)))));
 }
 
 // Bemor oynasidagi holat tugmalari (audit 10.11) — sof funksiya (tests/miniapp-audit-retsept.test.mjs). Qoidalar server bemor_holat
@@ -892,6 +897,10 @@ function bemorSheet(z, ctx, qil, qilX) {
         h('span', { 'data-asl': '' }, z.yozilgan), ismOgoh(z) ? ' — DMED\'dagi ism bilan mos emas. To\'g\'ri bemorga berilganini tekshiring.' : '') : null,
       dorilar.length ? h('div', {}, ...dorilar.map((d) => h('div', { 'data-asl': '' }, '• ' + doriMatni(d)))) : null,
       berdiBelgi('div', z),
+      // 11.11: boshqa ro'yxatdan ko'chirilgan bo'lsa — qayerdan va qachon (server bemor json: kochirildi { dan, danId, vaqt }).
+      // Manba ichki ro'yxat bo'lsa — «Aptekadagi mijozlar» (ilova so'zi, kirillga o'tadi); punkt nomi — data-asl.
+      z.kochirildi && (z.kochirildi.dan || z.kochirildi.danId) ? h('div', { class: 'muted kochirildi' }, royxatEl(z.kochirildi.danId, z.kochirildi.dan), ' ro\'yxatidan ko\'chirilgan'
+        + (z.kochirildi.vaqt ? ' · ' + sana(z.kochirildi.vaqt) + ' ' + vaqt(z.kochirildi.vaqt) : '')) : null,
       z.xato && z.xato.length ? h('div', { class: 'msg warn' }, z.xato.join(', ') + ' — punktdan to\'g\'risini so\'rang') : null,
       // Audit 10.11: navbatdagi bemorda «Berildi» — asosiy emas va tasdiq bilan (adashib bosilsa kompyuter uni DMED'da ochmaydi).
       h('div', { class: 'row', style: 'flex-wrap:wrap' },
@@ -904,8 +913,125 @@ function bemorSheet(z, ctx, qil, qilX) {
       a.ochilmadi ? h('button', { onclick: () => {
         if (String(sb.i.value).trim().length < 2) { sb.xato('Sababini yozing'); sb.i.focus(); return; }
         sora(a.ochilmadi, () => qilX(xatoJoyla([[sb, /sabab/i]]), 'bemorHolat', z.id, 'ochilmadi', sb.i.value).then((ok) => ok && close()))();
-      } }, 'Ochilmadi deb belgilash') : null);
+      } }, 'Ochilmadi deb belgilash') : null,
+      kochirTugma(z, ctx, close));
   }, { fokus: false });
+}
+
+// ---- Boshqa ro'yxatga ko'chirish (11.11; maket E «Xatoni o'zingiz tuzatasiz»; R1 ko'rigi) ----
+// Punkt ro'yxati bilan ishlayotganda o'rtada kelgan aptekadagi mijozning QR retsepti punktga yozilib qolsa — to'g'ri ro'yxatga
+// o'tkaziladi (server bemor_kochir: har o'zgarish jurnalga yoziladi). Faqat QR / kengaytma bergan bemor (qrBemor — server
+// sorov_kalit) va holati «berildi»; punkt ro'yxatidan kelgan, navbat, ochilmadi, olib ketilgan — yo'q. O'ralgan yoki Oson'dan
+// chiqarilgan bemorni faqat direktor ko'chiradi (oynada ogohlantirish bilan).
+export const kochirsaBoladi = (z, direktor = false) => !!z && qrBemor(z) && z.holat === 'berildi' && (direktor || !(z.oraldi || z.oson));
+// Variantlar (sof funksiya — test): avval «Aptekadagi mijozlar» (ichki punkt), keyin faol punktlar alifbo bo'yicha (tartib doim bir xil —
+// adashib bosish kamroq), har birida shu kundagi bemorlari soni; hozirgi ro'yxat chiqmaydi. r — ajrat() dan o'tgan R.
+export function kochirVariantlar(r, z) {
+  if (!r || !z) return [];
+  const kun = H.kunKey(z.ts);
+  const soni = (pid) => (r.bemorlar || []).filter((b) => b.punktId === pid && H.kunKey(b.ts) === kun).length;
+  const out = [];
+  if (r.ichki && r.ichki !== z.punktId) out.push({ id: r.ichki, nom: MIJOZ_NOM, izoh: 'punkt ro\'yxatiga kirmaydi', ichki: true });
+  (r.punktlar || []).filter((p) => p.id !== z.punktId && p.faol !== false)
+    .map((p) => ({ id: p.id, nom: p.nom || 'Punkt', n: soni(p.id) }))
+    .sort((a, b) => String(a.nom).localeCompare(String(b.nom)))
+    .forEach((p) => out.push({ id: p.id, nom: p.nom, izoh: (p.n ? p.n + ' bemor' : 'ro\'yxat yo\'q') + ' · ' + kunNom(kun) }));
+  return out;
+}
+const asl = (t) => h('span', { 'data-asl': '' }, t);
+// Ro'yxat nomi ekranda: «Aptekadagi mijozlar» — ilova so'zi (kirillga o'tadi), punkt nomi — asl holicha (data-asl).
+const royxatEl = (pid, nom) => (R && pid && pid === R.ichki ? MIJOZ_NOM : asl(nom || ((R && R.punktlar.find((p) => p.id === pid)) || {}).nom || 'Punkt'));
+const direktormi = (ctx) => !!(ctx.x && ctx.x.rol === 'direktor');
+
+// Tugma (bemor oynasi va aptekadagi mijozlar qatori). yopOldin — chaqirgan oyna (bemor oynasi) avval yopiladi.
+function kochirTugma(z, ctx, yopOldin) {
+  if (!kochirsaBoladi(z, direktormi(ctx)) || !ctx.amalX || !R) return null;
+  return h('button', { type: 'button', class: 's kochir-tugma', onclick: () => { if (yopOldin) yopOldin(); kochirOyna(z, ctx); } }, 'Boshqa ro\'yxatga ko\'chirish');
+}
+
+function kochirOyna(z0, ctx) {
+  const ism = z0.ism || 'Ismsiz';
+  let z = z0, band = false, tanlangan = null, vs = [];
+  sheet([asl(ism), ' — qaysi ro\'yxatga o\'tkazilsin?'], (box, close) => {
+    const hozir = h('div', { class: 'muted' });
+    const guruh = h('div', { class: 'kochir-royxat', role: 'radiogroup', 'aria-label': 'Qaysi ro\'yxatga' });
+    const gx = guruhXato(guruh);
+    const ogoh = h('div', { class: 'kochir-ogoh', 'aria-live': 'polite' });
+    const boshqaYoq = h('div', { class: 'muted' }, 'Ko\'chiradigan boshqa ro\'yxat yo\'q.');
+    const sabab = input('Sabab (ixtiyoriy)', { inputmode: 'text', maxlength: '200', placeholder: 'Masalan: aptekadagi mijoz edi' });
+    const tugma = h('button', { type: 'button', class: 'p kochir-ok' }, 'Ko\'chirish');
+    const tanlanganV = () => vs.find((x) => x.id === tanlangan) || null;
+    // O'ralgan / Oson'dan chiqarilgan (bunday bemorni faqat direktor ko'chiradi), punkt Excel'ida yuborilgan — tasdiqdan OLDIN oynada.
+    // Excel belgisi: bemor json'dagi 'excel' (yuborilgan vaqt); server bermasa — ogohlantirish faqat ko'chirgandan keyin (excelEdi).
+    const ogohChiz = () => {
+      const v = tanlanganV(), qism = [];
+      if (z.excel) qism.push(h('div', { class: 'msg warn' }, 'Bu bemor ', royxatEl(z.punktId), ' Excel\'ida yuborilgan edi — ko\'chirgach punktga ayting.'));
+      if (z.oraldi) qism.push(h('div', { class: 'msg warn' }, 'Bu bemor o\'ralgan — paketni ', v ? royxatEl(v.id, v.nom) : 'yangi ro\'yxat', ' qutisiga o\'tkazing.'));
+      if (z.oson) qism.push(h('div', { class: 'msg warn' }, 'Oson\'dan chiqarilgan edi — Oson\'dagi to\'plamni tekshiring.'));
+      ogoh.replaceChildren(...qism);
+    };
+    const chiz = () => {
+      hozir.replaceChildren('Hozir: ', royxatEl(z.punktId), ' · ' + kunNom(H.kunKey(z.ts)));
+      guruh.replaceChildren(...vs.map((v) => {
+        const on = tanlangan === v.id;
+        return h('button', { type: 'button', class: 'kochir-v', role: 'radio', 'aria-checked': String(on), disabled: band ? '' : null,
+          onclick: () => { if (band) return; tanlangan = v.id; gx.xato(''); chiz(); const b = guruh.querySelector('[aria-checked="true"]'); if (b) b.focus({ preventScroll: true }); } },
+        h('span', { class: 'kochir-v-s' }, h('span', { class: 'kochir-belgi', 'aria-hidden': 'true' }, on ? '✓' : ''), h('b', {}, v.ichki ? v.nom : asl(v.nom))),
+        h('small', {}, v.izoh));
+      }));
+      guruh.hidden = !vs.length; boshqaYoq.hidden = !!vs.length; tugma.hidden = !vs.length;
+      ogohChiz();
+    };
+    // Variantlar hozirgi R dan; tanlangan ro'yxat hali variantlarda bo'lsa — tanlov qoladi.
+    const qur = () => { vs = kochirVariantlar(R, z); if (!tanlanganV()) tanlangan = null; };
+    qur(); chiz();
+    const ok = async () => {
+      if (band) return;
+      if (!tanlangan) { gx.xato('Qaysi ro\'yxatga — tanlang'); gx.i.focus(); return; }
+      const v = tanlanganV(), korgan = z.punktId;
+      band = true; tugma.disabled = true; tugma.textContent = 'Ko\'chirilmoqda…'; chiz();
+      let r = null;
+      try {
+        // 4-argument — foydalanuvchi ko'rgan ro'yxat: shu orada boshqa joyda ko'chirilgan bo'lsa server «Ro'yxat o'zgargan» deydi.
+        r = await ctx.amalX(xatoJoyla([[sabab, /sabab/i], [gx]]), 'bemorKochir', z.id, tanlangan, String(sabab.i.value).trim(), korgan);
+      } catch (e) { r = null; }
+      if (r === null || r === undefined || r === false) {
+        // Saboq 25: xato — ro'yxat qayta olinadi, variantlar qayta quriladi; yozilgan sabab va (hali to'g'ri bo'lsa) tanlov qoladi.
+        await yukla(ctx);
+        band = false;
+        if (!box.isConnected) return;
+        const yangiZ = R && R.bemorlar.find((y) => y.id === z.id);
+        if (yangiZ) z = yangiZ;
+        qur();
+        tugma.disabled = false; tugma.textContent = 'Ko\'chirish';
+        chiz();
+        // Qayta chizishda fokus yo'qolmasin — tanlangan variantga (yo'q bo'lsa — birinchisiga).
+        const f = guruh.querySelector('[aria-checked="true"]') || guruh.querySelector('button');
+        if (f && !box.contains(document.activeElement)) f.focus({ preventScroll: true });
+        return;
+      }
+      band = false;
+      // Saboq 24: ko'chirish serverga yetdi — undan oldin boshlangan to'liq ro'yxat javobi tashlanadi (yukla), ekranda darhol yangi joy.
+      mahalliyVaqt = Date.now();
+      const yangi = (r && r.punktId) || tanlangan, eski = (r && r.eskiPunktId) || korgan;
+      z.punktId = yangi; if (z !== z0) z0.punktId = yangi;
+      close();
+      const nomEl = () => royxatEl(yangi, v && yangi === v.id ? v.nom : r && r.punktNom);
+      const eslat = [];
+      if (r && r.oraldiEdi) eslat.push(['Paketni ', nomEl(), ' qutisiga o\'tkazing.']);
+      if (r && r.osonEdi) eslat.push(['Oson\'dan chiqarilgan edi — Oson\'dagi to\'plamni tekshiring.']);
+      if (r && r.excelEdi) eslat.push(['Bu bemor ', royxatEl(eski), ' Excel\'ida yuborilgan edi — punktga ayting.']);
+      // Kengaytma chop etish ro'yxatini serverdan keyingi yangilanishda oladi — har ko'chirishda eslatiladi.
+      const izoh = [h('br'), 'Kompyuterdagi chop etish ro\'yxati keyingi yangilanishda o\'zgaradi.'];
+      // Ogohlantirish bo'lsa — «✓» siz (qizil xabarda «✓» chalg'itadi).
+      if (eslat.length) ctx.toast([asl(ism), ' → ', nomEl(), ' ko\'chirildi. ', ...eslat.flatMap((q, i) => (i ? [' ', ...q] : q)), ...izoh], 'xato');
+      else ctx.toast([asl(ism), ' → ', nomEl(), ' ko\'chirildi ✓', ...izoh]);
+      yukla(ctx);
+      ctx.rerender();
+    };
+    tugma.addEventListener('click', ok);
+    box.append(hozir, guruh, boshqaYoq, gx.el, ogoh, sabab.el, tugma);
+  }, { fokus: false, band: () => band });
 }
 
 // Rasm: serverdan olinadi, QR kod(lar) shu telefonda (Web Worker'da) o'qiladi.
