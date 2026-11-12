@@ -43,7 +43,7 @@ const tanaOqi = async (fn) => { try { return await fn(); } catch (e) { if (e && 
 const sarlavha = (initData) => ({ 'content-type': 'application/json', 'x-telegram-init-data': initData });
 // Server kalitni (C1) e'tiborsiz qoldiradigan, lekin fayl yuboradigan yoki havola yaratadigan amallar (api.mjs OQISH/KALITSIZ):
 // zaxira yo'ldan qayta yuborilsa — direktorga ikkinchi fayl yoki «yangi bemor yo'q» xatosi (audit 06.11). Faqat bitta yo'l.
-export const BIR_YOL = new Set(['narx_yorliq', 'dorilar_excel', 'taminot_excel', 'ta_excel', 'fayl_havola', 'punkt_excel', 'punkt_royxat_excel', 'zaxira', 'bot_ulash', 'taklif_yarat',
+export const BIR_YOL = new Set(['narx_yorliq', 'dorilar_excel', 'reimb_excel', 'taminot_excel', 'ta_excel', 'fayl_havola', 'punkt_excel', 'punkt_royxat_excel', 'zaxira', 'bot_ulash', 'taklif_yarat',
   'ta_taklif_yarat', 'punkt_taklif', 'prays_kalit_yarat', 'kengaytma_kalit_yarat']);
 // 07.11 tun: telefonga yuklash manzili (Telegram downloadFile) — server bergan yo'l ('yuklash/<token>') hozir birinchi turgan,
 // ya'ni havola so'rovi o'tgan yo'lga (Supabase yoki Cloudflare o'tkazgichi — worker/index.js) qo'shiladi. To'liq https manzil.
@@ -110,6 +110,24 @@ export async function firmaPraysYukla(body, initData) {
     }, { muddat: [180000], faqatBirinchi: true });
   } catch (e) { throw Object.assign(new Error('Internet yo\'q — prays saqlanmadi'), { tarmoq: true }); }
   if (!res.ok) throw Object.assign(new Error(b.xato || 'Prays saqlanmadi'), { status: res.status });
+  return b.natija;
+}
+
+// 13.11: Reimbursatsiya puli — DMED fayli telefonda o'qilgan qatorlar { qatorlar: [{id, sana, mnn, doza, savdo, ishlab, soni, narx, summa}],
+// tasdiq, ochir } → sinov (tasdiq: false — hech narsa yozilmaydi): { qoshildi, yangilandi, ochiriladi, ochiriladi_summa, … };
+// tasdiq: true — { qoshildi, yangilandi, ochirildi, jami, dan, gacha }. Bemor ma'lumoti yo'q. Qayta yuborilsa zarar yo'q (server qatorni yangilaydi,
+// ikki marta sanamaydi), lekin katta tana — faqat birinchi yo'l, 3 daqiqa.
+export async function reimbYukla(body, initData) {
+  let res, b = {};
+  try {
+    [res, b] = await yol.yubor(async (y, signal, ulandi) => {
+      const r = await yuborFetch(y + '/reimb_yukla', { method: 'POST', headers: sarlavha(initData), body: JSON.stringify(body) }, signal);
+      ulandi();
+      let j = {}; try { j = await r.json(); } catch (e) { /* bo'sh */ }
+      return [r, j];
+    }, { muddat: [180000], faqatBirinchi: true });
+  } catch (e) { throw Object.assign(new Error('Internet yo\'q — fayl saqlanmadi'), { tarmoq: true }); }
+  if (!res.ok) throw Object.assign(new Error(b.xato || 'Fayl saqlanmadi'), { status: res.status });
   return b.natija;
 }
 

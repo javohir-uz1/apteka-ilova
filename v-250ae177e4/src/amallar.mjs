@@ -994,6 +994,113 @@ export function oyinYoq() { throw new Error('O\'yin faqat Telegram ilovasida (se
 export function osonYoq() { throw new Error('Oson qoldig\'i faqat Telegram ilovasida (serverda) ishlaydi'); }
 export function firmaYoq() { throw new Error('Firma prayslari faqat Telegram ilovasida (serverda) ishlaydi'); }
 export function dorilarExcel() { throw new Error('Sinov rejimida bot yo\'q — Excel faqat ilovada'); }
+
+// 13.11: Reimbursatsiya puli (SQL reimb_hisobot / reimb_narxlar / reimb_yukla) — sinov rejimida shu telefon xotirasida (saqlanmaydi).
+// Namuna qatorlar uydirma: retsept ID'lari, narxlar va summalar o'ylab topilgan; bemor yo'q. Faqat reimbursatsiya (RAB…).
+let REIMB = null;
+const REIMB_NAMUNA = [
+  ['Enalapril', '10 миллиграмм', 'ЭНАМ® Таблетки 10мг блистеры №30(3x10)', 'Dr. Reddy\'s', 1167],
+  ['Enalapril', '10 миллиграмм', 'Энап® Таблетки 10 мг №20', 'KRKA', 980],
+  ['Enalapril', '10 миллиграмм', 'Эналаприл Таблетки 10 мг №20', 'Борисовский ЗМП', 640],
+  ['Amlodipine', '10 миллиграмм', 'Норваск® Таблетки 10 мг №30', 'Pfizer', 1420],
+  ['Amlodipine', '10 миллиграмм', 'Амлодипин Таблетки 10 мг №30', 'Ozon', 520],
+  ['Acetylsalicylic acid', '75 миллиграмм', 'Кардиомагнил® Таблетки 75 мг №100', 'Takeda', 529],
+  ['Acetylsalicylic acid', '75 миллиграмм', 'Тромбопол® Таблетки 75 мг №60', 'Polpharma', 410],
+  ['Bisoprolol', '5 миллиграмм', 'Конкор® Таблетки 5 мг №50', 'Merck', 756],
+  ['Metformin', '1000 миллиграмм', 'Глюкофаж® Таблетки 1000 мг №60', 'Merck', 802],
+  ['Metformin', '1000 миллиграмм', 'Метформин Таблетки 1000 мг №60', 'Nobel', 455],
+  ['Atorvastatin', '20 миллиграмм', 'Аторис® Таблетки 20 мг №30', 'KRKA', 1333]];
+const reimbKalit = (q) => [q.id, q.mnn, q.doza, q.savdo, q.sana].join('|');
+function reimbDemo() {
+  if (REIMB) return REIMB;
+  REIMB = { qatorlar: new Map(), yuklandi: Date.now() - 3 * 36e5 };
+  const bugun = H.kunKey(Date.now());
+  for (let i = 0; i < 48; i++) {
+    const [mnn, doza, savdo, ishlab, narx] = REIMB_NAMUNA[(i * 7) % REIMB_NAMUNA.length];
+    const soni = i % 3 === 0 ? 60 : 30;
+    const q = { id: 'RAB' + String(90000100 + i), sana: H.kunQosh(bugun, -(i % 18)), mnn, doza, savdo, ishlab, soni, narx, summa: soni * narx };
+    REIMB.qatorlar.set(reimbKalit(q), q);
+  }
+  return REIMB;
+}
+const yax2 = (n) => Math.round(n * 100) / 100;
+function reimbDavrda(dan, gacha) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dan || '') || !/^\d{4}-\d{2}-\d{2}$/.test(gacha || '')) throw new Error('Sana noto\'g\'ri');
+  if (dan > gacha || H.kunQosh(dan, 400) < gacha) throw new Error('Davr noto\'g\'ri (400 kungacha)');
+  return [...reimbDemo().qatorlar.values()].filter((x) => x.sana >= dan && x.sana <= gacha);
+}
+// 1 dona narxi (SQL bilan bir xil): davrdagi eng oxirgi kundagi narx (o'sha kunda bir nechta — kattasi); 0 bo'lsa — summa / soni.
+const reimbNarx = (o) => (o.oxNarx > 0 ? o.oxNarx : o.soni > 0 ? yax2(o.summa / o.soni) : 0);
+const reimbNarxQosh = (o, x) => { if (!o.oxSana || x.sana > o.oxSana || (x.sana === o.oxSana && x.narx > o.oxNarx)) { o.oxSana = x.sana; o.oxNarx = x.narx; } };
+export function reimbHisobot(s, dan, gacha) {
+  const q = reimbDavrda(dan, gacha), d = reimbDemo();
+  const kun = new Map(), dori = new Map();
+  for (const x of q) {
+    const k = kun.get(x.sana) || { summa: 0, soni: 0, ids: new Set() };
+    k.summa += x.summa; k.soni += x.soni; k.ids.add(x.id); kun.set(x.sana, k);
+    const dk = [x.mnn, x.doza, x.savdo, x.ishlab].join('\u0000');
+    const o = dori.get(dk) || { mnn: x.mnn, doza: x.doza, savdo: x.savdo, ishlab: x.ishlab, oxSana: '', oxNarx: 0, soni: 0, summa: 0, ids: new Set() };
+    o.summa += x.summa; o.soni += x.soni; reimbNarxQosh(o, x); o.ids.add(x.id); dori.set(dk, o);
+  }
+  // Grafik: davrdagi har kun (bo'sh kun — 0), SQL bilan bir xil; davrda ma'lumot bo'lmasa — [].
+  const kunlar = [];
+  if (q.length) for (let k = dan; k <= gacha; k = H.kunQosh(k, 1)) { const v = kun.get(k); kunlar.push({ kun: k, summa: v ? yax2(v.summa) : 0, soni: v ? v.soni : 0, retsept: v ? v.ids.size : 0 }); }
+  const sanalar = [...d.qatorlar.values()].map((x) => x.sana).sort();
+  return {
+    dan, gacha, jami_summa: yax2(q.reduce((a, x) => a + x.summa, 0)), jami_soni: q.reduce((a, x) => a + x.soni, 0),
+    retsept_soni: new Set(q.map((x) => x.id)).size, qator_soni: q.length, kunlar,
+    dorilar: [...dori.values()].sort((a, b) => b.summa - a.summa || a.mnn.localeCompare(b.mnn))
+      .map((o) => ({ mnn: o.mnn, doza: o.doza, savdo: o.savdo, ishlab: o.ishlab, narx: reimbNarx(o), soni: o.soni, summa: yax2(o.summa), retsept: o.ids.size })),
+    oxirgi_yuklash: d.qatorlar.size ? new Date(d.yuklandi + 5 * 36e5).toISOString().slice(0, 16).replace(/^(\d{4})-(\d{2})-(\d{2})T/, '$3.$2.$1 ') : null,
+    mavjud_davr: sanalar.length ? { dan: sanalar[0], gacha: sanalar[sanalar.length - 1] } : null
+  };
+}
+// SQL reimb_narxlar bilan bir xil: MNN + doza guruhlari (summa bo'yicha), ichida nomlar 1 dona narxi bo'yicha (qimmatdan), farq.
+// MNN bo'sh qatorlar solishtirilmaydi — har savdo nomi alohida guruh.
+export function reimbNarxlar(s, dan, gacha) {
+  const g = new Map();
+  for (const x of reimbDavrda(dan, gacha)) {
+    const gk = [x.mnn, x.doza, x.mnn ? '' : x.savdo].join('\u0000'), gr = g.get(gk) || { mnn: x.mnn, doza: x.doza, d: new Map() };
+    const dk = x.savdo + '\u0000' + x.ishlab, qd = /№\s*(\d+)/.exec(x.savdo);
+    const o = gr.d.get(dk) || { savdo: x.savdo, qadoq: qd ? '№' + qd[1] : '', ishlab: x.ishlab, oxSana: '', oxNarx: 0, soni: 0, summa: 0 };
+    reimbNarxQosh(o, x); o.soni += x.soni; o.summa += x.summa;
+    gr.d.set(dk, o); g.set(gk, gr);
+  }
+  return [...g.values()].map((gr) => {
+    const dorilar = [...gr.d.values()].map((o) => ({ savdo: o.savdo, qadoq: o.qadoq, ishlab: o.ishlab, narx: reimbNarx(o), soni: o.soni, summa: yax2(o.summa) }))
+      .sort((a, b) => b.narx - a.narx || b.summa - a.summa || a.savdo.localeCompare(b.savdo));
+    const mx = dorilar.length ? dorilar[0].narx : 0;
+    return { mnn: gr.mnn, doza: gr.doza, summa: yax2(dorilar.reduce((a, o) => a + o.summa, 0)), soni: dorilar.reduce((a, o) => a + o.soni, 0),
+      farq: yax2(dorilar.reduce((a, o) => a + (mx - o.narx) * o.soni, 0)), dorilar };
+  }).sort((a, b) => b.summa - a.summa || a.mnn.localeCompare(b.mnn));
+}
+// Sinov: yuklash — server (reimb_yukla) bilan bir xil: tasdiq bo'lmasa — faqat hisoblaydi; ochir bo'lsa — FAQAT fayl davri ichidagi,
+// faylda yo'q qatorlar o'chiriladi; qayta yuklansa yangilanadi, ikki marta sanalmaydi.
+export function reimbYuklaSinov(qatorlar, { tasdiq = false, ochir = false } = {}) {
+  const d = reimbDemo();
+  const yangi = new Map((qatorlar || []).map((q) => [reimbKalit(q), q]));
+  if (!yangi.size) throw new Error('Faylda dori qatori yo\'q');
+  const sanalar = [...yangi.values()].map((q) => q.sana).sort(), dan = sanalar[0], gacha = sanalar[sanalar.length - 1];
+  const yoq = [...d.qatorlar].filter(([k, q]) => !yangi.has(k) && q.sana >= dan && q.sana <= gacha);
+  const yoqSumma = yax2(yoq.reduce((a, [, q]) => a + q.summa, 0));
+  let qoshildi = 0, yangilandi = 0;
+  for (const [k, q] of yangi) {
+    const e = d.qatorlar.get(k);
+    if (!e) qoshildi++;
+    else if (e.soni !== q.soni || e.narx !== q.narx || e.summa !== q.summa || e.ishlab !== q.ishlab) yangilandi++;
+  }
+  if (!tasdiq) {
+    return { tasdiq: false, qoshildi, yangilandi, ochiriladi: ochir ? yoq.length : 0, ochiriladi_summa: ochir ? yoqSumma : 0,
+      faylda_yoq: yoq.length, faylda_yoq_summa: yoqSumma, jami: yangi.size, dan, gacha };
+  }
+  if (ochir) for (const [k] of yoq) d.qatorlar.delete(k);
+  for (const [k, q] of yangi) d.qatorlar.set(k, { ...q });
+  d.yuklandi = Date.now();
+  return { tasdiq: true, qoshildi, yangilandi, ochirildi: ochir ? yoq.length : 0, ochirildi_summa: ochir ? yoqSumma : 0, faylda_yoq: yoq.length,
+    jami: yangi.size, dan, gacha };
+}
+// Testlar uchun: namunani bo'shatish (bo'sh holat) yoki qayta yaratish.
+export function reimbSinovTozala(bosh = false) { REIMB = bosh ? { qatorlar: new Map(), yuklandi: 0 } : null; }
 // Kompyuterlardagi partiyalar (SQL partiyalar_royxat) — sinovda namuna; muddati o'tgan va yaqinlashgani ham bor.
 const sanaKeyin = (kun) => { const d = new Date(Date.now() + kun * 864e5); return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear(); };
 export const partiyalar = (s) => JSON.parse(JSON.stringify(s.partiyalar || [

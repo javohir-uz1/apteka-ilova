@@ -34,12 +34,14 @@ import { auditView } from './audit.mjs';
 import { harakatOyna, sorovKarta, sorovOyna } from './filial-sorov.mjs';
 import { hisobKarta, qisqaSana } from './taminot-hisob.mjs';
 import { taDorilarKarta, tahlilTa, tahlilView } from './taminot-tahlil.mjs';
+import { reimbView } from './reimb.mjs';
 
 // Sahifalar nomi (sarlavha va global qidiruv — 07.11 tun, `globalQidir`).
 export const SAHIFA_NOM = { bosh: 'Direktor paneli', daftar: 'Kunlik daftar', smena: 'Savdo', tamin: 'Ta\'minotchilar', more: 'Bo\'limlar',
   qarz: 'Mijozlar qarzi', oylik: 'Oyliklar', stat: 'Statistika', oqim: 'Kirim va chiqim', xulosa: 'Kechki xulosa', sozlama: 'Sozlamalar', xabar: 'Bot xabarlari',
   uy: 'Uy puli', defektura: 'Defektura', prays: 'Prays-list', shtrix: 'Shtrix-kodlar', retsept: 'Retseptlar', punktlar: 'Punktlar', oyin: 'Bilimdon o\'yini', davomat: 'Davomat', firmalar: 'Firma prayslari', qoldiq: 'Oson qoldig\'i', pul: 'Pul nazorati', buyurtma: 'Aqlli buyurtma', kochirish: 'Ko\'chirish', inventar: 'Inventar', narx: 'Narx farqi', kassa: 'Kassa ↔ Oson', kassaNazorat: 'Kassa nazorati',
-  hamyon: 'Hamyonlar', funksiyalar: 'Funksiyalar', chiqarish: 'Hisobdan chiqarilganlar', audit: 'O\'zgarishlar tarixi', xodimlar: 'Xodimlar ro\'yxati', taTahlil: 'Ta\'minotchilar tahlili' };
+  hamyon: 'Hamyonlar', funksiyalar: 'Funksiyalar', chiqarish: 'Hisobdan chiqarilganlar', audit: 'O\'zgarishlar tarixi', xodimlar: 'Xodimlar ro\'yxati', taTahlil: 'Ta\'minotchilar tahlili',
+  reimb: 'Reimbursatsiya puli' };
 
 let tab = 'bosh';
 // Yangi ko'rinish (07.11, variant A): pastki menyuda 4 bo'lim; ichki sahifalar — eski ekranlar (tab/sub), menyusiz, «orqaga» bilan.
@@ -569,7 +571,7 @@ export function renderDirektor(root, ctx) {
         ctx.server ? { l: 'Hisobdan chiqarilganlar', n: 'Muddati o\'tgan, singan, firmaga qaytarilgan', onclick: () => go('qoldiq', 'chiqarish') } : null,
         q('shtrix', 'Shtrix-kodlar', (S.shtrixlar || []).length ? (S.shtrixlar || []).length + ' ta · shprits, sistema…' : 'Shprits, sistema — xodimlar skanerga tutadi')] },
       // Reimbursatsiya alohida guruh: punktlarni qo'shish/ulash va ular yuborgan retseptlar.
-      { nom: 'Reimbursatsiya', qatorlar: [q('punktlar', 'Punktlar', 'Qo\'shish, botga ulash havolasi'), { l: 'Retseptlar', n: 'Punktlar yuborgan ro\'yxatlar, qadoqlash', onclick: () => { retseptBosh(); go('retsept'); } }] },
+      { nom: 'Reimbursatsiya', qatorlar: [q('reimb', 'Reimbursatsiya puli', 'DMED faylidan: dorilar, summa, narxlar, Excel'), q('punktlar', 'Punktlar', 'Qo\'shish, botga ulash havolasi'), { l: 'Retseptlar', n: 'Punktlar yuborgan ro\'yxatlar, qadoqlash', onclick: () => { retseptBosh(); go('retsept'); } }] },
       { nom: 'Hisobot', qatorlar: [q('oqim', 'Kirim va chiqim', 'Doira diagramma: savdo va chiqimlar'), q('stat', 'Statistika', 'Oyma-oy, filiallar'), q('xulosa', 'Kechki xulosa va ertalabki hisobot', S.sozlama.xulosaVaqti + ' da Telegram\'ga' + (ctx.server ? ' · ertalab — kechagi savdo' : '')),
         q('xabar', 'Bot xabarlari', S.xabarlar.length + ' ta')] },
       // «Bilimdon» o'yini (29.10): direktor ochadi va kuzatadi, xodimlar o'z panelida javob beradi.
@@ -732,6 +734,7 @@ export function renderDirektor(root, ctx) {
   if (tab === 'qoldiq' && sub === 'chiqarish') chiqarishView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender }, fil);
   if (sub === 'punktlar') punktlarView(m, ctx.retseptCtx());
   if (sub === 'defektura') defekturaDirektor(m, ctx, fil, () => go('more', 'firmalar'));
+  if (tab === 'more' && sub === 'reimb') reimbView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender, firma: ctx.firma });   // 13.11: DMED faylidan
   if (sub === 'firmalar') firmaPrayslarView(m, { ...ctx.retseptCtx(), rerender: ctx.rerender, firma: ctx.firma });
   if (sub === 'prays') m.append(praysQidiruv(ctx));
   if (sub === 'shtrix') shtrixDirektor(m, ctx);
@@ -986,6 +989,7 @@ const KATALOG = [
   ['shtrix', ['more', 'shtrix'], 'shtrix', 'Ombor · nazorat', 'shprits sistema barkod'],
   ['retsept', ['retsept'], 'retsept', 'Ombor · reimbursatsiya', 'punkt dmed qadoqlash partiya oson'],
   ['punktlar', ['more', 'punktlar'], 'punkt', 'Ombor · reimbursatsiya', 'punkt havola'],
+  ['reimb', ['more', 'reimb'], 'pul', 'Ombor · reimbursatsiya', 'reimbursatsiya pul dmed excel summa jami narx solishtir qimmat arzon mnn'],
   ['davomat', ['more', 'davomat'], 'davomat', 'Xodimlar', 'keldi kelmadi'],
   ['oyin', ['more', 'oyin'], 'oyin', 'Xodimlar', 'bilimdon test oyin'],
   ['funksiyalar', ['more', 'funksiyalar'], 'sozlama', 'Xodimlar', 'yoqish ochirish imkoniyat'],
@@ -1150,7 +1154,8 @@ function pulBolim(m, ctx, go, bugun) {
       { ikon: 'stat', rang: 'kok', l: 'Statistika', izoh: 'Oyma-oy, filiallar', onclick: () => go('more', 'stat') },
       ctx.server ? { ikon: 'nazorat', rang: 'binafsha', l: 'Pul nazorati', izoh: 'Muddat, muzlagan pul, kam foyda', onclick: () => go('qoldiq', 'pul') } : null,
       ctx.server ? { ikon: 'kassa', rang: 'binafsha', l: 'Kassa nazorati', izoh: 'Naqd farqi, o\'tkazmalar, xodim qoldig\'i', onclick: () => go('qoldiq', 'kassaNazorat') } : null,
-      ctx.server ? { ikon: 'kassa', rang: 'binafsha', l: 'Kassa ↔ Oson', izoh: 'Kiritilgan savdo va Oson sotuvi', onclick: () => go('qoldiq', 'kassa') } : null] }]));
+      ctx.server ? { ikon: 'kassa', rang: 'binafsha', l: 'Kassa ↔ Oson', izoh: 'Kiritilgan savdo va Oson sotuvi', onclick: () => go('qoldiq', 'kassa') } : null,
+      ctx.server ? { ikon: 'pul', rang: 'yashil', l: 'Reimbursatsiya puli', izoh: 'DMED faylidan: dorilar, summa, narxlar, Excel', onclick: () => go('more', 'reimb') } : null] }]));
 }
 
 // Hamyonlar (ichki sahifa): seyf, bugun kirdi / chiqdi, amallar (eski Bosh sahifadagi pul bloklari).
@@ -1214,6 +1219,7 @@ function omborBolim(m, ctx, go, fil) {
       { ikon: 'shtrix', rang: 'kul', l: 'Shtrix-kodlar', izoh: (S.shtrixlar || []).length ? (S.shtrixlar || []).length + ' ta · shprits, sistema…' : 'Shprits, sistema — xodimlar skanerga tutadi', onclick: () => go('more', 'shtrix') }] },
     { nom: 'Reimbursatsiya', qatorlar: [
       { ikon: 'retsept', rang: 'yashil', l: 'Retseptlar va partiyalar', izoh: 'Punkt ro\'yxatlari, qadoqlash, Oson', onclick: () => { retseptBosh(); go('retsept'); } },
+      { ikon: 'pul', rang: 'yashil', l: 'Reimbursatsiya puli', izoh: 'DMED faylidan: dorilar, summa, narxlar, Excel', onclick: () => go('more', 'reimb') },
       { ikon: 'punkt', rang: 'kok', l: 'Punktlar', izoh: 'Qo\'shish, botga ulash havolasi', onclick: () => go('more', 'punktlar') }] }]));
 }
 

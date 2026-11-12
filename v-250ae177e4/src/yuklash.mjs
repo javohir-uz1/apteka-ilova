@@ -35,7 +35,8 @@ export async function telefongaYukla(ctx, tur, args, botga) {
 }
 
 // Ikki tugma: «Telefonga yuklab olish» (asosiy, mumkin bo'lsa) va «Telegram'ga yuborish» (bot orqali). Mumkin bo'lmasa — faqat bot.
-export function yuklashTugmalari(ctx, { tur, args, botga, botMatn = 'Excel — Telegram\'ga yuborish', yuborildi = 'Excel fayl Telegram\'ga yuborildi ✓' }) {
+// telMatn (13.11) — asosiy tugma yozuvi (matn yoki [ikonka, matn]); berilmasa — avvalgidek.
+export function yuklashTugmalari(ctx, { tur, args, botga, botMatn = 'Excel — Telegram\'ga yuborish', yuborildi = 'Excel fayl Telegram\'ga yuborildi ✓', telMatn = '📥 Telefonga yuklab olish (Excel)' }) {
   const bot = () => botga().then((r) => { if (r) ctx.toast(yuborildi); return r; });
   if (!ctx.server || !telefongaMumkin(ctx.tg)) return [h('button', { class: 'p', onclick: bot }, botMatn)];
   let band = false;
@@ -43,6 +44,6 @@ export function yuklashTugmalari(ctx, { tur, args, botga, botMatn = 'Excel — T
     if (band) return;
     band = true; tel.disabled = true;
     try { const n = await telefongaYukla(ctx, tur, args, botga); if (n === 'bot') ctx.toast(yuborildi); } finally { band = false; tel.disabled = false; }
-  } }, '📥 Telefonga yuklab olish (Excel)');
+  } }, ...[].concat(telMatn));
   return [tel, h('button', { class: 's', onclick: bot }, botMatn)];
 }

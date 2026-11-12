@@ -107,6 +107,11 @@ export const ISHLAR = {
   dorilarHisobot: [(S, men, dan, gacha) => A.dorilarHisobot(S, dan, gacha), (dan, gacha) => ['dorilar_hisobot', [m(dan), m(gacha)]]],
   dorilarExcel: [() => A.dorilarExcel(), (dan, gacha) => ['dorilar_excel', [m(dan), m(gacha)]]],
   punktExcel: [() => A.punktExcel(), (p) => ['punkt_excel', [p]]],
+  // 13.11 (20261113010000_reimb_dmed): Reimbursatsiya puli (DMED faylidan, faqat reimbursatsiya) — davr; narxlar (MNN + doza bo'yicha
+  // savdo nomlari 1 dona narxi bilan); Excel — bot orqali.
+  reimbHisobot: [(S, men, dan, gacha) => A.reimbHisobot(S, dan, gacha), (dan, gacha) => ['reimb_hisobot', [m(dan), m(gacha)]]],
+  reimbNarxlar: [(S, men, dan, gacha) => A.reimbNarxlar(S, dan, gacha), (dan, gacha) => ['reimb_narxlar', [m(dan), m(gacha)]]],
+  reimbExcel: [() => A.dorilarExcel(), (dan, gacha) => ['reimb_excel', [m(dan), m(gacha)]]],
   // 07.11 tun: bir martalik yuklash havolasi (Telegram downloadFile) — tur: 'dorilar_excel', args: o'sha amal argumentlari.
   faylHavola: [() => A.dorilarExcel(), (tur, args) => ['fayl_havola', [m(tur), JSON.stringify(args || [])]]],
   punktRoyxatExcel: [() => A.punktRoyxatExcel(), (p, kun) => ['punkt_royxat_excel', [p, m(kun)]]],

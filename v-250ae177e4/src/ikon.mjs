@@ -57,7 +57,11 @@ export const IKON = {
   sozlama: { t: ['M4 6h8M16 6h4M4 12h2M10 12h10M4 18h11M19 18h1', 'M14 4v4M8 10v4M17 16v4'] },
   korinish: { t: ['M3 7V5h13v2', 'M9.5 5v14M7.5 19h4', 'M14 13v-1h7v1', 'M17.5 12v7M16 19h3'] },
   men: { a: [doira(12, 12, 9)], i: [doira(12, 10, 3), 'M6.2 18.3A4 4 0 0 1 10 16h4a4 4 0 0 1 3.8 2.3'] },
-  oddiy: { t: ['M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z'] }
+  oddiy: { t: ['M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z'] },
+  // 13.11: Reimbursatsiya puli — Excel yuklab olish, DMED faylini yuklash, «shaxsiy ma'lumot olib tashlandi».
+  yuklab: { t: ['M12 4v11', 'M7.5 10.5 12 15l4.5-4.5', 'M5 19h14'] },
+  yukla: { t: ['M12 15V4', 'M7.5 8.5 12 4l4.5 4.5', 'M5 19h14'] },
+  qalqon: { a: ['M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z'], i: ['M9 12l2 2 4-4'] }
 };
 
 // Ikonka (svg). tol — to'ldirilgan ko'rinish (CSS .tol: asosiy shakl rangli, ichki chiziqlar oq).

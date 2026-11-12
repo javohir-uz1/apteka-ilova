@@ -493,6 +493,9 @@ button.filial-qator { width: 100%; min-height: 56px; background: transparent; bo
 .shtrix-rasm { background: #FFFFFF; border-radius: 12px; padding: 16px 0; box-shadow: inset 0 0 0 1px var(--sep); }
 .shtrix-rasm svg { display: block; max-width: 100%; height: 150px; margin: 0 auto; }
 .shtrix-raqam { font-size: 24px; font-weight: 700; letter-spacing: .12em; text-align: center; font-variant-numeric: tabular-nums; word-break: break-all; }
+/* 12.11: kod Oson'da qaysi dori (yoki Oson'da yo'qligi — sariq) */
+.shtrix-oson { font-size: 15px; line-height: 1.35; color: var(--muted); overflow-wrap: anywhere; }
+.shtrix-oson.ogoh { color: var(--warn); background: var(--warn-bg); box-shadow: inset 0 0 0 1px var(--warn-line); border-radius: 10px; padding: 8px 10px; }
 
 /* ---- Dizayn A: Daftar (29.10) — kun tanlovi oq karta ichida, jami plitkalar katta, kartalar tepasida chiziq yo'q ---- */
 .kun-nav { background: var(--card); border-radius: 18px; padding: 4px; box-shadow: var(--shadow); }
@@ -2137,3 +2140,109 @@ html.matn-katta .keldi-jadval { font-size: 17px; }
 main.yx .oyin-banner { background: var(--soft); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--accent); }
 main.yx .oyin-banner-b { background: var(--card); color: var(--accent); }
 main.yx .oyin-banner .qator-o { color: var(--accent); }
+
+/* 12.11: «Tugayapti» — boshqa zavodniki bor (yig'iq bo'lim) va zavodlar sotuv tezligi */
+.oq-zavod { margin-top: 10px; background: var(--card); border-radius: var(--r-card); padding: 0 16px; }
+.oq-zavod > summary { min-height: 48px; display: flex; align-items: center; color: var(--kirim); font-weight: 600; }
+.oq-zavod .oq-zavod-izoh { padding: 0 0 8px; }
+.oq-oz-tez { display: block; margin-top: 2px; font-weight: 500; }
+.oq-oz-tez-s, .oq-oz-tez-q { display: block; }
+.oq-oz-yana { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
+.oq-zavod-ishora { display: flex; align-items: center; width: 100%; min-height: 44px; margin: 4px 0 8px; padding: 0 12px; border: 0;
+  border-radius: 12px; background: var(--kirim-bg); color: var(--kirim); font-size: 15px; font-weight: 600; text-align: left; }
+.oq-zavod-ishora + .oq-r { border-top: 0; }   /* 2-audit: ishora tugmasidan keyingi qator — sarlavhadan keyingidek, chiziqsiz */
+
+/* 13.11: Reimbursatsiya puli (reimb.mjs) — DMED faylidan jami pul, kunma-kun grafik, dorilar; «Narxlar» — MNN bo'yicha savdo nomlari
+   1 dona narxi bilan. Tokenlar — iOS qatlamidagi. */
+.rb-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 3px; background: var(--fill); border-radius: 11px; }
+.rb-seg > button { min-height: 44px; padding: 0 6px; border-radius: 9px; background: transparent; color: var(--ink); font-size: 15px; font-weight: 500; }
+.rb-seg > button[aria-checked="true"] { background: #FFFFFF; font-weight: 600; box-shadow: 0 3px 8px rgba(0, 0, 0, .12), 0 1px 1px rgba(0, 0, 0, .04); }
+.rb-seg > button:active { transform: none; opacity: .6; }
+.rb-davr { display: flex; flex-wrap: wrap; gap: 8px; }
+.rb-davr > button { min-height: 44px; padding: 0 16px; border-radius: 22px; background: var(--card); color: var(--ink); font-size: 15px; font-weight: 500;
+  box-shadow: inset 0 0 0 1px var(--sep); }
+.rb-davr > button[aria-pressed="true"] { background: var(--accent); color: #FFFFFF; font-weight: 600; box-shadow: none; }
+.rb-davr > button:active { transform: none; opacity: .7; }
+.rb-jami { gap: 6px; }
+.rb-jami-l { font-size: 14px; color: var(--muted); font-weight: 500; }
+.rb-pul { display: flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.rb-pul > span { font-size: 34px; font-weight: 800; letter-spacing: -.5px; color: var(--ink); overflow-wrap: anywhere; }
+.rb-pul > small { font-size: 17px; font-weight: 600; color: var(--muted); }
+.rb-sana { font-size: 14px; }
+.rb-plitka { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px; }
+.rb-plitka > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--bg); min-width: 0; }
+.rb-plitka b { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rb-plitka span { font-size: 13px; color: var(--muted); }
+.rb-grafik-k { margin-top: 10px; }
+.rb-grafik { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; align-items: end; gap: 3px; height: 96px; }
+.rb-ustun { display: block; min-height: 3px; border-radius: 4px 4px 0 0; background: #4E9E92; }
+.rb-ustun.eng { background: #0B7A6B; }
+.rb-grafik-iz { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rb-grafik-iz .rb-eng { color: var(--ink); font-weight: 600; text-align: center; }
+.rb-dorilar { gap: 0; }
+.rb-dori { display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-top: .5px solid var(--sep); }
+.rb-dori:first-of-type { border-top: 0; }
+.rb-q1, .rb-q2 { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.rb-q1 > b { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.rb-summa { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rb-q2 { font-size: 14px; color: var(--muted); }
+.rb-q2 > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.rb-dona { flex: none; font-variant-numeric: tabular-nums; }
+.rb-ulush { height: 4px; border-radius: 2px; background: var(--fill); overflow: hidden; }
+.rb-ulush > i { display: block; height: 100%; background: #4E9E92; }
+.rb-yana { align-self: flex-start; }
+.rb-amallar { display: flex; flex-direction: column; gap: 10px; }
+.rb-tugma { width: 100%; min-height: 50px; }
+.rb-tugma .ikon, .rb-amallar button.p .ikon { width: 22px; height: 22px; }
+label.btn.p.rb-fayl-tanla { background: var(--accent); color: #FFFFFF; }
+button.rb-ikkinchi { min-height: 50px; background: transparent; color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); font-size: 16px; }
+.rb-yangilik { margin: 2px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+.rb-bosh .p { margin-top: 4px; }
+.rb-qadam { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.4; }
+.rb-oyna { display: flex; flex-direction: column; gap: 12px; }
+.rb-holat:empty { display: none; }
+.rb-holat { font-size: 15px; color: var(--ink); }
+.rb-fayl { display: flex; flex-direction: column; gap: 2px; }
+.rb-fayl > b { overflow-wrap: anywhere; }
+.rb-himoya { display: flex; gap: 10px; align-items: flex-start; }
+.rb-himoya .ikon { width: 22px; height: 22px; flex: none; }
+.rb-dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; font-size: 15px; }
+.rb-dl dt { color: var(--muted); }
+.rb-dl dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rb-boshqa { align-self: center; }
+.rb-fayl-tanla:focus-within { outline: 3px solid var(--accent); outline-offset: 3px; }
+.rb-yol { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--soft); color: var(--ink); font-size: 15px; font-weight: 600; line-height: 1.45; }
+.rb-plus { color: var(--kirim); }
+.rb-izoh { margin: 0 0 4px; font-size: 14px; }
+.rb-bolim { margin: 8px 4px 0; font-size: 20px; font-weight: 700; }
+.rb-qidir-k { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 12px; background: var(--fill); color: var(--muted); }
+.rb-qidir-k:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
+.rb-qidir-k .ikon { width: 20px; height: 20px; flex: none; }
+.rb-qidir { flex: 1; min-width: 0; min-height: 44px; border: 0; background: transparent; color: var(--ink); font-size: 16px; outline: none; }
+.rb-topildi { margin: 0 4px; font-size: 14px; }
+.rb-topildi:empty { display: none; }
+.rb-guruhlar { display: flex; flex-direction: column; gap: 12px; }
+.rb-guruh { gap: 4px; }
+.rb-g-nom { margin: 0; font-size: 17px; font-weight: 700; overflow-wrap: anywhere; }
+.rb-g-meta { margin: 0; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rb-farq { margin: 4px 0 0; padding: 8px 10px; border-radius: 10px; background: var(--kirim-bg); color: var(--kirim); font-size: 14px; font-weight: 600; }
+.rb-nomlar { list-style: none; margin: 4px 0 0; padding: 0; }
+.rb-nom { display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-top: .5px solid var(--sep); }
+.rb-nom:first-child { border-top: 0; }
+.rb-n1, .rb-n2 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.rb-n1 > b { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.rb-narx { margin-left: auto; flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rb-narx small { font-size: 13px; font-weight: 500; color: var(--muted); }
+.rb-n2 { justify-content: space-between; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rb-n2 > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.rb-kam { flex: none; }
+.rb-n-summa { flex: none; color: var(--ink); font-weight: 600; }
+.rb-chip { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 13px; font-weight: 600; line-height: 1.4; }
+.rb-chip.qimmat { background: var(--kirim-bg); color: var(--kirim); }
+.rb-chip.arzon { background: var(--fill); color: var(--ink); }
+.rb-ogoh { display: flex; gap: 10px; align-items: flex-start; line-height: 1.4; }
+.rb-ogoh .ikon { width: 22px; height: 22px; flex: none; }
+.rb-tasdiq:empty { display: none; }
+.rb-tasdiq-s { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+button.rb-xavf { background: var(--red); color: #FFFFFF; }
+@media (prefers-reduced-motion: reduce) { .rb-seg > button:active, .rb-davr > button:active { opacity: 1; } }
